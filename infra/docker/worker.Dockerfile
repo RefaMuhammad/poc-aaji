@@ -18,7 +18,8 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt -r /tmp/api-requirements
 
 # Unduh model OCR saat build, supaya worker tidak mengunduh saat memproses klaim
 ARG OCR_LANG=latin
-RUN python -c "from paddleocr import PaddleOCR; PaddleOCR(use_angle_cls=True, lang='${OCR_LANG}', show_log=False)"
+# "import zlib" harus sebelum paddleocr (lihat mab_pipeline/ocr/engine.py).
+RUN python -c "import zlib; from paddleocr import PaddleOCR; PaddleOCR(use_angle_cls=True, lang='${OCR_LANG}', show_log=False)"
 
 # Worker memakai model database yang sama dengan API
 COPY apps/api/mab_api /app/mab_api

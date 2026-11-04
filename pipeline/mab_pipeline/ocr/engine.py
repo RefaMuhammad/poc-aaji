@@ -6,6 +6,11 @@ from __future__ import annotations
 
 import logging
 import os
+# Muat modul zlib Python SEBELUM PaddlePaddle. libpaddle.so membawa salinan zlib sendiri
+# dan mengekspor simbol inflate/deflate; bila modul zlib baru dimuat setelahnya (Python
+# di image python:3.11-slim memuatnya terlambat), modul Cython 3.1+ (scipy, pyclipper)
+# gagal diimpor dengan "zlib.error: Error -2 ... inconsistent stream state".
+import zlib  # noqa: F401  (sengaja, lihat di atas)
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -54,7 +59,8 @@ class PaddleOCREngine:
     def available(self) -> bool:
         try:
             import paddleocr  # noqa: F401
-        except ImportError:
+        except Exception as exc:  # ImportError, atau galat impor pustaka native
+            log.warning("PaddleOCR tidak bisa dimuat: %s", exc)
             return False
         return True
 
