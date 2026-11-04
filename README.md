@@ -49,7 +49,7 @@ data/                    (diabaikan git) data referensi dan output sintetis
 ## Status milestone
 
 - [x] M0 Kerangka repo & infrastruktur
-- [ ] M1 Mesin aturan & triase
+- [x] M1 Mesin aturan & triase
 - [ ] M2 Generator data sintetis
 - [ ] M3 API, database, unggah dokumen
 - [ ] M4 Pipeline baca dokumen
@@ -57,6 +57,16 @@ data/                    (diabaikan git) data referensi dan output sintetis
 - [ ] M6 Portal asuransi
 - [ ] M7 Ruang kerja dokter
 - [ ] M8 Evaluasi, seed demo, naskah demo
+
+## Mesin aturan (M1)
+
+Aturan klinis ada di `rules/aturan_klinis_demo.yaml` dan dibaca oleh `pipeline/mab_pipeline/rules/`. Untuk mencoba pada contoh klaim:
+
+```bash
+docker compose run --rm --no-deps api python -m mab_pipeline.rules rules/aturan_klinis_demo.yaml tests/fixtures/contoh_klaim_uji.json
+```
+
+Ekspresi `kondisi` dievaluasi tanpa `eval`: hanya field `kelompok.field`, konstanta, `and/or/not`, perbandingan, dan `len()` yang diizinkan. Ambang triase (bobot keparahan dan `skor_min`) diatur di bagian `triase` YAML.
 
 ## Catatan
 
