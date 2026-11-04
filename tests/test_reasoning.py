@@ -288,3 +288,45 @@ def test_overlapping_claim_triggers_duplicate_rule_and_reprocessing_versions(cli
         recs = db.scalars(select(Recommendation).where(Recommendation.claim_id == claim["id"])).all()
         assert sorted(r.version for r in recs) == [1, 2] and [r.is_current for r in sorted(recs, key=lambda r: r.version)] == [False, True]
         assert db.get(Claim, claim["id"]).status == "AWAITING_DOCTOR"
+
+
+# --- endpoint portal (M6) -------------------------------------------------------------------
+
+
+def test_list_shows_triage_only_when_released_and_filters(client, login, session_factory, storage, mock_llm, ruleset):
+    headers = login("staf")
+    green = _create_and_upload(client, headers, "SYN-GEA-02")
+    red = _create_and_upload(client, headers, "SYN-TIF-06")
+    for c in (green, red):
+        process_claim(c["id"], session_factory=session_factory, storage=storage, llm=mock_llm, ocr=NullOCREngine(), ruleset=ruleset)
+    rows = {r["claim_number"]: r for r in client.get("/claims", headers=headers).json()}
+    assert rows["SYN-GEA-02"]["triage_status"] == "GREEN" and rows["SYN-GEA-02"]["recommendation"] == "PAY_FULL"
+    assert rows["SYN-TIF-06"]["triage_status"] is None and rows["SYN-TIF-06"]["status"] == "AWAITING_DOCTOR"
+    assert [r["claim_number"] for r in client.get("/claims?triage=GREEN", headers=headers).json()] == ["SYN-GEA-02"]
+    detail = client.get(f"/claims/{red['id']}", headers=headers).json()
+    assert detail["awaiting_doctor"] is True and detail["recommendation_available"] is False
+    assert all(d["page_count"] for d in detail["documents"])
+    # dokter melihat triase klaim yang menunggu dokter
+    doc_rows = {r["claim_number"]: r for r in client.get("/claims", headers=login("spesialis")).json()}
+    assert doc_rows["SYN-TIF-06"]["triage_status"] == "RED"
+
+
+def test_page_image_and_recommendation_pdf(client, login, session_factory, storage, mock_llm, ruleset):
+    headers = login("staf")
+    claim = _create_and_upload(client, headers, "SYN-GEA-02")
+    process_claim(claim["id"], session_factory=session_factory, storage=storage, llm=mock_llm, ocr=NullOCREngine(), ruleset=ruleset)
+    doc = client.get(f"/claims/{claim['id']}", headers=headers).json()["documents"][0]
+    r = client.get(f"/documents/{doc['id']}/pages/1.png?dpi=60", headers=headers)
+    assert r.status_code == 200 and r.content[:8] == b"\x89PNG\r\n\x1a\n"
+    assert client.get(f"/documents/{doc['id']}/pages/9.png", headers=headers).status_code == 404
+    assert client.get(f"/documents/{doc['id']}/pages/1.png", headers=login("staf_b")).status_code == 404
+    pdf = client.get(f"/claims/{claim['id']}/recommendation.pdf", headers=headers)
+    assert pdf.status_code == 200 and pdf.content[:5] == b"%PDF-"
+    import pdfplumber, io
+    with pdfplumber.open(io.BytesIO(pdf.content)) as p:
+        text = p.pages[0].extract_text()
+    assert "DATA REKAAN" in text and "SYN-GEA-02" in text and "Bayar penuh" in text
+    # klaim belum ditandatangani dokter: PDF juga tertutup bagi asuransi
+    red = _create_and_upload(client, headers, "SYN-TIF-06")
+    process_claim(red["id"], session_factory=session_factory, storage=storage, llm=mock_llm, ocr=NullOCREngine(), ruleset=ruleset)
+    assert client.get(f"/claims/{red['id']}/recommendation.pdf", headers=headers).status_code == 409

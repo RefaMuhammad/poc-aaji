@@ -7,7 +7,7 @@ import zipfile
 from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -21,6 +21,7 @@ from mab_api.api_schemas import (
     BulkAgreeResult,
     ClaimCreate,
     ClaimDetail,
+    ClaimListItem,
     ClaimOut,
     ClaimStatusOut,
     DecisionCreate,
@@ -36,6 +37,7 @@ from mab_api.api_schemas import (
 from mab_api.config import get_settings
 from mab_api.db import get_db
 from mab_api.deps import get_current_user, get_queue, get_storage, require_roles
+from mab_api.rendering import recommendation_pdf
 from mab_api.documents import InvalidFile, missing_documents, store_document, validate_file
 from mab_api.models import (
     INSURER_ROLES,
@@ -145,18 +147,39 @@ def create_claim(body: ClaimCreate, db: Session = Depends(get_db), user: User = 
     return claim
 
 
-@router.get("", response_model=list[ClaimOut])
+def _visible_rec(claim: Claim, user: User) -> Recommendation | None:
+    rec = _current_recommendation(claim)
+    if rec is None or (Role(user.role) in INSURER_ROLES and not _released_to_insurer(rec)):
+        return None
+    return rec
+
+
+@router.get("", response_model=list[ClaimListItem])
 def list_claims(
     status_filter: str | None = Query(default=None, alias="status"),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
+    triage: str | None = Query(default=None, description="GREEN / YELLOW / RED"),
     user: User = Depends(get_current_user),
-) -> list[Claim]:
+) -> list[ClaimListItem]:
     q = visible_claims_query(user)
     if status_filter:
         q = q.where(Claim.status == status_filter)
-    return list(db.scalars(q.order_by(Claim.created_at.desc()).limit(limit).offset(offset)))
+    out = []
+    for c in db.scalars(q.order_by(Claim.created_at.desc()).limit(limit).offset(offset)):
+        rec = _visible_rec(c, user)
+        if triage and (rec is None or rec.triage_status != triage):
+            continue
+        dec = _latest_decision(c)
+        out.append(ClaimListItem(
+            **ClaimOut.model_validate(c).model_dump(),
+            triage_status=rec.triage_status if rec else None,
+            risk_score=rec.risk_score if rec else None,
+            recommendation=rec.recommendation if rec else None,
+            decision=dec.decision if dec else None,
+        ))
+    return out
 
 
 # --- ekspor & keputusan massal didefinisikan sebelum /{claim_id} -------------------------------
@@ -372,13 +395,17 @@ def upload_batch(
 @router.get("/{claim_id}", response_model=ClaimDetail)
 def get_claim(claim_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> ClaimDetail:
     claim = get_visible_claim(db, user, claim_id)
-    rec = _current_recommendation(claim)
-    show_triage = rec is not None and (Role(user.role) not in INSURER_ROLES or _released_to_insurer(rec))
+    current = _current_recommendation(claim)
+    rec = _visible_rec(claim, user)
+    dec = _latest_decision(claim)
     return ClaimDetail(
         **ClaimOut.model_validate(claim).model_dump(),
         documents=[DocumentOut.model_validate(d) for d in claim.documents],
         missing_documents=missing_documents(claim),
-        triage_status=rec.triage_status if show_triage else None,
+        triage_status=rec.triage_status if rec else None,
+        recommendation_available=rec is not None,
+        awaiting_doctor=current is not None and not _released_to_insurer(current),
+        decision=dec.decision if dec else None,
     )
 
 
@@ -432,6 +459,16 @@ def get_recommendation(claim_id: str, db: Session = Depends(get_db), user: User 
     if Role(user.role) in INSURER_ROLES and not _released_to_insurer(rec):
         raise HTTPException(status.HTTP_409_CONFLICT, "Rekomendasi menunggu telaah dan tanda tangan dokter")
     return build_recommendation_view(claim, rec)
+
+
+@router.get("/{claim_id}/recommendation.pdf")
+def get_recommendation_pdf(claim_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> Response:
+    """Rekomendasi sebagai PDF sederhana (isi sama dengan tampilan portal)."""
+    view = get_recommendation(claim_id, db, user)
+    claim = get_visible_claim(db, user, claim_id)
+    pdf = recommendation_pdf(view.model_dump(mode="json"), {d.id: d.filename for d in claim.documents})
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="rekomendasi_{claim.claim_number}.pdf"'})
 
 
 @router.post("/{claim_id}/decision", response_model=RecommendationOut, status_code=status.HTTP_201_CREATED)
