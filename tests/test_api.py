@@ -11,6 +11,8 @@ from sqlalchemy import select
 
 from mab_api.documents import REQUIRED_INPATIENT_DOCS
 from mab_api.models import AuditLog, Claim, Finding, Recommendation
+from mab_pipeline.llm.mock import MockLLMClient
+from mab_pipeline.ocr.engine import NullOCREngine
 from mab_pipeline.tasks import process_claim
 
 PDF = b"%PDF-1.4\n% data rekaan\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF"
@@ -127,9 +129,11 @@ def test_upload_enqueues_job_and_status_changes(client, login, job_queue, sessio
     assert len(jobs) == 1 and jobs[0].args == (claim["id"],)
     assert jobs[0].func_name == "mab_pipeline.tasks.process_claim"
 
-    # worker menjalankan job -> status berubah
-    process_claim(claim["id"], session_factory=session_factory)
-    assert client.get(f"/claims/{claim['id']}/status", headers=login("staf")).json()["status"] == "PROCESSING"
+    # worker menjalankan job -> status berubah. PDF uji ini bukan PDF utuh, jadi klaim
+    # ditandai FAILED dengan pesan yang jelas (tes pipeline lengkap ada di test_pipeline.py).
+    process_claim(claim["id"], session_factory=session_factory, storage=storage, llm=MockLLMClient(), ocr=NullOCREngine())
+    body = client.get(f"/claims/{claim['id']}/status", headers=login("staf")).json()
+    assert body["status"] == "FAILED" and "Tidak ada dokumen yang bisa dibuka" in body["processing_error"]
 
 
 def test_missing_documents_are_listed(client, login):

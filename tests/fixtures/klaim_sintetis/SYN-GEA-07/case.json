@@ -1,0 +1,344 @@
+{
+  "claim_id": "SYN-GEA-07",
+  "label": "DATA REKAAN UNTUK DEMONSTRASI",
+  "scenario": {
+    "claim_id": "SYN-GEA-07",
+    "icd10": "A09",
+    "kategori": "bermasalah",
+    "deskripsi": "GEA dehidrasi berat, diberi antibiotik tanpa indikasi",
+    "pasien": {
+      "usia": 41,
+      "jk": "P"
+    },
+    "lama_rawat": 3,
+    "klinis": {
+      "dehydration": "berat",
+      "persistent_vomiting": true,
+      "daldiyono_score": 4
+    },
+    "terapi": {
+      "infus_hari": 2,
+      "antibiotik": "Sefiksim"
+    },
+    "harapan": {
+      "status": "YELLOW",
+      "aturan": [
+        "GEA-03"
+      ]
+    }
+  },
+  "dx_group": "gea",
+  "icd10": "A09",
+  "secondary_icd10": [],
+  "hospital": {
+    "key": "rs_c",
+    "name": "RS Mitra Medika Nusantara",
+    "city": "Kota Fiktif Timur",
+    "style": "c",
+    "date_format": "indo",
+    "labels": {
+      "plt": "Trombosit (PLT)",
+      "hct": "Hematokrit (HCT)",
+      "hb": "Hemoglobin (Hb)",
+      "wbc": "Leukosit (WBC)"
+    }
+  },
+  "doctor": "dr. Yudha Prasetyo, Sp.PD",
+  "patient": {
+    "name": "Maya Permana",
+    "sex": "P",
+    "age": 41,
+    "mrn": "RM-716041",
+    "member_id": "PST-86884599",
+    "policy_no": "POL-DEMO-7109"
+  },
+  "admission_date": "2026-05-19",
+  "discharge_date": "2026-05-22",
+  "documents": [
+    "resume_medis",
+    "hasil_laboratorium",
+    "cppt",
+    "rincian_tagihan"
+  ],
+  "labs": [
+    {
+      "type": "darah_lengkap",
+      "day": 1,
+      "date": "2026-05-19",
+      "time": "07:00",
+      "values": {
+        "hb": 13.7,
+        "hct": 41.0,
+        "wbc": 7.6,
+        "plt": 278000
+      }
+    },
+    {
+      "type": "elektrolit",
+      "day": 1,
+      "date": "2026-05-19",
+      "time": "07:00",
+      "values": {
+        "na": 132,
+        "k": 3.2,
+        "cl": 98
+      }
+    },
+    {
+      "type": "feses",
+      "day": 1,
+      "date": "2026-05-19",
+      "time": "10:00",
+      "values": {
+        "pathogen": false
+      }
+    }
+  ],
+  "treatment": {
+    "iv_days": [
+      1,
+      2
+    ],
+    "meds": [
+      {
+        "name": "Oralit",
+        "kind": "oralit",
+        "days": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "name": "Zinc 20 mg",
+        "kind": "zinc",
+        "days": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "name": "Sefiksim 200 mg",
+        "kind": "antibiotik_gea",
+        "days": [
+          1,
+          2,
+          3
+        ],
+        "drug": "Sefiksim"
+      }
+    ]
+  },
+  "clinical": {
+    "comorbidities": [],
+    "days_after_discharge_criteria": 0,
+    "dehydration": "berat",
+    "shock": false,
+    "persistent_vomiting": true,
+    "poor_general_condition": false,
+    "bloody_diarrhea": false,
+    "suspected_cholera": false,
+    "daldiyono_score": 4
+  },
+  "cppt": [
+    {
+      "day": 1,
+      "date": "2026-05-19",
+      "S": "BAB cair 6x/hari sejak 1 hari; muntah setiap diberi minum",
+      "O": "TD 110/70 mmHg, nadi 96x/menit, suhu 38.6 C; Mata sangat cekung, turgor kulit kembali sangat lambat, malas minum; kesan dehidrasi berat; Skor Daldiyono: 4",
+      "A": "Diare dan gastroenteritis yang diduga infeksi",
+      "P": "Terapi: infus RL, oralit, zinc, Sefiksim 200 mg",
+      "meds": [
+        "infus RL",
+        "oralit",
+        "zinc",
+        "Sefiksim 200 mg"
+      ]
+    },
+    {
+      "day": 2,
+      "date": "2026-05-20",
+      "S": "Tidak ada keluhan baru",
+      "O": "TD 110/70 mmHg, nadi 96x/menit, suhu 38.6 C",
+      "A": "Diare dan gastroenteritis yang diduga infeksi",
+      "P": "Terapi: infus RL, oralit, zinc, Sefiksim 200 mg",
+      "meds": [
+        "infus RL",
+        "oralit",
+        "zinc",
+        "Sefiksim 200 mg"
+      ]
+    },
+    {
+      "day": 3,
+      "date": "2026-05-21",
+      "S": "Tidak ada keluhan baru",
+      "O": "TD 110/70 mmHg, nadi 96x/menit, suhu 36.8 C",
+      "A": "Kondisi membaik",
+      "P": "BAB lembek 1-2x/hari, tidak muntah, minum baik. Pasien layak pulang.",
+      "meds": []
+    }
+  ],
+  "billing": [
+    {
+      "date": "2026-05-19",
+      "time": "00:00",
+      "name": "Kamar rawat inap kelas 1",
+      "qty": 1,
+      "price": 450000
+    },
+    {
+      "date": "2026-05-19",
+      "time": "07:00",
+      "name": "Elektrolit (Na, K, Cl)",
+      "qty": 1,
+      "price": 180000
+    },
+    {
+      "date": "2026-05-19",
+      "time": "07:00",
+      "name": "Pemeriksaan Darah Lengkap",
+      "qty": 1,
+      "price": 95000
+    },
+    {
+      "date": "2026-05-19",
+      "time": "08:00",
+      "name": "Cairan infus Ringer Laktat 500 ml",
+      "qty": 3,
+      "price": 65000
+    },
+    {
+      "date": "2026-05-19",
+      "time": "08:00",
+      "name": "Oralit",
+      "qty": 1,
+      "price": 5000
+    },
+    {
+      "date": "2026-05-19",
+      "time": "08:00",
+      "name": "Sefiksim 200 mg",
+      "qty": 1,
+      "price": 40000
+    },
+    {
+      "date": "2026-05-19",
+      "time": "08:00",
+      "name": "Zinc 20 mg",
+      "qty": 1,
+      "price": 6000
+    },
+    {
+      "date": "2026-05-19",
+      "time": "09:00",
+      "name": "Visite dokter spesialis",
+      "qty": 1,
+      "price": 150000
+    },
+    {
+      "date": "2026-05-19",
+      "time": "10:00",
+      "name": "Feses Rutin",
+      "qty": 1,
+      "price": 70000
+    },
+    {
+      "date": "2026-05-20",
+      "time": "00:00",
+      "name": "Kamar rawat inap kelas 1",
+      "qty": 1,
+      "price": 450000
+    },
+    {
+      "date": "2026-05-20",
+      "time": "08:00",
+      "name": "Cairan infus Ringer Laktat 500 ml",
+      "qty": 3,
+      "price": 65000
+    },
+    {
+      "date": "2026-05-20",
+      "time": "08:00",
+      "name": "Oralit",
+      "qty": 1,
+      "price": 5000
+    },
+    {
+      "date": "2026-05-20",
+      "time": "08:00",
+      "name": "Sefiksim 200 mg",
+      "qty": 1,
+      "price": 40000
+    },
+    {
+      "date": "2026-05-20",
+      "time": "08:00",
+      "name": "Zinc 20 mg",
+      "qty": 1,
+      "price": 6000
+    },
+    {
+      "date": "2026-05-20",
+      "time": "09:00",
+      "name": "Visite dokter spesialis",
+      "qty": 1,
+      "price": 150000
+    },
+    {
+      "date": "2026-05-21",
+      "time": "00:00",
+      "name": "Kamar rawat inap kelas 1",
+      "qty": 1,
+      "price": 450000
+    },
+    {
+      "date": "2026-05-21",
+      "time": "08:00",
+      "name": "Oralit",
+      "qty": 1,
+      "price": 5000
+    },
+    {
+      "date": "2026-05-21",
+      "time": "08:00",
+      "name": "Sefiksim 200 mg",
+      "qty": 1,
+      "price": 40000
+    },
+    {
+      "date": "2026-05-21",
+      "time": "08:00",
+      "name": "Zinc 20 mg",
+      "qty": 1,
+      "price": 6000
+    },
+    {
+      "date": "2026-05-21",
+      "time": "09:00",
+      "name": "Visite dokter spesialis",
+      "qty": 1,
+      "price": 150000
+    }
+  ],
+  "billing_total": 2688000,
+  "resume": {
+    "chief_complaint": "Diare dan muntah",
+    "primary_dx": "A09 Diare dan gastroenteritis yang diduga infeksi",
+    "secondary_dx": [],
+    "supporting_findings": [
+      "Trombosit terendah 278.000/uL"
+    ],
+    "therapy": [
+      "infus RL 2 hari",
+      "Oralit",
+      "Sefiksim 200 mg",
+      "Zinc 20 mg"
+    ],
+    "discharge_condition": "Membaik, diizinkan pulang"
+  },
+  "undocumented_billed_items": [],
+  "overlapping_claims": [],
+  "scanned": false
+}

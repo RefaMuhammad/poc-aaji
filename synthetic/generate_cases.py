@@ -24,6 +24,10 @@ from typing import Any
 
 import yaml
 
+from mab_pipeline.extraction.derived_fields import derive, to_claim_dict
+from mab_pipeline.extraction.facts import ClaimFacts
+from mab_pipeline.llm.mock import case_to_facts
+
 ROOT = Path(__file__).resolve().parents[1]
 SCENARIOS_FILE = Path(__file__).with_name("scenarios.yaml")
 DEFAULT_OUTPUT = ROOT / "data" / "synthetic_output"
@@ -308,6 +312,7 @@ def _cppt(ctx: Context, clin: dict, labs: list[dict], tx: dict) -> list[dict]:
         o: list[str] = [_vital(ctx, clin, d)]
         a: list[str] = []
         p: list[str] = []
+        meds: list[str] = []  # obat/cairan yang tertulis di bagian P hari itu
         if ctx.group == "dengue":
             if d == 1:
                 s.append("Demam tinggi 3 hari, nyeri kepala, nyeri otot")
@@ -330,6 +335,7 @@ def _cppt(ctx: Context, clin: dict, labs: list[dict], tx: dict) -> list[dict]:
             if d < discharge_ready_day:
                 a.append(DX_NAMES[ctx.scenario["icd10"]])
                 p.append("Infus kristaloid, pantau tanda vital dan darah lengkap")
+                meds.append("Infus kristaloid")
             elif d == discharge_ready_day:
                 a.append("Kondisi membaik")
                 p.append("Bebas demam > 48 jam, trombosit cenderung naik, hematokrit stabil tanpa infus. Pasien layak pulang.")
@@ -348,6 +354,7 @@ def _cppt(ctx: Context, clin: dict, labs: list[dict], tx: dict) -> list[dict]:
                 a.append("Demam tifoid")
                 plan = [m["name"] for m in tx["meds"] if d in m["days"] and m["kind"] in ("seftriakson", "kuinolon")]
                 p.append("Terapi: " + (", ".join(plan) if plan else "lanjut obat oral") + "; diet lunak")
+                meds += plan
             elif d == discharge_ready_day:
                 a.append("Kondisi membaik")
                 p.append("Bebas demam > 48 jam, nafsu makan baik. Pasien layak pulang.")
@@ -384,6 +391,7 @@ def _cppt(ctx: Context, clin: dict, labs: list[dict], tx: dict) -> list[dict]:
                     plan.insert(0, "infus RL")
                 plan += [m["name"] for m in tx["meds"] if m["kind"] == "antibiotik_gea" and d in m["days"]]
                 p.append("Terapi: " + ", ".join(plan))
+                meds += [m for item in plan for m in item.split(", ")]
             elif d == discharge_ready_day:
                 a.append("Kondisi membaik")
                 p.append("BAB lembek 1-2x/hari, tidak muntah, minum baik. Pasien layak pulang.")
@@ -391,7 +399,7 @@ def _cppt(ctx: Context, clin: dict, labs: list[dict], tx: dict) -> list[dict]:
                 a.append("Kondisi baik")
                 p.append("Pasien masih dirawat, keadaan umum baik, tidak ada keluhan baru. Observasi.")
 
-        notes.append({"day": d, "date": ctx.day(d).isoformat(), "S": "; ".join(s) or "Tidak ada keluhan baru", "O": "; ".join(o), "A": "; ".join(a), "P": "; ".join(p)})
+        notes.append({"day": d, "date": ctx.day(d).isoformat(), "S": "; ".join(s) or "Tidak ada keluhan baru", "O": "; ".join(o), "A": "; ".join(a), "P": "; ".join(p), "meds": meds})
     # Tindakan di tagihan tanpa catatan klinis sengaja TIDAK disebut di CPPT.
     assert not any(proc in json.dumps(notes, ensure_ascii=False) for proc in extra_procs)
     return notes
@@ -473,83 +481,28 @@ def _resume(ctx: Context, clin: dict, labs: list[dict], tx: dict) -> dict:
 
 
 def derive_ground_truth(case: dict) -> dict:
-    """Hitung nilai field kamus data dari isi dokumen + kebenaran klinis."""
-    docs = set(case["documents"])
-    labs = case["labs"] if "hasil_laboratorium" in docs else []
-    billing = case["billing"] if "rincian_tagihan" in docs else None
-    clin = case["clinical"]
-    tx = case["treatment"]
-    admit = date.fromisoformat(case["admission_date"])
-    discharge = date.fromisoformat(case["discharge_date"])
+    """Nilai benar field kamus data.
 
-    def lab_result(kind: str) -> str | None:
-        r = next((x for x in labs if x["type"] == kind), None)
-        return r["values"]["result"] if r else None
-
-    cbcs = [r for r in labs if r["type"] == "darah_lengkap"]
-    per_day: dict[str, int] = {}
-    for r in cbcs:
-        per_day[r["date"]] = per_day.get(r["date"], 0) + 1
-    hcts = [r["values"]["hct"] for r in cbcs]
-    widals = [r for r in labs if r["type"] == "widal"]
-    feses = next((r for r in labs if r["type"] == "feses"), None)
-
-    meds_kinds = {m["kind"] for m in tx["meds"]}
-    cef = next((m for m in tx["meds"] if m["kind"] == "seftriakson"), None)
-    dup = None
-    if billing is not None:
-        keys = [(it["name"], it["date"], it["time"]) for it in billing]
-        dup = len(keys) - len(set(keys))
-
-    lab_group = {
-        "platelet_min": min(r["values"]["plt"] for r in cbcs) if cbcs else None,
-        "hct_rise_pct": round((max(hcts) - min(hcts)) / min(hcts) * 100, 1) if hcts else None,
-        "dengue_ns1": lab_result("ns1"),
-        "dengue_igm": lab_result("igm"),
-        "cbc_max_per_day": max(per_day.values()) if per_day else None,
-        "widal_tests": len(widals) if labs else None,
-        "widal_o_max_titer": max(r["values"]["o"] for r in widals) if widals else None,
-        "widal_fourfold_rise": None,
-        "blood_culture_typhi": lab_result("kultur"),
-        "typhi_rapid": lab_result("tes_cepat"),
-        "stool_pathogen": feses["values"]["pathogen"] if feses else None,
-    }
-    group = case["dx_group"]
-    # Field lab yang tidak relevan untuk diagnosis ini dibiarkan None (tidak diperiksa)
-    if group != "dengue":
-        lab_group["hct_rise_pct"] = None
-    if group == "tifoid" and labs:
-        lab_group["widal_fourfold_rise"] = len(widals) >= 2 and widals[-1]["values"]["o"] >= 4 * widals[0]["values"]["o"]
-    else:
-        lab_group["widal_tests"] = None
-        lab_group["widal_fourfold_rise"] = None
-    if group != "gea":
-        lab_group["stool_pathogen"] = None
-
-    return {
-        "claim_id": case["claim_id"],
-        "claim": {
-            "care_type": "inpatient",
-            "los_days": (discharge - admit).days,
-            "patient_age": case["patient"]["age"],
-        },
-        "dx": {"primary": case["icd10"], "secondary": list(case["secondary_icd10"])},
-        "lab": lab_group,
-        "clin": clin,
-        "tx": {
-            "iv_fluid_days": len(tx["iv_days"]),
-            "antibiotic_given": bool(meds_kinds & {"seftriakson", "kuinolon", "antibiotik_gea"}),
-            "ceftriaxone_days": len(cef["days"]) if cef else (0 if group == "tifoid" else None),
-            "fluoroquinolone_given": "kuinolon" in meds_kinds
-            or any(m.get("drug") in ("Siprofloksasin", "Levofloksasin", "Ofloksasin") for m in tx["meds"]),
-        },
-        "bill": {
-            "duplicate_items": dup,
-            "items_without_clinical_note": len(case["undocumented_billed_items"]) if billing is not None else None,
-        },
-        "docs": {"missing": [d for d in REQUIRED_DOCS if d not in docs]},
-        "history": {"overlapping_claims": len(case["overlapping_claims"])},
-    }
+    Field dokumen/hitung dihitung dari isi dokumen yang benar-benar dilampirkan, memakai
+    fungsi yang sama dengan pipeline (mab_pipeline.extraction.derived_fields.derive).
+    Field ai diambil dari kebenaran klinis skenario; history dari skenario riwayat.
+    """
+    facts_by_doc = case_to_facts(case)
+    facts = ClaimFacts.model_validate(
+        {
+            "documents_present": case["documents"],
+            "resume": facts_by_doc.get("resume_medis"),
+            "labs": facts_by_doc.get("hasil_laboratorium"),
+            "billing": facts_by_doc.get("rincian_tagihan"),
+            "cppt": facts_by_doc.get("cppt"),
+        }
+    )
+    truth: dict[str, Any] = {"claim_id": case["claim_id"], **to_claim_dict(derive(facts, REQUIRED_DOCS))}
+    truth["clin"] = case["clinical"]
+    has_billing = "rincian_tagihan" in case["documents"]
+    truth["bill"]["items_without_clinical_note"] = len(case["undocumented_billed_items"]) if has_billing else None
+    truth["history"] = {"overlapping_claims": len(case["overlapping_claims"])}
+    return truth
 
 
 # ----------------------------------------------------------------------------- utama

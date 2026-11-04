@@ -36,6 +36,7 @@ class ClaimStatus(str, Enum):
     RECEIVED = "RECEIVED"                    # diterima, belum ada dokumen diproses
     QUEUED = "QUEUED"                        # dokumen masuk, menunggu worker
     PROCESSING = "PROCESSING"                # diproses
+    EXTRACTED = "EXTRACTED"                  # dokumen terbaca, field terisi (M4); penalaran klinis menyusul (M5)
     AWAITING_DOCTOR = "AWAITING_DOCTOR"      # menunggu dokter
     AWAITING_DECISION = "AWAITING_DECISION"  # menunggu keputusan asuransi
     COMPLETED = "COMPLETED"                  # selesai

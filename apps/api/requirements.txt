@@ -16,3 +16,8 @@ openpyxl==3.1.5
 python-multipart==0.0.20
 fakeredis==2.26.2
 pytest==8.3.4
+# Modul pipeline baca dokumen ikut diuji di container api (tanpa PaddleOCR)
+pdfplumber==0.11.4
+pypdfium2==4.30.0
+pillow==11.1.0
+numpy==1.26.4
