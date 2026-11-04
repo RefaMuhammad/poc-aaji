@@ -51,7 +51,7 @@ data/                    (diabaikan git) data referensi dan output sintetis
 - [x] M0 Kerangka repo & infrastruktur
 - [x] M1 Mesin aturan & triase
 - [x] M2 Generator data sintetis
-- [ ] M3 API, database, unggah dokumen
+- [x] M3 API, database, unggah dokumen
 - [ ] M4 Pipeline baca dokumen
 - [ ] M5 Penalaran klinis, cek bukti, rekomendasi
 - [ ] M6 Portal asuransi
@@ -83,6 +83,32 @@ Hasilnya di `data/synthetic_output/` (tidak masuk git):
 - `ground_truth.json`: nilai field kamus data yang benar per klaim, untuk mengukur akurasi ekstraksi di M4.
 
 Skenario ada di `synthetic/scenarios.yaml` (16 wajar, 14 bermasalah termasuk 2 dokumen tidak lengkap dan 1 klaim duplikat). Semua nama pasien, dokter, dan rumah sakit fiktif, dan setiap halaman diberi tanda "DATA REKAAN".
+
+## API (M3)
+
+Migrasi database berjalan otomatis saat container `api` menyala. Buat akun demo sekali:
+
+```bash
+make seed-users
+# tanpa make:
+docker compose exec api python infra/scripts/seed_users.py
+```
+
+| Peran | Email | Password |
+|---|---|---|
+| Staf klaim asuransi | staf@demo.test | demo12345 |
+| Manajer klaim | manajer@demo.test | demo12345 |
+| Dokter umum | dokter.umum@mab.test | demo12345 |
+| Dokter spesialis | dokter.spesialis@mab.test | demo12345 |
+| Admin MAB | admin@mab.test | demo12345 |
+
+Dokumentasi interaktif: http://localhost:8000/docs (klik **Authorize**, tempel token dari `POST /auth/login`).
+
+Endpoint utama: `POST /claims`, `POST /claims/{id}/documents` (PDF/JPG/PNG maks. 20 MB), `POST /claims/batch` (ZIP berisi `manifest.xlsx` + satu folder per klaim), `GET /claims`, `GET /claims/{id}`, `GET /claims/{id}/status`, `GET /claims/{id}/recommendation`, `POST /claims/{id}/decision`, `POST /claims/decisions/bulk-agree`, `GET /claims/export.csv`, `GET /documents/{id}/download`, `GET /users` (admin).
+
+Kolom `manifest.xlsx`: `folder, nomor_klaim, nomor_polis, id_peserta, nama_peserta, nama_rs, tanggal_masuk, tanggal_keluar, nilai_tagihan`.
+
+Aturan akses: staf/manajer hanya melihat klaim asuransinya; dokter melihat klaim yang ditugaskan kepadanya atau yang menunggu dokter; rekomendasi selain bayar penuh baru terlihat oleh asuransi setelah ditandatangani dokter. Semua aksi tulis, login, dan akses dokumen tercatat di `audit_logs`, yang di PostgreSQL tidak bisa diubah atau dihapus (trigger).
 
 ## Catatan
 
