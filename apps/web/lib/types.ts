@@ -218,3 +218,31 @@ export interface RulesetInfo {
   triage: { jika: string; status: Triage; rekomendasi_awal: string }[];
   reason_codes: Record<string, string>;
 }
+
+// --- Dashboard (M8) ---
+
+export interface CountItem {
+  key: string;
+  label: string | null;
+  count: number;
+  amount: number | null;
+}
+
+export interface Dashboard {
+  label: string;
+  total_claims: number;
+  by_status: CountItem[];
+  by_triage: CountItem[];
+  by_recommendation: CountItem[];
+  awaiting_doctor: number;
+  billed_total: number;
+  recommended_total: number;
+  correction_total: number;
+  top_findings: CountItem[];
+  top_hospitals: CountItem[];
+  avg_processing_seconds: number | null;
+  decisions: CountItem[];
+  doctor_reviews: number;
+  doctor_agreement_pct: number | null;
+  avg_review_seconds: number | null;
+}

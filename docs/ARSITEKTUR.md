@@ -1,0 +1,392 @@
+# Arsitektur MAB Indonesia POC (Tahap 0)
+
+> **Data rekaan untuk demonstrasi.** Dokumen ini menjelaskan cara sistem dibangun. Cara menjalankan dan demo ada di [README](../README.md).
+
+Daftar isi:
+
+1. [Gambaran umum](#1-gambaran-umum)
+2. [Teknologi yang dipakai](#2-teknologi-yang-dipakai)
+3. [Service dan deployment lokal](#3-service-dan-deployment-lokal)
+4. [Alur data end-to-end](#4-alur-data-end-to-end)
+5. [Pipeline baca dan nilai klaim (worker)](#5-pipeline-baca-dan-nilai-klaim-worker)
+6. [Mesin aturan klinis](#6-mesin-aturan-klinis)
+7. [Lapisan LLM](#7-lapisan-llm)
+8. [API backend](#8-api-backend)
+9. [Model data](#9-model-data)
+10. [Status klaim dan versi rekomendasi](#10-status-klaim-dan-versi-rekomendasi)
+11. [Frontend web](#11-frontend-web)
+12. [Keamanan, akses, dan audit](#12-keamanan-akses-dan-audit)
+13. [Keterlacakan dan versi](#13-keterlacakan-dan-versi)
+14. [Data sintetis dan evaluasi](#14-data-sintetis-dan-evaluasi)
+15. [Pengujian](#15-pengujian)
+16. [Keputusan desain dan batasan](#16-keputusan-desain-dan-batasan)
+
+---
+
+## 1. Gambaran umum
+
+Sistem terdiri dari tiga aplikasi (web, API, worker) dan tiga layanan pendukung (PostgreSQL, Redis, MinIO), semuanya dijalankan dengan Docker Compose.
+
+```mermaid
+flowchart LR
+    subgraph Browser
+        U1[Staf / manajer asuransi]
+        U2[Dokter umum / spesialis]
+        U3[Admin MAB]
+    end
+
+    subgraph web["web (Next.js, :3000)"]
+        UI[Halaman portal, ruang kerja dokter, admin, dashboard]
+        PX["Proxy /api/* (route handler)"]
+    end
+
+    subgraph api["api (FastAPI, :8000)"]
+        R[Router: auth, claims, documents, review, dashboard, admin, users]
+        AU[Middleware audit]
+    end
+
+    subgraph worker["worker (RQ)"]
+        P[Pipeline: ingest → OCR → klasifikasi → ekstraksi LLM → field turunan → penalaran klinis → cek bukti → aturan → rekomendasi]
+    end
+
+    PG[(PostgreSQL 16)]
+    RD[(Redis 7: antrean)]
+    S3[(MinIO: file dokumen)]
+    LLM{{"LLM: mock / DeepSeek / server kompatibel OpenAI"}}
+    RULES[/rules/aturan_klinis_demo.yaml/]
+
+    U1 & U2 & U3 --> UI --> PX --> R
+    R --> PG
+    R --> S3
+    R -- enqueue process_claim --> RD
+    RD --> P
+    P --> S3
+    P --> PG
+    P --> LLM
+    RULES --> P
+    RULES --> R
+    AU --> PG
+```
+
+Pembagian tanggung jawab:
+
+| Bagian | Tanggung jawab |
+|---|---|
+| **web** | Semua layar pengguna. Tidak menyimpan data apa pun selain token login di `localStorage`. Meneruskan semua panggilan API lewat `/api/*`. |
+| **api** | Autentikasi, aturan akses per peran, simpan klaim dan dokumen, kirim job ke antrean, alur telaah dokter, keputusan asuransi, ekspor, dashboard, log audit. Tidak menjalankan OCR/LLM. |
+| **worker** | Satu job per klaim (`mab_pipeline.tasks.process_claim`): membaca dokumen dari MinIO, menjalankan pipeline, menulis field, temuan, dan draf rekomendasi ke PostgreSQL. |
+| **PostgreSQL** | Sumber kebenaran: pengguna, klaim, dokumen (metadata), field ekstraksi, rekomendasi berversi, temuan, telaah, keputusan, audit. |
+| **Redis** | Antrean RQ `claims`. |
+| **MinIO** | File asli (PDF/JPG/PNG), disimpan dengan kunci `insurer_id/claim_id/document_id/nama_file`. |
+
+## 2. Teknologi yang dipakai
+
+| Lapisan | Teknologi (versi terkunci) | Dipakai untuk |
+|---|---|---|
+| Frontend | Next.js 14.2.35 (App Router), React 18.3.1, TypeScript 5.7 (strict), Tailwind CSS 3.4 | Portal asuransi, ruang kerja dokter, admin, dashboard |
+| API | Python 3.11, FastAPI 0.115.6, Uvicorn 0.34, Pydantic 2.10 + pydantic-settings 2.7 | REST API, validasi request/response, konfigurasi dari `.env` |
+| ORM / migrasi | SQLAlchemy 2.0.36 (typed `Mapped[...]`), Alembic 1.14, psycopg 3.2 | Model data, migrasi skema, trigger audit |
+| Autentikasi | PyJWT 2.10 (HS256), PBKDF2-SHA256 240.000 iterasi (stdlib `hashlib`) | Token login 8 jam, hash password dan PIN tanda tangan |
+| Antrean | Redis 7, RQ 2.1 | Job proses klaim di latar belakang (timeout 900 detik) |
+| Penyimpanan file | MinIO (S3-compatible, image `bitnamilegacy/minio`), boto3 1.35 | File dokumen klaim |
+| Database | PostgreSQL 16 | Data aplikasi |
+| Baca PDF | pdfplumber 0.11.4 | Teks + koordinat dari PDF digital |
+| Render halaman | pypdfium2 4.30, Pillow 11.1, NumPy 1.26 | PDF pindaian → gambar 200 DPI untuk OCR; gambar pratinjau halaman |
+| OCR | PaddleOCR 2.9.1 + paddlepaddle 2.6.2 (CPU), model `latin` | Teks dari halaman pindaian (hanya di image worker) |
+| Pencocokan bukti | rapidfuzz 3.11 | Fuzzy match kutipan LLM ke teks dokumen |
+| LLM | Klien HTTP sendiri di atas httpx 0.28 (API kompatibel OpenAI, `response_format: json_object`) | Klasifikasi dokumen, ekstraksi, penalaran klinis |
+| Aturan | PyYAML 6.0 + evaluator ekspresi aman berbasis `ast` | Aturan klinis sebagai konfigurasi |
+| PDF rekomendasi | fpdf2 2.8.2 + font DejaVu | Unduhan rekomendasi untuk asuransi |
+| Excel | openpyxl 3.1 | Membaca `manifest.xlsx` unggah massal |
+| Data sintetis | Jinja2 3.1 + WeasyPrint 63 (HTML → PDF), Pillow/NumPy (efek pindaian) | 30 klaim rekaan, PDF digital dan pindaian |
+| Tes | pytest 8.3, fakeredis, SQLite in-memory, FastAPI TestClient | Tes otomatis tanpa Docker |
+| Kontainer | Docker Compose v2 | Semua service dalam satu perintah |
+
+## 3. Service dan deployment lokal
+
+`docker-compose.yml` mendefinisikan:
+
+| Service | Image / Dockerfile | Port | Volume / mount | Catatan |
+|---|---|---|---|---|
+| `postgres` | `postgres:16-alpine` | 5432 | volume `pgdata` | healthcheck `pg_isready` |
+| `redis` | `redis:7-alpine` | 6379 | - | healthcheck `redis-cli ping` |
+| `minio` | `bitnamilegacy/minio` | 9000 | volume `miniodata` | hanya API S3, tanpa console |
+| `api` | `infra/docker/api.Dockerfile` (python:3.11-slim) | 8000 | kode, `rules/`, `data/`, `evaluation/`, `tests/` di-mount | `alembic upgrade head` lalu `uvicorn --reload` |
+| `worker` | `infra/docker/worker.Dockerfile` | - | kode, `rules/`, `data/`, `evaluation/` | PaddleOCR + modelnya diunduh saat build |
+| `web` | `infra/docker/web.Dockerfile` (node:20-alpine, build `standalone`) | 3000 | - | `API_INTERNAL_URL=http://api:8000` |
+| `synthetic` | `infra/docker/synthetic.Dockerfile` | - | `synthetic/`, `data/` | profil `tools`, hanya dijalankan manual |
+
+Semua konfigurasi backend dibaca dari `.env` (template `.env.example`): koneksi database, Redis, MinIO, `JWT_SECRET`, `RULES_PATH`, `LLM_PROVIDER`/`LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL`, `OCR_ENGINE`/`OCR_LANG`. `.env` diabaikan git.
+
+`make reset` menjalankan `docker compose down -v` (menghapus volume `pgdata` dan `miniodata`), menyalakan ulang, lalu `infra/scripts/seed_demo.py`.
+
+## 4. Alur data end-to-end
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor S as Staf asuransi
+    participant W as web
+    participant A as api
+    participant M as MinIO
+    participant Q as Redis/RQ
+    participant K as worker
+    participant D as PostgreSQL
+    actor Dr as Dokter
+
+    S->>W: Isi formulir + lampirkan PDF
+    W->>A: POST /claims
+    A->>D: INSERT claims (RECEIVED)
+    W->>A: POST /claims/{id}/documents (multipart)
+    A->>A: validasi tipe (magic bytes) & ukuran, nama file aman
+    A->>M: simpan file
+    A->>D: INSERT documents (+sha256), status QUEUED
+    A->>Q: enqueue process_claim(claim_id)
+    K->>Q: ambil job
+    K->>D: status PROCESSING
+    K->>M: unduh dokumen
+    K->>K: pipeline (lihat bagian 5)
+    K->>D: extracted_fields, recommendations v1 (DRAFT), findings, audit PIPELINE_COMPLETED
+    K->>D: status AWAITING_DECISION (hijau) atau AWAITING_DOCTOR
+    W->>A: polling GET /claims/{id}/status
+    Dr->>W: Antrean telaah → buka kasus
+    W->>A: POST /review/{id}/start, PATCH fields, POST /review/{id}/sign (PIN)
+    A->>D: reviews, recommendations v2 (SIGNED), status AWAITING_DECISION
+    S->>W: Buka klaim → lihat rekomendasi final
+    W->>A: POST /claims/{id}/decision
+    A->>D: insurer_decisions, status COMPLETED
+```
+
+## 5. Pipeline baca dan nilai klaim (worker)
+
+Kode di `pipeline/mab_pipeline/`. Titik masuk job: `tasks.process_claim(claim_id)`. Fungsi inti bisa dipanggil tanpa database: `pipeline.read_claim(...)` (membaca dokumen) dan `pipeline.assess_claim(...)` (menilai), dipakai juga oleh skrip evaluasi.
+
+### 5.1 Ingest (`ingest/pdf_loader.py`)
+
+- Setiap halaman PDF dicek: bila punya lapisan teks, dibaca **pdfplumber** sebagai kata + koordinat, lalu dikelompokkan menjadi baris. Karakter watermark miring ("DATA REKAAN") dibuang dengan memeriksa matriks rotasi karakter.
+- Halaman tanpa teks (pindaian) dan file JPG/PNG dirender **200 DPI** dengan pypdfium2.
+- Hasilnya `LoadedDocument → PageContent → TextLine`. Setiap baris punya id stabil `D{n}-P{hal}-L{baris}`, teks, dan **bbox dalam proporsi halaman (0–1)**, sehingga bisa disorot di layar tanpa tahu resolusi aslinya.
+
+### 5.2 Pra-pemrosesan dan OCR (`ingest/image_preprocess.py`, `ocr/engine.py`)
+
+- Median filter (denoise), autocontrast, dan koreksi kemiringan dengan **projection profile** (mencari sudut yang membuat profil baris paling tajam).
+- OCR dengan **PaddleOCR** (`OCR_ENGINE=paddle`, `OCR_LANG=latin`). Kotak kata dari OCR dikelompokkan menjadi baris dengan skor keyakinan.
+- `OCR_ENGINE=none` (`NullOCREngine`) melewati halaman pindaian; halaman itu ditandai `ocr_unavailable` sehingga klaim tidak bisa hijau.
+
+### 5.3 Klasifikasi dokumen (`ingest/doc_classifier.py`)
+
+Urutan: kata kunci pada judul halaman pertama → bila gagal, LLM (prompt `classify_v1`) → bila tetap gagal, tebakan dari nama file. Jenis: `resume_medis`, `hasil_laboratorium`, `cppt`, `rincian_tagihan` (+ `laporan_operasi`, `resep`, `unknown`).
+
+### 5.4 Ekstraksi (`extraction/llm_extractor.py`, `extraction/facts.py`)
+
+- Teks dokumen dikirim sebagai **baris bernomor** (`[D1-P1-L3] ...`) bersama prompt berversi per jenis dokumen (`extraction/prompts/extract_<jenis>_v1.md` + `_common_v1.md`).
+- LLM wajib menjawab JSON dan setiap nilai wajib membawa `source_line_ids`.
+- Jawaban divalidasi model Pydantic (`facts.py`). Bila tidak valid, diulang sekali dengan pesan galatnya; bila tetap gagal, dokumen ditandai gagal (bukan diisi tebakan).
+
+### 5.5 Field turunan (`extraction/derived_fields.py`)
+
+Fungsi `derive(facts, required_docs)` menghitung field kamus data dari fakta mentah: lama rawat, trombosit terendah, kenaikan hematokrit, jumlah darah lengkap per hari, jumlah dan titer Widal, lama seftriakson, hari infus, item tagihan ganda, dokumen wajib yang kurang. **Fungsi yang sama dipakai generator data sintetis** untuk membuat kunci jawaban, jadi definisi field tidak bisa berbeda antara sistem dan evaluasi. Klaim tumpang tindih dihitung dari database (klaim lain peserta yang sama dengan tanggal rawat beririsan).
+
+### 5.6 Penalaran klinis (`reasoning/clinical_reasoner.py`, prompt `clinical_v1`)
+
+- Dari file aturan, sistem tahu field `sumber: ai` mana yang dipakai aturan untuk diagnosis klaim ini (mis. `clin.warning_signs`, `clin.plasma_leakage`, `clin.dehydration`).
+- LLM membaca resume, CPPT, lab, dan tagihan, lalu mengisi field itu. **Setiap nilai positif wajib membawa kutipan persis** dari dokumen.
+
+### 5.7 Cek bukti (`reasoning/evidence_check.py`)
+
+- Setiap kutipan dicocokkan ke teks dokumen dengan rapidfuzz `partial_ratio` **≥ 0,9** pada jendela 1–3 baris berurutan (kutipan boleh melintasi baris).
+- Bila cocok: field berstatus `verified` dan menyimpan bukti `{doc, page, bbox, quote, line_ids, field}`.
+- Bila tidak cocok: kutipan dibuang, nilai menjadi **null = tidak diketahui** (status `unverified`). Nilai "tidak ada" (false/0/daftar kosong) diterima sebagai `absent`.
+
+### 5.8 Aturan dan rekomendasi (`rules/`, `triage/recommender.py`)
+
+1. Fakta klaim (field kamus data) dievaluasi oleh mesin aturan (bagian 6).
+2. Setiap temuan diberi bukti dari field yang dipakai kondisinya. **Temuan yang butuh bukti AI tetapi tidak punya bukti dibuang.**
+3. Skor risiko = jumlah bobot keparahan temuan (maks. 100), status triase dari tabel `triase.aturan_status`.
+4. **Catatan kualitas data** mencegah klaim hijau: dokumen tidak terbaca → kuning/tunda; diagnosis tidak terbaca, AI gagal, kutipan AI tidak terbukti, aturan tidak bisa dinilai, atau temuan dibuang → kuning/perlu telaah dokter.
+5. Usulan koreksi per item tagihan untuk `DUP_ITEM`, `BILLED_NOT_DOCUMENTED`, dan `LOS_EXCESS`.
+6. Rekomendasi awal: `PAY_FULL` (hijau), `PEND` (dokumen kurang/tidak terbaca), atau `DOCTOR_REVIEW`. **Tidak pernah `NOT_COVERED`.**
+7. Draf penjelasan dalam bahasa sederhana, rujukan pedoman, dan versi model/prompt/aturan.
+
+### 5.9 Penyimpanan hasil (`tasks.py`)
+
+Field ke `extracted_fields` (dengan status dan bukti), rekomendasi baru ke `recommendations` (versi lama `is_current=false`), temuan ke `findings`, audit `PIPELINE_COMPLETED`. Bila ada exception: status `FAILED`, pesan galat disimpan, audit `PIPELINE_FAILED`.
+
+## 6. Mesin aturan klinis
+
+File: `rules/aturan_klinis_demo.yaml` (versi `rules-2026.11-demo`, riwayat di `rules/CHANGELOG.md`). Kode: `pipeline/mab_pipeline/rules/`.
+
+| Bagian YAML | Isi |
+|---|---|
+| `version`, `status` | Versi aturan (dicatat di setiap rekomendasi) dan status validasi |
+| `kamus_data` | Semua field yang boleh dipakai aturan: tipe (`angka`, `teks`, `ya_tidak`, `daftar`), sumber (`dokumen`, `hitung`, `ai`), keterangan |
+| `triase` | Bobot keparahan (HIGH 40, MEDIUM 20, LOW 10, INFO 0), tabel status berurutan, dokumen wajib rawat inap |
+| `kode_alasan` | Kode alasan PRD + 5 tambahan, dengan label Indonesia |
+| `aturan_umum` | 4 aturan lintas diagnosis: klaim tumpang tindih, item ganda, dokumen kurang, item tanpa catatan klinis |
+| `diagnosis` | Per diagnosis (dengue A90/A91, tifoid A01.0, GEA A09/A08.4/A04.9/K52.9): ringkasan pedoman, `spesialisasi` penelaah, dan aturan |
+
+Setiap aturan: `id`, `nama`, `kondisi`, `kode_alasan`, `keparahan`, `pesan` (boleh memuat `{field}`), `butuh_ai`, `rujukan`.
+
+**Evaluator ekspresi aman** (`rules/engine.py`): `kondisi` di-parse dengan `ast` dan hanya node yang diizinkan yang boleh dipakai: akses `kelompok.field`, konstanta dan daftar, `and/or/not`, perbandingan (`== != < <= > >=`, `in`, `not in`, `is None`), dan `len()`. Tidak ada `eval`, pemanggilan fungsi lain, atau akses atribut bebas. Saat file dimuat (`rules/loader.py`), semua kesalahan dikumpulkan sekaligus: kunci wajib, id unik, field ada di kamus data, kode alasan dan keparahan dikenal, tabel triase diakhiri baris default. Aturan yang field-nya bernilai null dilewati dan dicatat (`RULE_SKIPPED`), bukan dianggap lolos.
+
+Uji aturan dari baris perintah:
+
+```bash
+docker compose run --rm --no-deps api python -m mab_pipeline.rules rules/aturan_klinis_demo.yaml tests/fixtures/contoh_klaim_uji.json
+```
+
+## 7. Lapisan LLM
+
+`pipeline/mab_pipeline/llm/client.py` mendefinisikan satu antarmuka:
+
+```python
+class LLMClient(Protocol):
+    model_version: str
+    def complete_json(self, system: str, user: str, *, task: str, context: dict) -> str: ...
+```
+
+| `LLM_PROVIDER` | Implementasi | Keterangan |
+|---|---|---|
+| `mock` (bawaan) | `MockLLMClient` (`llm/mock.py`) | Menjawab dari `data/synthetic_output/<nomor_klaim>/case.json`, mencari id baris yang cocok di teks dokumen (tidak peka spasi). Untuk tes, demo, dan pengembangan tanpa API key. |
+| `deepseek` | `OpenAICompatibleClient` | `https://api.deepseek.com`, model `deepseek-chat`, `temperature 0`, `response_format: json_object`, retry 2x |
+| `openai_compatible` | `OpenAICompatibleClient` | Server lain yang kompatibel OpenAI (`LLM_BASE_URL`, `LLM_MODEL`) |
+
+Tiga tugas memakai LLM: `classify` (`classify_v1`), `extract` (`extract_v1`), `reason` (`clinical_v1`). Prompt disimpan sebagai file Markdown berversi di repo, dan versinya dicatat di rekomendasi (`prompt_version = extract_v1+clinical_v1`). Semua keluaran LLM diperlakukan sebagai data yang harus lolos validasi Pydantic dan cek bukti; LLM tidak pernah langsung menentukan triase atau rekomendasi.
+
+## 8. API backend
+
+Kode di `apps/api/mab_api/`. Dokumentasi interaktif otomatis di http://localhost:8000/docs.
+
+| Router | Endpoint utama | Peran |
+|---|---|---|
+| `auth` | `POST /auth/login`, `GET /auth/me` | semua |
+| `claims` | `POST /claims`, `POST /claims/{id}/documents`, `POST /claims/batch` (ZIP + `manifest.xlsx`), `GET /claims` (filter `status`, `triage`), `GET /claims/{id}`, `GET /claims/{id}/status`, `GET /claims/{id}/fields`, `GET /claims/{id}/recommendation`, `GET /claims/{id}/recommendation.pdf`, `POST /claims/{id}/decision`, `POST /claims/decisions/bulk-agree`, `GET /claims/export.csv` | asuransi (tulis), semua (baca sesuai akses) |
+| `documents` | `GET /documents/{id}/pages/{n}.png?dpi=`, `GET /documents/{id}/download` | sesuai akses klaim |
+| `review` | `GET /review/queue`, `GET /review/{id}`, `POST /review/{id}/start`, `POST /review/{id}/release`, `PATCH /review/{id}/fields/{field_id}`, `POST /review/{id}/escalate`, `POST /review/{id}/sign` | dokter (admin: baca) |
+| `dashboard` | `GET /dashboard` | asuransi, admin |
+| `admin` | `GET /admin/ruleset` | admin, dokter |
+| `users` | `GET /users` | admin |
+
+Modul pendukung: `access.py` (query klaim yang boleh dilihat), `deps.py` (pengguna saat ini, `require_roles`), `documents.py` (validasi file, sniff magic bytes PDF/JPG/PNG, nama file aman, sha256), `storage.py` (`S3Storage` untuk MinIO, `MemoryStorage` untuk tes), `job_queue.py` (RQ), `rendering.py` (PNG halaman, PDF rekomendasi), `audit.py` (middleware + pencatat manual), `ruleset.py` (aturan aktif, di-cache per proses).
+
+Alur dokter di `routers/review.py`:
+
+- **Routing antrean:** level `GP` untuk kuning, `SPECIALIST` untuk merah atau yang sudah dieskalasi; spesialisasi dari `diagnosis[].spesialisasi` di file aturan (atau spesialisasi tujuan eskalasi). Urut skor risiko lalu lama menunggu.
+- **Kunci kasus:** `start` mengisi `claims.assigned_doctor_id` dan membuat baris `reviews` (waktu mulai). Dokter lain tidak lagi melihat kasus itu.
+- **Koreksi field:** nilai asli tetap di `value`; koreksi di `corrected_value/by/at`; riwayat lengkap (lama, baru, catatan) di audit `FIELD_CORRECTED`.
+- **Usulan final dari draf AI:** ada koreksi item → bayar sebagian; tidak ada → tunda/klarifikasi; tidak pernah tidak dijamin.
+- **Tanda tangan:** cek PIN (salah → 403 + audit `SIGN_PIN_FAILED`); kode alasan wajib bila keputusan berbeda dari usulan; membuat versi rekomendasi baru `SIGNED` dengan temuan dan bukti disalin; `reviews.action` = `APPROVE`/`MODIFY`, `agrees_with_ai`, waktu selesai.
+
+## 9. Model data
+
+Tabel utama (`apps/api/mab_api/models.py`, migrasi `apps/api/alembic/versions/`):
+
+| Tabel | Kolom penting | Keterangan |
+|---|---|---|
+| `insurers` | `code`, `name` | Perusahaan asuransi (tenant) |
+| `users` | `email`, `role`, `insurer_id`, `specialty`, `password_hash`, `pin_hash`, `is_active` | Peran: `insurer_staff`, `insurer_manager`, `doctor_gp`, `doctor_specialist`, `admin` |
+| `claims` | `claim_number`, `policy_number`, `member_id`, `hospital_name`, tanggal rawat, `billed_amount`, `primary_icd10`, `status`, `processing_error`, `assigned_doctor_id` | Satu klaim rawat inap |
+| `documents` | `filename`, `content_type`, `size_bytes`, `sha256`, `storage_key`, `doc_type`, `page_count` | Metadata file; isi file di MinIO |
+| `extracted_fields` | `field_path`, `value`, `source`, `confidence`, `status`, `evidence[]`, `corrected_value/by/at` | Satu baris per field kamus data |
+| `recommendations` | `version`, `is_current`, `state` (DRAFT/SIGNED), `triage_status`, `risk_score`, `recommendation`, `billed_amount`, `recommended_amount`, `line_adjustments[]`, `guideline_refs[]`, `next_action`, `explanation_text`, `quality_flags[]`, `model_version`, `prompt_version`, `ruleset_version`, `signed_by_id`, `signed_at` | Berversi; draf AI tidak pernah ditimpa |
+| `findings` | `recommendation_id`, `rule_id`, `reason_code`, `severity`, `source`, `text`, `evidence[]`, `guideline_refs[]` | Temuan per versi rekomendasi |
+| `reviews` | `doctor_id`, `recommendation_id`, `action`, `reason_code`, `agrees_with_ai`, `escalated_specialty`, `notes`, `started_at`, `finished_at` | Telaah dokter; dasar metrik waktu telaah dan persetujuan |
+| `insurer_decisions` | `decision` (AGREE/DIFFER), `reason`, `decided_by_id`, `decided_at` | Keputusan asuransi |
+| `audit_logs` | `occurred_at`, `user_id`, `user_role`, `action`, `method`, `path`, `status_code`, `claim_id`, `document_id`, `ip_address`, `detail` | Tidak bisa di-UPDATE/DELETE (trigger PostgreSQL) |
+
+Format bukti (`evidence`) seragam di seluruh sistem: `{doc, page, bbox: [x0, y0, x1, y1] proporsi halaman, quote, line_ids, field}`; untuk klaim tumpang tindih `{claim_id, quote}`.
+
+Format rekomendasi untuk portal, PDF, ekspor, dan API mengikuti spesifikasi output PRD (`RecommendationOut` di `api_schemas.py`): `triage_status`, `risk_score`, `recommendation`, `billed_amount`, `recommended_amount`, `line_adjustments[]`, `findings[]` + `evidence[]`, `guideline_refs[]`, `next_action`, `reviewer`, `explanation_text`, `model_version`, `prompt_version`, `ruleset_version`, `insurer_decision`.
+
+## 10. Status klaim dan versi rekomendasi
+
+```mermaid
+stateDiagram-v2
+    [*] --> RECEIVED: POST /claims
+    RECEIVED --> QUEUED: unggah dokumen
+    QUEUED --> PROCESSING: worker mengambil job
+    PROCESSING --> FAILED: galat / tidak ada dokumen terbaca
+    FAILED --> QUEUED: unggah ulang dokumen
+    PROCESSING --> AWAITING_DECISION: hijau (PAY_FULL)
+    PROCESSING --> AWAITING_DOCTOR: kuning / merah / tunda
+    AWAITING_DOCTOR --> AWAITING_DOCTOR: eskalasi / lepas kasus
+    AWAITING_DOCTOR --> AWAITING_DECISION: dokter tanda tangan (versi SIGNED)
+    AWAITING_DECISION --> COMPLETED: keputusan asuransi
+    COMPLETED --> [*]
+```
+
+Aturan rilis ke asuransi (`_released_to_insurer`): rekomendasi terlihat oleh asuransi bila `recommendation == PAY_FULL` **atau** `state == SIGNED`. Selain itu endpoint rekomendasi menjawab 409 untuk peran asuransi, daftar klaim tidak menampilkan triase, dan dashboard menghitungnya sebagai "menunggu dokter".
+
+## 11. Frontend web
+
+Kode di `apps/web/` (Next.js App Router, semua halaman client component).
+
+| Rute | Peran | Isi |
+|---|---|---|
+| `/login` | semua | Login; diarahkan ke halaman awal sesuai peran |
+| `/klaim` | semua | Daftar klaim, filter status/triase, setujui massal hijau, ekspor CSV, refresh otomatis selama diproses |
+| `/klaim/baru` | asuransi | Formulir satu klaim + dokumen; unggah ZIP + manifest dengan laporan per baris |
+| `/klaim/[id]` | semua | Progres proses, dokumen, rekomendasi format PRD, bukti → pratinjau tersorot, keputusan, unduh PDF |
+| `/telaah` | dokter | Antrean (urut risiko, filter diagnosis), tab "sudah saya tanda tangani" |
+| `/telaah/[id]` | dokter, admin (baca) | Layar dua panel: dokumen asli (kiri), temuan/draf/data ekstraksi/riwayat (kanan), aksi + PIN |
+| `/dashboard` | asuransi, admin | Ringkasan pilot |
+| `/admin` | admin | Aturan aktif dan pengguna (baca saja) |
+
+Komponen utama di `components/`: `DocumentViewer` (`DocumentPane` inline + modal; memuat PNG halaman lewat blob URL bertoken lalu menggambar kotak sorotan dari bbox proporsional), `FindingCard`, `RecommendationView`, `ExtractedFields` (koreksi field per tipe kamus data), `ReviewActions` (setujui/ubah/eskalasi/lepas + dialog PIN), `DecisionForm`, `Badges`.
+
+**Proxy API:** browser hanya memanggil `/api/*` di origin web. `app/api/[...path]/route.ts` meneruskan request (termasuk header `Authorization` dan body multipart) ke `API_INTERNAL_URL`. Keuntungannya: tidak perlu CORS, API tidak perlu dibuka ke publik, dan alamat API bisa diganti saat runtime tanpa build ulang.
+
+**Sesi:** token JWT dan profil pengguna di `localStorage` (`mab_token`, `mab_user`). Respons 401 menghapus sesi dan mengarahkan ke `/login`. Pembatasan akses yang sebenarnya tetap di API; menu di web hanya menyesuaikan tampilan.
+
+## 12. Keamanan, akses, dan audit
+
+- **Autentikasi:** JWT HS256 (`JWT_SECRET`), kedaluwarsa 8 jam. Password dan PIN di-hash PBKDF2-SHA256 240.000 iterasi dengan salt acak.
+- **Isolasi tenant:** staf/manajer hanya melihat klaim `insurer_id` miliknya. Klaim di luar akses menjawab **404**, bukan 403, supaya keberadaannya tidak bocor.
+- **Akses dokter:** klaim yang ditugaskan kepadanya, atau yang menunggu dokter dan belum dikunci dokter lain; antrean memfilter level dan spesialisasi.
+- **Pemisahan peran:** hanya asuransi yang bisa membuat klaim dan memutuskan; hanya dokter yang bisa menelaah dan menandatangani; hanya dokter umum yang bisa mengeskalasi; admin baca saja.
+- **Validasi unggahan:** tipe file dari magic bytes (bukan ekstensi), maksimum 20 MB per file dan 500 MB per ZIP, nama file disanitasi, sha256 disimpan.
+- **Audit:** middleware mencatat setiap aksi tulis dan akses dokumen; endpoint mencatat kejadian penting (`LOGIN_*`, `PIPELINE_COMPLETED/FAILED`, `REVIEW_STARTED/ESCALATED/RELEASED`, `FIELD_CORRECTED`, `SIGN_PIN_FAILED`, `RECOMMENDATION_SIGNED`). Di PostgreSQL, trigger `audit_logs_no_change` menolak UPDATE dan DELETE.
+- **Rahasia:** hanya di `.env` (diabaikan git). Nilai di `.env.example` khusus lokal.
+- **Data:** hanya data sintetis di Tahap 0. Sebelum memakai data nyata, cek ulang lokasi pemrosesan data penyedia LLM dan terapkan penyamaran.
+
+## 13. Keterlacakan dan versi
+
+Setiap rekomendasi menyimpan `model_version` (mis. `mock-llm-1` atau nama model), `prompt_version` (`extract_v1+clinical_v1`), dan `ruleset_version` (`rules-2026.11-demo`). Tanda tangan dokter membuat versi baru dan menyalin ketiga versi itu, sehingga selalu bisa dijawab: rekomendasi ini dibuat oleh model apa, prompt apa, aturan versi berapa, siapa yang menandatangani, dan apa yang diubah dari draf AI.
+
+## 14. Data sintetis dan evaluasi
+
+- **Generator** (`synthetic/`): `scenarios.yaml` mendefinisikan 30 skenario (16 wajar, 14 bermasalah, termasuk 2 dokumen tidak lengkap dan 1 klaim duplikat) dengan seed tetap, sehingga hasilnya sama di setiap mesin. Template Jinja2 per rumah sakit fiktif dirender ke PDF dengan WeasyPrint; 12 klaim diberi efek pindaian (dirasterisasi, miring, blur, noise, stempel). Setiap halaman bertanda "DATA REKAAN".
+- **Keluaran** (`data/synthetic_output/`): PDF per klaim, `case.json`, `kunci_jawaban.csv` (status/rekomendasi/aturan yang diharapkan), `ground_truth.json` (nilai field yang benar, dihitung dengan fungsi `derive()` yang sama dengan pipeline).
+- **Evaluasi** (`evaluation/run_eval.py`, `make eval`): akurasi ekstraksi per field dan per mode, kecocokan triase, klaim bermasalah yang keliru hijau, temuan berbukti, waktu proses. Laporan Markdown + JSON di `evaluation/reports/`, dengan peringatan eksplisit bila LLM mock dipakai.
+- **Seed demo** (`infra/scripts/seed_demo.py`): membuat akun, klaim riwayat, mengunggah 29 klaim lewat API (SYN-DEN-09 disisakan untuk demo), menunggu worker, lalu mensimulasikan sebagian telaah dokter dan keputusan asuransi agar dashboard berisi.
+
+## 15. Pengujian
+
+`make test` menjalankan pytest di container api (atau lokal dengan `PYTHONPATH=apps/api:pipeline:.`). Tes memakai SQLite in-memory, `MemoryStorage`, fakeredis, dan LLM mock, jadi tidak butuh Docker atau internet.
+
+| File | Cakupan |
+|---|---|
+| `tests/test_rules.py` | Validasi file aturan, evaluator aman, 30 skenario terhadap kunci jawaban |
+| `tests/test_synthetic.py` | Generator data sintetis |
+| `tests/test_api.py` | Auth, akses per peran dan tenant, unggah satuan/ZIP, keputusan, ekspor, audit |
+| `tests/test_pipeline.py` | Ingest PDF digital/pindaian, klasifikasi, ekstraksi, field turunan |
+| `tests/test_reasoning.py` | Cek bukti, penalaran klinis, rekomendasi, job worker, pratinjau halaman, PDF |
+| `tests/test_review.py` | Antrean dokter, kunci kasus, koreksi + riwayat, eskalasi, PIN, versi SIGNED, rilis ke asuransi |
+| `tests/test_dashboard.py` | Dashboard hanya menghitung rekomendasi yang boleh dilihat |
+
+Frontend dicek dengan `npm run build` (TypeScript strict) dan uji alur di browser (Playwright) selama pengembangan.
+
+## 16. Keputusan desain dan batasan
+
+| Keputusan | Alasan |
+|---|---|
+| Aturan sebagai YAML + evaluator `ast` | Dokter/tim MAB bisa membaca dan mengubah ambang tanpa deploy kode; aman dari eksekusi kode sembarang. |
+| LLM hanya mengisi fakta, bukan memutuskan | Keputusan triase deterministik dan bisa diaudit; LLM bisa diganti tanpa mengubah logika klinis. |
+| Null = tidak diketahui, bukan "tidak ada" | Mencegah klaim bermasalah lolos jadi hijau karena data hilang. |
+| Bukti wajib + fuzzy match ≥ 0,9 | Menahan halusinasi LLM; setiap temuan bisa ditelusuri ke halaman dan baris. |
+| Rekomendasi berversi, draf tidak ditimpa | Mengukur persetujuan dokter terhadap AI dan memenuhi jejak audit. |
+| Worker terpisah lewat antrean | OCR/LLM lambat tidak menahan request API; job bisa diulang. |
+| Proxy `/api` di web | Satu origin untuk browser, tanpa CORS, API tetap internal. |
+| `derive()` dipakai bersama generator | Definisi field identik antara sistem dan kunci jawaban. |
+
+Batasan Tahap 0 (lihat juga README): data sintetis saja, tiga diagnosis, aturan belum divalidasi dokter, koreksi field tidak menjalankan ulang aturan, tanda tangan sederhana (login + PIN), tanpa integrasi sistem klaim asuransi, modul `redflags/` masih kosong, dan satu worker memproses klaim berurutan.
