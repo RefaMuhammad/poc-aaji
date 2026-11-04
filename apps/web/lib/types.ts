@@ -115,3 +115,106 @@ export interface BatchResult {
   failed: number;
   rows: { row: number; folder: string | null; claim_number: string | null; ok: boolean; claim_id: string | null; documents: number; reason: string | null }[];
 }
+
+// --- Ruang kerja dokter (M7) ---
+
+export type FinalRecommendation = "PAY_FULL" | "PAY_PARTIAL" | "PEND" | "NOT_COVERED";
+
+export interface QueueItem {
+  id: string;
+  claim_number: string;
+  hospital_name: string;
+  admission_date: string;
+  discharge_date: string;
+  billed_amount: number;
+  primary_icd10: string | null;
+  diagnosis_name: string | null;
+  status: ClaimStatus;
+  triage_status: Triage | null;
+  risk_score: number | null;
+  findings: number;
+  level: "GP" | "SPECIALIST";
+  specialty: string | null;
+  escalated: boolean;
+  assigned_to: string | null;
+  assigned_to_me: boolean;
+  waiting_since: string;
+  signed_by: string | null;
+  signed_at: string | null;
+}
+
+export interface ReviewField {
+  id: string;
+  field_path: string;
+  label: string | null;
+  kind: string | null;
+  value: unknown;
+  source: string;
+  confidence: number | null;
+  status: string | null;
+  evidence: Evidence[];
+  corrected_value: unknown;
+  corrected: boolean;
+  corrected_by: string | null;
+  corrected_at: string | null;
+}
+
+export interface FieldHistory {
+  field_path: string;
+  old: unknown;
+  new: unknown;
+  note: string | null;
+  by: string | null;
+  at: string;
+}
+
+export interface ReviewInfo {
+  id: string;
+  doctor: string;
+  doctor_specialty: string | null;
+  action: string | null;
+  reason_code: string | null;
+  agrees_with_ai: boolean | null;
+  escalated_specialty: string | null;
+  notes: string | null;
+  started_at: string;
+  finished_at: string | null;
+  duration_seconds: number | null;
+}
+
+export interface Workspace {
+  claim: ClaimDetail;
+  level: "GP" | "SPECIALIST";
+  specialty: string | null;
+  diagnosis_name: string | null;
+  escalated: boolean;
+  assigned_to: string | null;
+  can_start: boolean;
+  blocked_reason: string | null;
+  my_review: ReviewInfo | null;
+  reviews: ReviewInfo[];
+  draft: Recommendation | null;
+  suggestion: { recommendation: FinalRecommendation; recommended_amount: number | null } | null;
+  fields: ReviewField[];
+  field_history: FieldHistory[];
+  reason_codes: Record<string, string>;
+}
+
+export interface RulesetRule {
+  id: string;
+  name: string;
+  reason_code: string;
+  severity: string;
+  needs_ai: boolean;
+  reference: string | null;
+}
+
+export interface RulesetInfo {
+  version: string;
+  status: string | null;
+  path: string;
+  general_rules: RulesetRule[];
+  diagnoses: { id: string; name: string; icd10: string[]; specialty: string | null; rules: RulesetRule[] }[];
+  triage: { jika: string; status: Triage; rekomendasi_awal: string }[];
+  reason_codes: Record<string, string>;
+}

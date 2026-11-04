@@ -87,6 +87,9 @@ export default function ClaimDetailPage() {
           <h1 className="text-lg font-semibold">Klaim {claim.claim_number}</h1>
           <div className="flex items-center gap-2">
             <StatusBadge status={claim.status} />
+            {(user?.role === "doctor_gp" || user?.role === "doctor_specialist") && (
+              <Link href={`/telaah/${id}`} className="btn-secondary">Buka ruang kerja dokter</Link>
+            )}
             {rec && (
               <button
                 className="btn-secondary"

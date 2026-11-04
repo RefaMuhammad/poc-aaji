@@ -214,3 +214,147 @@ class RecommendationOut(BaseModel):
 
 
 TokenResponse.model_rebuild()
+
+
+# --- Ruang kerja dokter (M7) ---------------------------------------------------------
+
+FINAL_RECOMMENDATIONS = ("PAY_FULL", "PAY_PARTIAL", "PEND", "NOT_COVERED")
+
+
+class QueueItem(BaseModel):
+    id: str
+    claim_number: str
+    hospital_name: str
+    admission_date: date
+    discharge_date: date
+    billed_amount: int
+    primary_icd10: str | None
+    diagnosis_name: str | None
+    status: str
+    triage_status: str | None
+    risk_score: int | None
+    findings: int
+    level: str                       # GP / SPECIALIST
+    specialty: str | None            # spesialisasi yang dibutuhkan (untuk level SPECIALIST)
+    escalated: bool
+    assigned_to: str | None          # nama dokter yang sedang menelaah
+    assigned_to_me: bool
+    waiting_since: datetime
+    signed_by: str | None = None
+    signed_at: datetime | None = None
+
+
+class ReviewFieldOut(BaseModel):
+    id: str
+    field_path: str
+    label: str | None = None
+    kind: str | None = None          # tipe di kamus data: angka / teks / ya_tidak / daftar
+    value: Any = None
+    source: str
+    confidence: float | None = None
+    status: str | None = None
+    evidence: list[dict[str, Any]] = Field(default_factory=list)
+    corrected_value: Any = None
+    corrected: bool = False
+    corrected_by: str | None = None
+    corrected_at: datetime | None = None
+
+
+class FieldHistoryOut(BaseModel):
+    field_path: str
+    old: Any = None
+    new: Any = None
+    note: str | None = None
+    by: str | None = None
+    at: datetime
+
+
+class ReviewOut(BaseModel):
+    id: str
+    doctor: str
+    doctor_specialty: str | None
+    action: str | None
+    reason_code: str | None
+    agrees_with_ai: bool | None
+    escalated_specialty: str | None
+    notes: str | None
+    started_at: datetime
+    finished_at: datetime | None
+    duration_seconds: int | None
+
+
+class Suggestion(BaseModel):
+    recommendation: str
+    recommended_amount: int | None
+
+
+class Workspace(BaseModel):
+    claim: ClaimDetail
+    level: str
+    specialty: str | None
+    diagnosis_name: str | None
+    escalated: bool
+    assigned_to: str | None
+    can_start: bool                   # dokter ini boleh mulai menelaah
+    blocked_reason: str | None        # alasan bila tidak boleh
+    my_review: ReviewOut | None       # telaah yang sedang dibuka dokter ini
+    reviews: list[ReviewOut]          # riwayat telaah klaim ini
+    draft: RecommendationOut | None   # draf AI (atau rekomendasi yang sudah ditandatangani)
+    suggestion: Suggestion | None     # usulan rekomendasi final dari draf AI
+    fields: list[ReviewFieldOut]
+    field_history: list[FieldHistoryOut]
+    reason_codes: dict[str, str]
+
+
+class FieldCorrection(BaseModel):
+    value: Any = None
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class EscalateRequest(BaseModel):
+    notes: str = Field(min_length=1, max_length=2000)
+    specialty: str | None = Field(default=None, max_length=100)
+
+    @model_validator(mode="after")
+    def notes_not_blank(self) -> "EscalateRequest":
+        if not self.notes.strip():
+            raise ValueError("Catatan eskalasi wajib diisi")
+        return self
+
+
+class SignRequest(BaseModel):
+    recommendation: str = Field(pattern="^(PAY_FULL|PAY_PARTIAL|PEND|NOT_COVERED)$")
+    recommended_amount: int | None = Field(default=None, ge=0)
+    kept_adjustments: list[int] | None = None   # indeks koreksi item AI yang dipertahankan; None = semua
+    reason_code: str | None = Field(default=None, max_length=50)
+    notes: str | None = Field(default=None, max_length=4000)
+    explanation_text: str | None = Field(default=None, max_length=8000)
+    next_action: str | None = Field(default=None, max_length=1000)
+    pin: str = Field(min_length=4, max_length=12)
+
+
+class RulesetRule(BaseModel):
+    id: str
+    name: str
+    reason_code: str
+    severity: str
+    needs_ai: bool
+    reference: str | None
+
+
+class RulesetDiagnosis(BaseModel):
+    id: str
+    name: str
+    icd10: list[str]
+    specialty: str | None
+    rules: list[RulesetRule]
+
+
+class RulesetOut(BaseModel):
+    version: str
+    status: str | None
+    path: str
+    general_rules: list[RulesetRule]
+    diagnoses: list[RulesetDiagnosis]
+    triage: list[dict[str, Any]]
+    reason_codes: dict[str, str]

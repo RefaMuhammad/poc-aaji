@@ -62,3 +62,36 @@ export function waktu(iso: string | null | undefined): string {
   if (!iso) return "-";
   return new Date(iso).toLocaleString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
+
+export const LEVEL_LABEL: Record<string, string> = { GP: "Dokter umum", SPECIALIST: "Dokter spesialis" };
+
+export const REVIEW_ACTION_LABEL: Record<string, string> = {
+  APPROVE: "Menyetujui draf",
+  MODIFY: "Mengubah draf",
+  ESCALATE: "Eskalasi ke spesialis",
+  RELEASED: "Melepas kasus",
+};
+
+export function durasi(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined) return "-";
+  if (seconds < 60) return `${seconds} detik`;
+  const m = Math.floor(seconds / 60);
+  if (m < 60) return `${m} menit`;
+  return `${Math.floor(m / 60)} jam ${m % 60} menit`;
+}
+
+/** Nilai field untuk ditampilkan (null = tidak diketahui). */
+export function nilai(v: unknown): string {
+  if (v === null || v === undefined) return "tidak diketahui";
+  if (typeof v === "boolean") return v ? "ya" : "tidak";
+  if (Array.isArray(v)) return v.length ? v.map((x) => (typeof x === "object" ? JSON.stringify(x) : String(x))).join(", ") : "(kosong)";
+  if (typeof v === "number") return v.toLocaleString("id-ID");
+  if (typeof v === "object") return JSON.stringify(v);
+  return String(v);
+}
+
+export function homeFor(role: string | undefined): string {
+  if (role === "doctor_gp" || role === "doctor_specialist") return "/telaah";
+  if (role === "admin") return "/admin";
+  return "/klaim";
+}
