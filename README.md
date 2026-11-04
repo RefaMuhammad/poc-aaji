@@ -28,7 +28,7 @@ docker compose run --rm --no-deps api pytest -q tests
 |---|---|
 | Web (Next.js) | http://localhost:3000 |
 | API (FastAPI) | http://localhost:8000/health, dokumentasi di http://localhost:8000/docs |
-| MinIO console | http://localhost:9001 |
+| MinIO (API S3) | http://localhost:9000 |
 | PostgreSQL | localhost:5432 |
 | Redis | localhost:6379 |
 
@@ -61,4 +61,4 @@ data/                    (diabaikan git) data referensi dan output sintetis
 ## Catatan
 
 - `LLM_PROVIDER=mock` adalah default, jadi tidak perlu API key untuk pengembangan.
-- Image MinIO memakai `quay.io/minio/minio` karena image `minio/minio` sudah tidak tersedia di Docker Hub.
+- Image MinIO memakai `bitnamilegacy/minio` karena `minio/minio` sudah tidak tersedia di Docker Hub dan tag di quay.io butuh login. Image ini tidak menyertakan web console; isi bucket bisa dicek lewat `docker compose exec minio mc ls local`.

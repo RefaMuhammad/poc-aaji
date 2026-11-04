@@ -31,21 +31,22 @@ services:
       retries: 10
 
   minio:
-    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
-    command: server /data --console-address ":9001"
+    # Image minio/minio resmi sudah tidak tersedia di Docker Hub, dan tag di quay.io
+    # butuh login. Pakai build Bitnami (legacy) yang masih bisa ditarik bebas.
+    # Image ini hanya menjalankan API S3 (port 9000), tanpa web console.
+    image: bitnamilegacy/minio:2025.7.23-debian-12-r5
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
-      - miniodata:/data
+      - miniodata:/bitnami/minio/data
     ports:
       - "9000:9000"
-      - "9001:9001"
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 5s
       timeout: 3s
-      retries: 10
+      retries: 20
 
   api:
     <<: *backend-env

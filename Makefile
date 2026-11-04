@@ -8,7 +8,7 @@ env:
 
 up: env
 	docker compose up -d --build
-	@echo "API: http://localhost:8000/health  |  Web: http://localhost:3000  |  MinIO: http://localhost:9001"
+	@echo "API: http://localhost:8000/health  |  Web: http://localhost:3000  |  MinIO API: http://localhost:9000"
 
 down:
 	docker compose down
