@@ -1,0 +1,685 @@
+{
+  "label": "DATA REKAAN UNTUK DEMONSTRASI",
+  "waktu": "2026-11-04T13:06:59",
+  "llm": "mock-llm-1",
+  "llm_mock": true,
+  "ocr": "rapidocr-ppocr",
+  "ruleset": "rules-2026.11-demo",
+  "jumlah_klaim": 30,
+  "ekstraksi": {
+    "akurasi_semua_pct": 100.0,
+    "akurasi_field_kunci_pct": 100.0,
+    "per_mode": {
+      "pindaian": {
+        "total": 165,
+        "benar": 165,
+        "akurasi": 100.0
+      },
+      "semua": {
+        "total": 419,
+        "benar": 419,
+        "akurasi": 100.0
+      },
+      "digital": {
+        "total": 254,
+        "benar": 254,
+        "akurasi": 100.0
+      }
+    },
+    "per_field": {
+      "bill.duplicate_items": {
+        "total": 29,
+        "benar": 29,
+        "akurasi": 100.0
+      },
+      "claim.care_type": {
+        "total": 30,
+        "benar": 30,
+        "akurasi": 100.0
+      },
+      "claim.los_days": {
+        "total": 30,
+        "benar": 30,
+        "akurasi": 100.0
+      },
+      "claim.patient_age": {
+        "total": 30,
+        "benar": 30,
+        "akurasi": 100.0
+      },
+      "docs.missing": {
+        "total": 2,
+        "benar": 2,
+        "akurasi": 100.0
+      },
+      "dx.primary": {
+        "total": 30,
+        "benar": 30,
+        "akurasi": 100.0
+      },
+      "dx.secondary": {
+        "total": 2,
+        "benar": 2,
+        "akurasi": 100.0
+      },
+      "lab.blood_culture_typhi": {
+        "total": 7,
+        "benar": 7,
+        "akurasi": 100.0
+      },
+      "lab.cbc_max_per_day": {
+        "total": 29,
+        "benar": 29,
+        "akurasi": 100.0
+      },
+      "lab.dengue_igm": {
+        "total": 2,
+        "benar": 2,
+        "akurasi": 100.0
+      },
+      "lab.dengue_ns1": {
+        "total": 10,
+        "benar": 10,
+        "akurasi": 100.0
+      },
+      "lab.hct_rise_pct": {
+        "total": 10,
+        "benar": 10,
+        "akurasi": 100.0
+      },
+      "lab.platelet_min": {
+        "total": 29,
+        "benar": 29,
+        "akurasi": 100.0
+      },
+      "lab.stool_pathogen": {
+        "total": 9,
+        "benar": 9,
+        "akurasi": 100.0
+      },
+      "lab.typhi_rapid": {
+        "total": 1,
+        "benar": 1,
+        "akurasi": 100.0
+      },
+      "lab.widal_fourfold_rise": {
+        "total": 10,
+        "benar": 10,
+        "akurasi": 100.0
+      },
+      "lab.widal_o_max_titer": {
+        "total": 10,
+        "benar": 10,
+        "akurasi": 100.0
+      },
+      "lab.widal_tests": {
+        "total": 29,
+        "benar": 29,
+        "akurasi": 100.0
+      },
+      "tx.antibiotic_given": {
+        "total": 30,
+        "benar": 30,
+        "akurasi": 100.0
+      },
+      "tx.ceftriaxone_days": {
+        "total": 30,
+        "benar": 30,
+        "akurasi": 100.0
+      },
+      "tx.fluoroquinolone_given": {
+        "total": 30,
+        "benar": 30,
+        "akurasi": 100.0
+      },
+      "tx.iv_fluid_days": {
+        "total": 30,
+        "benar": 30,
+        "akurasi": 100.0
+      }
+    }
+  },
+  "triase": {
+    "status_sesuai_pct": 96.7,
+    "status_dan_rekomendasi_sesuai_pct": 96.7,
+    "bermasalah_jadi_hijau": [],
+    "temuan_dengan_bukti": "22/22"
+  },
+  "waktu_proses_detik": {
+    "rata_rata": 3.9,
+    "median": 0.2,
+    "maksimum": 15.2
+  },
+  "klaim": [
+    {
+      "claim_id": "SYN-DEN-01",
+      "mode": "pindaian",
+      "kategori": "wajar",
+      "ekstraksi": "14/14",
+      "status_harapan": "GREEN",
+      "status_hasil": "GREEN",
+      "rekomendasi_harapan": "PAY_FULL",
+      "rekomendasi_hasil": "PAY_FULL",
+      "aturan_harapan": [],
+      "aturan_hasil": [],
+      "catatan_kualitas": [],
+      "detik_baca": 14.8,
+      "detik_total": 15.2
+    },
+    {
+      "claim_id": "SYN-DEN-02",
+      "mode": "digital",
+      "kategori": "wajar",
+      "ekstraksi": "15/15",
+      "status_harapan": "GREEN",
+      "status_hasil": "GREEN",
+      "rekomendasi_harapan": "PAY_FULL",
+      "rekomendasi_hasil": "PAY_FULL",
+      "aturan_harapan": [],
+      "aturan_hasil": [],
+      "catatan_kualitas": [],
+      "detik_baca": 0.2,
+      "detik_total": 0.2
+    },
+    {
+      "claim_id": "SYN-DEN-03",
+      "mode": "digital",
+      "kategori": "wajar",
+      "ekstraksi": "14/14",
+      "status_harapan": "GREEN",
+      "status_hasil": "GREEN",
+      "rekomendasi_harapan": "PAY_FULL",
+      "rekomendasi_hasil": "PAY_FULL",
+      "aturan_harapan": [],
+      "aturan_hasil": [],
+      "catatan_kualitas": [],
+      "detik_baca": 0.2,
+      "detik_total": 0.2
+    },
+    {
+      "claim_id": "SYN-DEN-04",
+      "mode": "digital",
+      "kategori": "wajar",
+      "ekstraksi": "14/14",
+      "status_harapan": "GREEN",
+      "status_hasil": "GREEN",
+      "rekomendasi_harapan": "PAY_FULL",
+      "rekomendasi_hasil": "PAY_FULL",
+      "aturan_harapan": [],
+      "aturan_hasil": [],
+      "catatan_kualitas": [],
+      "detik_baca": 0.2,
+      "detik_total": 0.2
+    },
+    {
+      "claim_id": "SYN-DEN-05",
+      "mode": "digital",
+      "kategori": "wajar",
+      "ekstraksi": "14/14",
+      "status_harapan": "GREEN",
+      "status_hasil": "GREEN",
+      "rekomendasi_harapan": "PAY_FULL",
+      "rekomendasi_hasil": "PAY_FULL",
+      "aturan_harapan": [],
+      "aturan_hasil": [],
+      "catatan_kualitas": [],
+      "detik_baca": 0.3,
+      "detik_total": 0.3
+    },
+    {
+      "claim_id": "SYN-DEN-06",
+      "mode": "pindaian",
+      "kategori": "wajar",
+      "ekstraksi": "14/14",
+      "status_harapan": "GREEN",
+      "status_hasil": "YELLOW",
+      "rekomendasi_harapan": "PAY_FULL",
+      "rekomendasi_hasil": "DOCTOR_REVIEW",
+      "aturan_harapan": [],
+      "aturan_hasil": [],
+      "catatan_kualitas": [
+        "AI_UNVERIFIED",
+        "RULE_SKIPPED"
+      ],
+      "detik_baca": 11.7,
+      "detik_total": 11.7
+    },
+    {
+      "claim_id": "SYN-DEN-07",
+      "mode": "pindaian",
+      "kategori": "bermasalah",
+      "ekstraksi": "14/14",
+      "status_harapan": "RED",
+      "status_hasil": "RED",
+      "rekomendasi_harapan": "DOCTOR_REVIEW",
+      "rekomendasi_hasil": "DOCTOR_REVIEW",
+      "aturan_harapan": [
+        "DEN-01",
+        "DEN-03"
+      ],
+      "aturan_hasil": [
+        "DEN-01",
+        "DEN-03"
+      ],
+      "catatan_kualitas": [],
+      "detik_baca": 10.2,
+      "detik_total": 10.2
+    },
+    {
+      "claim_id": "SYN-DEN-08",
+      "mode": "digital",
+      "kategori": "bermasalah",
+      "ekstraksi": "15/15",
+      "status_harapan": "YELLOW",
+      "status_hasil": "YELLOW",
+      "rekomendasi_harapan": "DOCTOR_REVIEW",
+      "rekomendasi_hasil": "DOCTOR_REVIEW",
+      "aturan_harapan": [
+        "DEN-02"
+      ],
+      "aturan_hasil": [
+        "DEN-02"
+      ],
+      "catatan_kualitas": [],
+      "detik_baca": 0.2,
+      "detik_total": 0.2
+    },
+    {
+      "claim_id": "SYN-DEN-09",
+      "mode": "digital",
+      "kategori": "bermasalah",
+      "ekstraksi": "14/14",
+      "status_harapan": "YELLOW",
+      "status_hasil": "YELLOW",
+      "rekomendasi_harapan": "DOCTOR_REVIEW",
+      "rekomendasi_hasil": "DOCTOR_REVIEW",
+      "aturan_harapan": [
+        "DEN-03",
+        "DEN-05"
+      ],
+      "aturan_hasil": [
+        "DEN-03",
+        "DEN-05"
+      ],
+      "catatan_kualitas": [],
+      "detik_baca": 0.2,
+      "detik_total": 0.2
+    },
+    {
+      "claim_id": "SYN-DEN-10",
+      "mode": "pindaian",
+      "kategori": "bermasalah",
+      "ekstraksi": "14/14",
+      "status_harapan": "RED",
+      "status_hasil": "RED",
+      "rekomendasi_harapan": "DOCTOR_REVIEW",
+      "rekomendasi_hasil": "DOCTOR_REVIEW",
+      "aturan_harapan": [
+        "GEN-02",
+        "DEN-04"
+      ],
+      "aturan_hasil": [
+        "GEN-02",
+        "DEN-04"
+      ],
+      "catatan_kualitas": [],
+      "detik_baca": 13.4,
+      "detik_total": 13.4
+    },
+    {
+      "claim_id": "SYN-TIF-01",
+      "mode": "pindaian",
+      "kategori": "wajar",
+      "ekstraksi": "15/15",
+      "status_harapan": "GREEN",
+      "status_hasil": "GREEN",
+      "rekomendasi_harapan": "PAY_FULL",
+      "rekomendasi_hasil": "PAY_FULL",
+      "aturan_harapan": [],
+      "aturan_hasil": [],
+      "catatan_kualitas": [],
+      "detik_baca": 8.6,
+      "detik_total": 8.6
+    },
+    {
+      "claim_id": "SYN-TIF-02",
+      "mode": "digital",
+      "kategori": "wajar",
+      "ekstraksi": "15/15",
+      "status_harapan": "GREEN",
+      "status_hasil": "GREEN",
+      "rekomendasi_harapan": "PAY_FULL",
+      "rekomendasi_hasil": "PAY_FULL",
+      "aturan_harapan": [],
+      "aturan_hasil": [],
+      "catatan_kualitas": [],
+      "detik_baca": 0.2,
+      "detik_total": 0.2
+    },
+    {
+      "claim_id": "SYN-TIF-03",
+      "mode": "pindaian",
+      "kategori": "wajar",
+      "ekstraksi": "15/15",
+      "status_harapan": "GREEN",
+      "status_hasil": "GREEN",
+      "rekomendasi_harapan": "PAY_FULL",
+      "rekomendasi_hasil": "PAY_FULL",
+      "aturan_harapan": [],
+      "aturan_hasil": [],
+      "catatan_kualitas": [],
+      "detik_baca": 7.7,
+      "detik_total": 7.7
+    },
+    {
+      "claim_id": "SYN-TIF-04",
+      "mode": "digital",
+      "kategori": "wajar",
+      "ekstraksi": "16/16",
+      "status_harapan": "GREEN",
+      "status_hasil": "GREEN",
+      "rekomendasi_harapan": "PAY_FULL",
+      "rekomendasi_hasil": "PAY_FULL",
+      "aturan_harapan": [],
+      "aturan_hasil": [],
+      "catatan_kualitas": [],
+      "detik_baca": 0.3,
+      "detik_total": 0.3
+    },
+    {
+      "claim_id": "SYN-TIF-05",
+      "mode": "digital",
+      "kategori": "wajar",
+      "ekstraksi": "14/14",
+      "status_harapan": "GREEN",
+      "status_hasil": "GREEN",
+      "rekomendasi_harapan": "PAY_FULL",
+      "rekomendasi_hasil": "PAY_FULL",
+      "aturan_harapan": [
+        "TIF-02"
+      ],
+      "aturan_hasil": [
+        "TIF-02"
+      ],
+      "catatan_kualitas": [],
+      "detik_baca": 0.2,
+      "detik_total": 0.2
+    },
+    {
+      "claim_id": "SYN-TIF-06",
+      "mode": "digital",
+      "kategori": "bermasalah",
+      "ekstraksi": "14/14",
+      "status_harapan": "RED",
+      "status_hasil": "RED",
+      "rekomendasi_harapan": "DOCTOR_REVIEW",
+      "rekomendasi_hasil": "DOCTOR_REVIEW",
+      "aturan_harapan": [
+        "TIF-01",
+        "TIF-03"
+      ],
+      "aturan_hasil": [
+        "TIF-01",
+        "TIF-03"
+      ],
+      "catatan_kualitas": [],
+      "detik_baca": 0.2,
+      "detik_total": 0.2
+    },
+    {
+      "claim_id": "SYN-TIF-07",
+      "mode": "digital",
+      "kategori": "bermasalah",
+      "ekstraksi": "15/15",
+      "status_harapan": "YELLOW",
+      "status_hasil": "YELLOW",
+      "rekomendasi_harapan": "DOCTOR_REVIEW",
+      "rekomendasi_hasil": "DOCTOR_REVIEW",
+      "aturan_harapan": [
+        "TIF-04"
+      ],
+      "aturan_hasil": [
+        "TIF-04"
+      ],
+      "catatan_kualitas": [],
+      "detik_baca": 0.2,
+      "detik_total": 0.2
+    },
+    {
+      "claim_id": "SYN-TIF-08",
+      "mode": "digital",
+      "kategori": "bermasalah",
+      "ekstraksi": "16/16",
+      "status_harapan": "RED",
+      "status_hasil": "RED",
+      "rekomendasi_harapan": "DOCTOR_REVIEW",
+      "rekomendasi_hasil": "DOCTOR_REVIEW",
+      "aturan_harapan": [
+        "TIF-05"
+      ],
+      "aturan_hasil": [
+        "TIF-05"
+      ],
+      "catatan_kualitas": [],
+      "detik_baca": 0.2,
+      "detik_total": 0.2
+    },
+    {
+      "claim_id": "SYN-TIF-09",
+      "mode": "pindaian",
+      "kategori": "bermasalah",
+      "ekstraksi": "15/15",
+      "status_harapan": "YELLOW",
+      "status_hasil": "YELLOW",
+      "rekomendasi_harapan": "DOCTOR_REVIEW",
+      "rekomendasi_hasil": "DOCTOR_REVIEW",
+      "aturan_harapan": [
+        "TIF-06"
+      ],
+      "aturan_hasil": [
+        "TIF-06"
+      ],
+      "catatan_kualitas": [],
+      "detik_baca": 10.5,
+      "detik_total": 10.5
+    },
+    {
+      "claim_id": "SYN-TIF-10",
+      "mode": "pindaian",
+      "kategori": "dokumen_tidak_lengkap",
+      "ekstraksi": "15/15",
+      "status_harapan": "YELLOW",
+      "status_hasil": "YELLOW",
+      "rekomendasi_harapan": "PEND",
+      "rekomendasi_hasil": "PEND",
+      "aturan_harapan": [
+        "GEN-03"
+      ],
+      "aturan_hasil": [
+        "GEN-03"
+      ],
+      "catatan_kualitas": [
+        "RULE_SKIPPED"
+      ],
+      "detik_baca": 5.2,
+      "detik_total": 5.2
+    },
+    {
+      "claim_id": "SYN-GEA-01",
+      "mode": "pindaian",
+      "kategori": "wajar",
+      "ekstraksi": "13/13",
+      "status_harapan": "GREEN",
+      "status_hasil": "GREEN",
+      "rekomendasi_harapan": "PAY_FULL",
+      "rekomendasi_hasil": "PAY_FULL",
+      "aturan_harapan": [],
+      "aturan_hasil": [],
+      "catatan_kualitas": [],
+      "detik_baca": 7.1,
+      "detik_total": 7.1
+    },
+    {
+      "claim_id": "SYN-GEA-02",
+      "mode": "digital",
+      "kategori": "wajar",
+      "ekstraksi": "13/13",
+      "status_harapan": "GREEN",
+      "status_hasil": "GREEN",
+      "rekomendasi_harapan": "PAY_FULL",
+      "rekomendasi_hasil": "PAY_FULL",
+      "aturan_harapan": [],
+      "aturan_hasil": [],
+      "catatan_kualitas": [],
+      "detik_baca": 0.1,
+      "detik_total": 0.1
+    },
+    {
+      "claim_id": "SYN-GEA-03",
+      "mode": "pindaian",
+      "kategori": "wajar",
+      "ekstraksi": "13/13",
+      "status_harapan": "GREEN",
+      "status_hasil": "GREEN",
+      "rekomendasi_harapan": "PAY_FULL",
+      "rekomendasi_hasil": "PAY_FULL",
+      "aturan_harapan": [],
+      "aturan_hasil": [],
+      "catatan_kualitas": [],
+      "detik_baca": 8.8,
+      "detik_total": 8.8
+    },
+    {
+      "claim_id": "SYN-GEA-04",
+      "mode": "digital",
+      "kategori": "wajar",
+      "ekstraksi": "13/13",
+      "status_harapan": "GREEN",
+      "status_hasil": "GREEN",
+      "rekomendasi_harapan": "PAY_FULL",
+      "rekomendasi_hasil": "PAY_FULL",
+      "aturan_harapan": [],
+      "aturan_hasil": [],
+      "catatan_kualitas": [],
+      "detik_baca": 0.2,
+      "detik_total": 0.2
+    },
+    {
+      "claim_id": "SYN-GEA-05",
+      "mode": "digital",
+      "kategori": "wajar",
+      "ekstraksi": "13/13",
+      "status_harapan": "GREEN",
+      "status_hasil": "GREEN",
+      "rekomendasi_harapan": "PAY_FULL",
+      "rekomendasi_hasil": "PAY_FULL",
+      "aturan_harapan": [],
+      "aturan_hasil": [],
+      "catatan_kualitas": [],
+      "detik_baca": 0.1,
+      "detik_total": 0.1
+    },
+    {
+      "claim_id": "SYN-GEA-06",
+      "mode": "pindaian",
+      "kategori": "bermasalah",
+      "ekstraksi": "13/13",
+      "status_harapan": "RED",
+      "status_hasil": "RED",
+      "rekomendasi_harapan": "DOCTOR_REVIEW",
+      "rekomendasi_hasil": "DOCTOR_REVIEW",
+      "aturan_harapan": [
+        "GEA-01",
+        "GEA-02",
+        "GEA-03"
+      ],
+      "aturan_hasil": [
+        "GEA-01",
+        "GEA-02",
+        "GEA-03"
+      ],
+      "catatan_kualitas": [],
+      "detik_baca": 7.9,
+      "detik_total": 7.9
+    },
+    {
+      "claim_id": "SYN-GEA-07",
+      "mode": "digital",
+      "kategori": "bermasalah",
+      "ekstraksi": "13/13",
+      "status_harapan": "YELLOW",
+      "status_hasil": "YELLOW",
+      "rekomendasi_harapan": "DOCTOR_REVIEW",
+      "rekomendasi_hasil": "DOCTOR_REVIEW",
+      "aturan_harapan": [
+        "GEA-03"
+      ],
+      "aturan_hasil": [
+        "GEA-03"
+      ],
+      "catatan_kualitas": [],
+      "detik_baca": 0.2,
+      "detik_total": 0.2
+    },
+    {
+      "claim_id": "SYN-GEA-08",
+      "mode": "digital",
+      "kategori": "bermasalah",
+      "ekstraksi": "13/13",
+      "status_harapan": "RED",
+      "status_hasil": "RED",
+      "rekomendasi_harapan": "DOCTOR_REVIEW",
+      "rekomendasi_hasil": "DOCTOR_REVIEW",
+      "aturan_harapan": [
+        "GEN-04",
+        "GEA-04"
+      ],
+      "aturan_hasil": [
+        "GEN-04",
+        "GEA-04"
+      ],
+      "catatan_kualitas": [],
+      "detik_baca": 0.2,
+      "detik_total": 0.2
+    },
+    {
+      "claim_id": "SYN-GEA-09",
+      "mode": "pindaian",
+      "kategori": "dokumen_tidak_lengkap",
+      "ekstraksi": "10/10",
+      "status_harapan": "YELLOW",
+      "status_hasil": "YELLOW",
+      "rekomendasi_harapan": "PEND",
+      "rekomendasi_hasil": "PEND",
+      "aturan_harapan": [
+        "GEN-03"
+      ],
+      "aturan_hasil": [
+        "GEN-03"
+      ],
+      "catatan_kualitas": [],
+      "detik_baca": 5.8,
+      "detik_total": 5.8
+    },
+    {
+      "claim_id": "SYN-GEA-10",
+      "mode": "digital",
+      "kategori": "duplikat",
+      "ekstraksi": "13/13",
+      "status_harapan": "RED",
+      "status_hasil": "RED",
+      "rekomendasi_harapan": "DOCTOR_REVIEW",
+      "rekomendasi_hasil": "DOCTOR_REVIEW",
+      "aturan_harapan": [
+        "GEN-01"
+      ],
+      "aturan_hasil": [
+        "GEN-01"
+      ],
+      "catatan_kualitas": [],
+      "detik_baca": 0.1,
+      "detik_total": 0.1
+    }
+  ],
+  "selisih_ekstraksi": []
+}

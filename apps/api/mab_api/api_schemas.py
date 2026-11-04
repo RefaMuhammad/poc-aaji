@@ -358,3 +358,32 @@ class RulesetOut(BaseModel):
     diagnoses: list[RulesetDiagnosis]
     triage: list[dict[str, Any]]
     reason_codes: dict[str, str]
+
+
+# --- Dashboard (M8) -------------------------------------------------------------------
+
+
+class CountItem(BaseModel):
+    key: str
+    label: str | None = None
+    count: int
+    amount: int | None = None
+
+
+class DashboardOut(BaseModel):
+    label: str = "Data rekaan untuk demonstrasi"
+    total_claims: int
+    by_status: list[CountItem]
+    by_triage: list[CountItem]
+    by_recommendation: list[CountItem]
+    awaiting_doctor: int
+    billed_total: int                     # tagihan semua klaim yang sudah punya rekomendasi terlihat
+    recommended_total: int                # nilai rekomendasi (klaim dengan nilai)
+    correction_total: int                 # tagihan - rekomendasi, untuk bayar sebagian / tidak dijamin
+    top_findings: list[CountItem]
+    top_hospitals: list[CountItem]        # RS dengan temuan terbanyak
+    avg_processing_seconds: float | None  # unggah sampai rekomendasi awal
+    decisions: list[CountItem]
+    doctor_reviews: int
+    doctor_agreement_pct: float | None    # persentase telaah yang setuju dengan draf AI
+    avg_review_seconds: float | None

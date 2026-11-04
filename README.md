@@ -1,49 +1,198 @@
 # MAB Indonesia POC (Tahap 0)
 
-> **Data rekaan untuk demonstrasi.** Repo ini hanya memakai data sintetis. Aturan klinis masih draf dan belum divalidasi dokter.
+> **Data rekaan untuk demonstrasi.** Repo ini hanya memakai data sintetis. Aturan klinis masih draf dan belum divalidasi dokter. Jangan unggah data pasien sungguhan.
 
-Platform yang membantu Dewan Penasihat Medis menelaah klaim asuransi kesehatan rawat inap:
-unggah berkas klaim → ekstraksi data → aturan klinis + penalaran AI → triase hijau/kuning/merah → telaah dokter → rekomendasi → keputusan asuransi.
+Platform yang membantu Dewan Penasihat Medis (MAB) menelaah klaim asuransi kesehatan rawat inap:
 
-## Menjalankan
-
-Prasyarat: Docker Desktop (dengan Docker Compose v2) dan `make`.
-
-```bash
-make up        # salin .env.example ke .env (bila belum ada), build, dan nyalakan semua service
-make test      # jalankan tes otomatis di container api
-make logs      # lihat log
-make down      # matikan
+```
+unggah berkas klaim → baca dokumen (PDF/OCR) → ekstraksi data → aturan klinis + penalaran AI
+→ triase hijau/kuning/merah → telaah dokter + tanda tangan → rekomendasi → keputusan asuransi → dashboard
 ```
 
-Tanpa `make` (misalnya di Windows tanpa make):
+Prinsip yang dijaga di seluruh kode:
+
+1. AI tidak pernah menolak klaim. Rekomendasi selain "bayar penuh" wajib ditandatangani dokter sebelum terlihat oleh asuransi.
+2. Setiap temuan AI wajib membawa kutipan bukti dari dokumen; temuan tanpa bukti dibuang.
+3. Aturan klinis adalah konfigurasi (`rules/aturan_klinis_demo.yaml`), bukan kode.
+4. Hanya data sintetis. Setiap layar diberi label "Data rekaan untuk demonstrasi".
+5. Setiap rekomendasi mencatat versi model, versi prompt, dan versi aturan.
+
+Penjelasan teknis lengkap (komponen, alur data, model data, keamanan, keputusan desain) ada di **[docs/ARSITEKTUR.md](docs/ARSITEKTUR.md)**. Naskah demo ada di **[docs/demo-script.md](docs/demo-script.md)**.
+
+---
+
+## 1. Prasyarat
+
+| Kebutuhan | Keterangan |
+|---|---|
+| Docker Desktop | Dengan Docker Compose v2 (`docker compose version`). Alokasikan minimal 4 GB RAM untuk Docker. |
+| Ruang disk | Sekitar 6 GB (image worker berisi PaddleOCR + model). |
+| Internet | Saat build pertama: unduh image, paket Python/Node, dan model PaddleOCR. |
+| `make` (opsional) | Di Windows bisa tanpa `make`; setiap perintah di bawah ada versi tanpa `make`. |
+| Git Bash (opsional, Windows) | Hanya untuk `make reset` / `infra/scripts/reset_demo.sh`. Ada alternatif PowerShell. |
+
+Tidak perlu API key: bawaan `LLM_PROVIDER=mock`.
+
+## 2. Menjalankan pertama kali
+
+Jalankan dari folder repo (mis. `D:\Kerjaan\Asuransi\poc-aaji`).
+
+**Dengan `make`:**
 
 ```bash
-cp .env.example .env
+make up            # salin .env.example -> .env (bila belum ada), build, nyalakan semua service
+make synthetic     # buat 30 klaim sintetis di data/synthetic_output/ (sekali saja)
+make seed          # isi akun demo + 29 klaim + sebagian telaah dan keputusan
+```
+
+**Tanpa `make` (PowerShell / CMD):**
+
+```powershell
+copy .env.example .env
 docker compose up -d --build
-docker compose run --rm --no-deps api pytest -q tests
+docker compose run --rm --build synthetic
+docker compose exec api python infra/scripts/seed_demo.py
 ```
+
+Build pertama bisa 10–20 menit (terutama image worker). `seed` mengunggah 29 klaim lalu menunggu worker memprosesnya; dengan OCR di CPU biasanya beberapa menit. Progresnya tampil di terminal.
+
+Setelah selesai, buka **http://localhost:3000**.
 
 | Service | Alamat |
 |---|---|
-| Web (Next.js) | http://localhost:3000 |
-| API (FastAPI) | http://localhost:8000/health, dokumentasi di http://localhost:8000/docs |
-| MinIO (API S3) | http://localhost:9000 |
+| Web (portal asuransi + ruang kerja dokter + admin) | http://localhost:3000 |
+| API (FastAPI) | http://localhost:8000/health · dokumentasi interaktif http://localhost:8000/docs |
+| MinIO (penyimpanan dokumen, API S3) | http://localhost:9000 |
 | PostgreSQL | localhost:5432 |
 | Redis | localhost:6379 |
 
-## Struktur
+### Akun demo
+
+Password semua akun: `demo12345`. PIN tanda tangan dokter: `123456`.
+
+| Peran | Email | Halaman awal |
+|---|---|---|
+| Staf klaim asuransi | `staf@demo.test` | Daftar klaim |
+| Manajer klaim asuransi | `manajer@demo.test` | Daftar klaim, Dashboard |
+| Dokter umum | `dokter.umum@mab.test` | Antrean telaah (kasus kuning) |
+| Dokter spesialis (Penyakit Dalam) | `dokter.spesialis@mab.test` | Antrean telaah (kasus merah + eskalasi) |
+| Admin MAB | `admin@mab.test` | Aturan & pengguna, Dashboard |
+
+Tips: buka peran yang berbeda di jendela browser biasa dan jendela penyamaran (incognito), supaya tidak perlu keluar-masuk.
+
+## 3. Isi data demo setelah `make seed`
+
+| Kondisi | Klaim | Untuk ditunjukkan |
+|---|---|---|
+| Hijau, sudah disetujui massal | 12 klaim (SYN-DEN-04/05, SYN-GEA-01..05, SYN-TIF-01..05) | Daftar klaim, ekspor CSV |
+| Hijau, belum diputuskan | SYN-DEN-01, SYN-DEN-02, SYN-DEN-03 | Setujui massal |
+| Kuning di antrean dokter umum | SYN-DEN-06, SYN-TIF-10 (dokumen tidak lengkap) | Ruang kerja dokter umum |
+| Merah / eskalasi di antrean spesialis | SYN-GEA-10 (tumpang tindih dengan KLM-RIWAYAT-0001), SYN-TIF-08, SYN-DEN-08 (hasil eskalasi dokter umum) | Ruang kerja spesialis |
+| Sudah ditandatangani, menunggu keputusan asuransi | SYN-DEN-07 (spesialis mengubah draf jadi bayar sebagian) | Rekomendasi final, PDF, keputusan |
+| Sudah ditandatangani dan diputuskan | SYN-DEN-10, SYN-GEA-06..09, SYN-TIF-06, SYN-TIF-07, SYN-TIF-09 ("berbeda") | Dashboard |
+| **Belum diunggah** | **SYN-DEN-09** | **Diunggah langsung saat demo** |
+
+Tabel ini dari uji seed kami. SYN-DEN-06 sebenarnya klaim wajar, tetapi naik ke kuning karena ada catatan kualitas data pada dokumen pindaiannya (kalau ragu, klaim tidak boleh hijau). Hasil OCR di mesin lain bisa sedikit berbeda, sehingga isi antrean juga bisa sedikit berbeda.
+
+## 4. Skenario demo (ringkas)
+
+Naskah lengkap 10 menit, dengan kalimat yang bisa diucapkan dan nilai yang perlu diisi, ada di [docs/demo-script.md](docs/demo-script.md). Ringkasnya:
+
+1. **Staf asuransi** (`staf@demo.test`) mengunggah klaim DBD bermasalah **SYN-DEN-09** lewat **Unggah klaim**. Isi formulir dengan data dari `data/synthetic_output/SYN-DEN-09/case.json` (nomor klaim harus persis `SYN-DEN-09` di mode mock) dan lampirkan 4 PDF-nya. Halaman detail menampilkan progres, lalu status **Menunggu dokter**. Asuransi belum bisa melihat temuan.
+2. **Dokter umum** (`dokter.umum@mab.test`) membuka **Antrean telaah**. SYN-DEN-09 masuk antrean dengan triase kuning. Di layar dua panel, klik kutipan bukti: halaman dokumen terbuka dan lokasinya disorot (darah lengkap 4x sehari, tidak ada warning sign).
+3. Dokter klik **Mulai telaah**, melihat **Data ekstraksi** (bisa dikoreksi, tercatat riwayatnya), lalu **Setujui draf & tanda tangan** dengan PIN `123456`. Alternatif: **Ubah rekomendasi** (kode alasan wajib) atau **Eskalasi ke spesialis**.
+4. **Staf asuransi** membuka klaim yang sama: rekomendasi final kini terlihat, lengkap dengan nama dokter dan waktu tanda tangan. Catat keputusan **Setuju** atau **Berbeda** (alasan wajib), unduh **PDF**.
+5. **Manajer** membuka **Dashboard**: jumlah per triase, nilai koreksi, temuan terbanyak, RS dengan temuan terbanyak, waktu proses, dan persentase persetujuan dokter terhadap draf AI. Tutup dengan **Ekspor CSV** di Daftar klaim.
+
+## 5. Perintah sehari-hari
+
+| Tujuan | Dengan `make` | Tanpa `make` |
+|---|---|---|
+| Nyalakan | `make up` | `docker compose up -d --build` |
+| Matikan (data tetap ada) | `make down` | `docker compose down` |
+| Lihat log | `make logs` | `docker compose logs -f --tail=100` |
+| Tes otomatis | `make test` | `docker compose run --rm --no-deps api pytest -q tests` |
+| Isi data demo | `make seed` | `docker compose exec api python infra/scripts/seed_demo.py` |
+| **Reset demo** (hapus semua data, isi ulang) | `make reset` | lihat di bawah |
+| Evaluasi lengkap | `make eval` | `docker compose run --rm --no-deps worker python -m evaluation.run_eval` |
+
+**Reset demo** menghapus database dan file dokumen lokal lalu mengisi ulang data demo. Dengan Git Bash: `bash infra/scripts/reset_demo.sh` (minta konfirmasi). Di PowerShell:
+
+```powershell
+docker compose down -v
+docker compose up -d --build
+# tunggu sampai http://localhost:8000/health menjawab {"status":"ok"}, lalu:
+docker compose exec api python infra/scripts/seed_demo.py
+```
+
+Lakukan reset sebelum setiap sesi demo supaya SYN-DEN-09 belum ada dan antrean dokter berisi.
+
+## 6. Evaluasi
+
+```bash
+make eval
+```
+
+Menjalankan 30 klaim sintetis lewat pipeline lengkap dan menulis laporan ke `evaluation/reports/eval_<llm>_<ocr>.md` (+ `.json`): akurasi ekstraksi per field dan per mode (digital/pindaian), kecocokan triase dengan kunci jawaban, jumlah klaim bermasalah yang keliru jadi hijau, temuan berbukti, dan waktu proses per klaim.
+
+Cara membaca angkanya dengan jujur:
+
+- Semua angka berasal dari data sintetis buatan repo ini, bukan klaim sungguhan.
+- Dengan `LLM_PROVIDER=mock`, "LLM" menjawab dari skenario sintetis. Angkanya menguji pembacaan dokumen, OCR, cek bukti, aturan, dan triase, **bukan** kualitas model AI. Laporan menuliskan peringatan ini.
+- Hasil terakhir (mock LLM, OCR RapidOCR model PP-OCR karena model PaddleOCR tidak bisa diunduh di lingkungan pengembangan): ekstraksi field kunci 100%, status triase sesuai 96,7% (29/30), 0 klaim bermasalah jadi hijau, 22/22 temuan berbukti. Laporan acuannya ikut di repo: `evaluation/reports/eval_mock-llm-1_rapidocr-ppocr.md`. Di Docker, worker memakai PaddleOCR, jadi `make eval` akan menulis laporan baru `eval_mock-llm-1_paddleocr.md`.
+
+Skrip lama per milestone masih ada: `make eval-extraction` (M4) dan `make eval-triage` (M5).
+
+## 7. Memakai LLM sungguhan (DeepSeek)
+
+Isi di `.env` (file ini diabaikan git; jangan pernah commit API key):
 
 ```
-apps/web/                Next.js: portal asuransi + ruang kerja dokter + admin
-apps/api/                FastAPI: klaim, dokumen, telaah, keputusan, audit
-pipeline/mab_pipeline/   ingest, ocr, extraction, reasoning, rules, redflags, triage, llm, worker RQ
-rules/                   aturan_klinis_demo.yaml (konfigurasi aturan), CHANGELOG.md
-synthetic/               generator data sintetis (M2)
-evaluation/              skrip evaluasi (akurasi ekstraksi M4; lengkap di M8)
-tests/                   tes otomatis
-infra/docker/            Dockerfile api, worker, web
-data/                    (diabaikan git) data referensi dan output sintetis
+LLM_PROVIDER=deepseek
+LLM_API_KEY=<kunci API Anda>
+```
+
+Lalu `docker compose up -d --build worker`. `LLM_BASE_URL` dan `LLM_MODEL` boleh kosong (bawaan `https://api.deepseek.com`, `deepseek-chat`). Untuk server lain yang kompatibel OpenAI: `LLM_PROVIDER=openai_compatible` + `LLM_BASE_URL` + `LLM_MODEL`.
+
+Catatan: di mode sungguhan nomor klaim bebas (tidak harus `SYN-...`). Sebelum memakai data nyata di tahap berikutnya, cek ulang lokasi pemrosesan data penyedia LLM.
+
+## 8. Mengatasi masalah
+
+| Gejala | Penyebab umum dan solusi |
+|---|---|
+| `make seed`: "Tidak ada data sintetis" | Jalankan `make synthetic` dulu. |
+| `make seed`: "Klaim demo sudah ada" | Data lama masih ada. Jalankan `make reset`. |
+| Klaim lama di status "Diproses" | Worker belum jalan atau sedang OCR. Cek `docker compose logs -f worker`. |
+| Klaim "Gagal diproses" | Lihat pesan di halaman detail dan `docker compose logs worker`. Mode mock butuh nomor klaim `SYN-xxx-nn` yang ada di `data/synthetic_output`. |
+| Login gagal | Akun belum dibuat: `make seed` (atau `make seed-users`). |
+| Port 3000/8000/5432 dipakai | Matikan aplikasi lain yang memakai port itu, atau ubah pemetaan port di `docker-compose.yml`. |
+| Build worker gagal mengunduh model OCR | Butuh internet saat build. Coba ulang `docker compose build worker`. |
+| Halaman web kosong setelah update kode | `docker compose up -d --build web`. |
+
+## 9. Batasan Tahap 0
+
+- Hanya data sintetis (30 skenario: 16 wajar, 14 bermasalah) untuk tiga diagnosis: dengue, demam tifoid, gastroenteritis akut.
+- Aturan klinis (19 aturan) masih draf dan belum divalidasi dokter; rujukan pedoman hanya ringkasan.
+- Koreksi field oleh dokter tidak otomatis menjalankan ulang aturan; dokter menetapkan rekomendasi final.
+- Tanda tangan digital sederhana (login + PIN), belum tanda tangan elektronik tersertifikasi.
+- Tidak ada integrasi ke sistem klaim asuransi; pertukaran data lewat unggah manual dan ekspor CSV.
+- Modul red flag (`pipeline/mab_pipeline/redflags/`) belum diisi; pola penipuan baru sebatas aturan umum (klaim tumpang tindih, item ganda, item tanpa catatan klinis).
+- Rahasia di `.env.example` hanya untuk lokal. Ganti `JWT_SECRET` dan password bila dipasang di server mana pun.
+
+## 10. Struktur repo
+
+```
+apps/web/                Next.js 14: portal asuransi, ruang kerja dokter, admin, dashboard
+apps/api/                FastAPI: auth, klaim, dokumen, telaah, keputusan, dashboard, audit; migrasi Alembic
+pipeline/mab_pipeline/   ingest, ocr, extraction, reasoning, rules, triage, llm, worker RQ
+rules/                   aturan_klinis_demo.yaml (konfigurasi aturan) + CHANGELOG.md
+synthetic/               generator 30 klaim sintetis (PDF digital + pindaian)
+evaluation/              skrip evaluasi + laporan (evaluation/reports/)
+infra/docker/            Dockerfile api, worker, web, synthetic
+infra/scripts/           seed_users.py, seed_demo.py, reset_demo.sh
+docs/                    ARSITEKTUR.md, demo-script.md, kamus-data.md
+tests/                   tes otomatis (pytest)
+data/                    (diabaikan git) output data sintetis
 ```
 
 ## Status milestone
@@ -56,147 +205,4 @@ data/                    (diabaikan git) data referensi dan output sintetis
 - [x] M5 Penalaran klinis, cek bukti, rekomendasi
 - [x] M6 Portal asuransi
 - [x] M7 Ruang kerja dokter
-- [ ] M8 Evaluasi, seed demo, naskah demo
-
-## Mesin aturan (M1)
-
-Aturan klinis ada di `rules/aturan_klinis_demo.yaml` dan dibaca oleh `pipeline/mab_pipeline/rules/`. Untuk mencoba pada contoh klaim:
-
-```bash
-docker compose run --rm --no-deps api python -m mab_pipeline.rules rules/aturan_klinis_demo.yaml tests/fixtures/contoh_klaim_uji.json
-```
-
-Ekspresi `kondisi` dievaluasi tanpa `eval`: hanya field `kelompok.field`, konstanta, `and/or/not`, perbandingan, dan `len()` yang diizinkan. Ambang triase (bobot keparahan dan `skor_min`) diatur di bagian `triase` YAML.
-
-## Data sintetis (M2)
-
-```bash
-make synthetic
-# tanpa make:
-docker compose run --rm --build synthetic
-```
-
-Hasilnya di `data/synthetic_output/` (tidak masuk git):
-
-- `<claim_id>/` berisi `resume_medis.pdf`, `hasil_laboratorium.pdf`, `cppt.pdf`, `rincian_tagihan.pdf`, dan `case.json` (isi lengkap klaim). 12 dari 30 klaim dibuat versi pindaian (gambar miring, blur, noise, stempel).
-- `kunci_jawaban.csv`: status triase, rekomendasi, dan aturan yang diharapkan per klaim.
-- `ground_truth.json`: nilai field kamus data yang benar per klaim, untuk mengukur akurasi ekstraksi di M4.
-
-Skenario ada di `synthetic/scenarios.yaml` (16 wajar, 14 bermasalah termasuk 2 dokumen tidak lengkap dan 1 klaim duplikat). Semua nama pasien, dokter, dan rumah sakit fiktif, dan setiap halaman diberi tanda "DATA REKAAN".
-
-## API (M3)
-
-Migrasi database berjalan otomatis saat container `api` menyala. Buat akun demo sekali:
-
-```bash
-make seed-users
-# tanpa make:
-docker compose exec api python infra/scripts/seed_users.py
-```
-
-| Peran | Email | Password |
-|---|---|---|
-| Staf klaim asuransi | staf@demo.test | demo12345 |
-| Manajer klaim | manajer@demo.test | demo12345 |
-| Dokter umum | dokter.umum@mab.test | demo12345 (PIN tanda tangan 123456) |
-| Dokter spesialis | dokter.spesialis@mab.test | demo12345 (PIN tanda tangan 123456) |
-| Admin MAB | admin@mab.test | demo12345 |
-
-Dokumentasi interaktif: http://localhost:8000/docs (klik **Authorize**, tempel token dari `POST /auth/login`).
-
-Endpoint utama: `POST /claims`, `POST /claims/{id}/documents` (PDF/JPG/PNG maks. 20 MB), `POST /claims/batch` (ZIP berisi `manifest.xlsx` + satu folder per klaim), `GET /claims`, `GET /claims/{id}`, `GET /claims/{id}/status`, `GET /claims/{id}/recommendation`, `POST /claims/{id}/decision`, `POST /claims/decisions/bulk-agree`, `GET /claims/export.csv`, `GET /documents/{id}/download`, `GET /users` (admin).
-
-Kolom `manifest.xlsx`: `folder, nomor_klaim, nomor_polis, id_peserta, nama_peserta, nama_rs, tanggal_masuk, tanggal_keluar, nilai_tagihan`.
-
-Aturan akses: staf/manajer hanya melihat klaim asuransinya; dokter melihat klaim yang ditugaskan kepadanya atau yang menunggu dokter; rekomendasi selain bayar penuh baru terlihat oleh asuransi setelah ditandatangani dokter. Semua aksi tulis, login, dan akses dokumen tercatat di `audit_logs`, yang di PostgreSQL tidak bisa diubah atau dihapus (trigger).
-
-## Pipeline baca dokumen (M4)
-
-Setelah dokumen klaim diunggah, worker menjalankan:
-
-1. **Ingest** (`ingest/pdf_loader.py`): halaman PDF yang punya lapisan teks dibaca pdfplumber (teks + koordinat, watermark miring dibuang). Halaman tanpa teks dirender 200 DPI.
-2. **Pra-pemrosesan dan OCR** (`ingest/image_preprocess.py`, `ocr/engine.py`): kontras, denoise, koreksi miring, lalu PaddleOCR. Hasilnya baris teks dengan bbox dan skor keyakinan.
-3. **Klasifikasi** (`ingest/doc_classifier.py`): judul dokumen dicocokkan dengan kata kunci; bila gagal, LLM; bila tetap gagal, tebakan dari nama file.
-4. **Ekstraksi** (`extraction/llm_extractor.py`): teks bernomor + prompt berversi (`extraction/prompts/`, versi `extract_v1`) dikirim ke LLM. Setiap nilai wajib membawa `source_line_ids`. Jawaban divalidasi Pydantic, diulang sekali bila tidak valid, lalu ditandai gagal.
-5. **Field turunan** (`extraction/derived_fields.py`): lama rawat, trombosit terendah, kenaikan hematokrit, darah lengkap per hari, Widal, lama seftriakson, hari infus, item tagihan ganda, dokumen yang kurang. Klaim tumpang tindih dihitung dari database.
-
-Field disimpan di tabel `extracted_fields` beserta bukti `{doc, page, bbox, quote, line_ids}` dan bisa dilihat di `GET /claims/{id}/fields`.
-
-## Penalaran klinis dan rekomendasi (M5)
-
-Masih di job yang sama, setelah dokumen terbaca:
-
-1. **Penalaran klinis** (`reasoning/clinical_reasoner.py`, prompt `clinical_v1`): LLM membaca resume, CPPT, lab, dan tagihan, lalu mengisi field `sumber: ai` di kamus data yang dipakai aturan diagnosis tersebut. Setiap nilai yang menyatakan sesuatu ada wajib membawa kutipan persis.
-2. **Cek bukti** (`reasoning/evidence_check.py`): kutipan dicocokkan ke teks dokumen (fuzzy, skor >= 0,9, boleh melintasi 2-3 baris). Kutipan yang tidak ditemukan dibuang dan nilainya menjadi null (tidak diketahui), bukan "tidak ada".
-3. **Aturan** M1 dijalankan; setiap temuan diberi bukti dari field yang dipakai aturannya (dokumen, halaman, bbox, kutipan). Temuan yang butuh bukti AI tetapi tidak punya bukti dibuang.
-4. **Rekomendasi** (`triage/recommender.py`): status, skor, rekomendasi awal (`PAY_FULL`, `DOCTOR_REVIEW`, `PEND`), usulan koreksi tagihan (item ganda, item tanpa catatan klinis, hari rawat berlebih), draf penjelasan, rujukan pedoman, serta versi model, prompt, dan aturan.
-
-Pengaman kualitas data: bila ada dokumen tidak terbaca, diagnosis tidak terbaca, kutipan AI tidak terbukti, aturan tidak bisa dinilai, atau temuan dibuang, klaim tidak pernah hijau (dinaikkan ke kuning, dengan catatan di `quality_flags`). AI tidak pernah menolak klaim.
-
-Klaim bayar penuh langsung berstatus `AWAITING_DECISION` dan terlihat oleh asuransi. Selain itu berstatus `AWAITING_DOCTOR` dan baru terlihat oleh asuransi setelah ditandatangani dokter (M7). Semua versi dicatat di `audit_logs` (`PIPELINE_COMPLETED`).
-
-```bash
-make eval-triage        # tanpa make: docker compose run --rm --no-deps worker python -m evaluation.triage_accuracy
-```
-
-Target M5: >= 90% status triase sesuai kunci jawaban, 0 klaim bermasalah menjadi hijau, setiap temuan punya bukti.
-
-## Portal asuransi (M6)
-
-Buka http://localhost:3000 lalu masuk dengan akun demo (mis. `staf@demo.test` / `demo12345`).
-
-- **Daftar klaim**: filter status dan triase, badge triase, status proses (diperbarui otomatis selama klaim diproses), setujui massal klaim hijau, ekspor CSV.
-- **Unggah klaim**: formulir satu klaim + dokumen (PDF/JPG/PNG), atau ZIP berisi `manifest.xlsx` dan satu folder per klaim. Setelah unggah, halaman detail menampilkan progres proses.
-- **Detail klaim**: rekomendasi sesuai format PRD (triase, skor risiko, nilai rekomendasi, koreksi per item, temuan, rujukan, versi model/prompt/aturan). Klik kutipan bukti untuk membuka halaman dokumen dengan lokasi kutipan disorot.
-- **Keputusan**: setuju / berbeda (alasan wajib bila berbeda). Rekomendasi bisa diunduh sebagai PDF.
-- Rekomendasi selain bayar penuh tidak tampil ke asuransi sebelum ditandatangani dokter; portal menampilkan "perlu telaah dokter". Ruang kerja dokter dibuat di M7.
-
-Browser hanya memanggil `/api/*` di server web; server web meneruskannya ke API (`API_INTERNAL_URL`, di compose `http://api:8000`). Jadi cukup port 3000 yang perlu dibuka.
-
-Endpoint baru: `GET /documents/{id}/pages/{n}.png` (pratinjau halaman), `GET /claims/{id}/recommendation.pdf`, filter `?triage=` di `GET /claims`.
-
-Pengembangan frontend tanpa Docker: `cd apps/web && npm ci && npm run dev` (API harus jalan di http://localhost:8000).
-
-## Ruang kerja dokter (M7)
-
-Masuk sebagai dokter (mis. `dokter.spesialis@mab.test`), lalu buka **Antrean telaah**.
-
-- **Antrean**: kasus kuning untuk dokter umum; kasus merah dan hasil eskalasi untuk dokter spesialis sebidang (bidang per diagnosis diatur di `spesialisasi` pada file aturan). Urut skor risiko tertinggi, filter diagnosis, plus tab "Sudah saya tanda tangani".
-- **Layar telaah dua panel**: kiri dokumen asli (klik kutipan bukti untuk menyorot lokasinya), kanan temuan, draf rekomendasi, data ekstraksi, dan riwayat telaah.
-- **Mulai telaah** mengunci kasus untuk dokter itu dan mulai menghitung waktu telaah. **Lepas kasus** mengembalikannya ke antrean.
-- **Koreksi field**: nilai asli tetap disimpan; setiap koreksi tercatat (nilai lama, nilai baru, catatan, siapa, kapan).
-- **Aksi**: setujui draf, ubah rekomendasi (kode alasan wajib bila berbeda dari draf), eskalasi ke spesialis (dokter umum, catatan wajib), lalu tanda tangan dengan PIN.
-- Tanda tangan membuat versi rekomendasi baru berstatus SIGNED (draf AI tetap tersimpan sebagai versi lama) dan klaim langsung muncul di portal asuransi untuk diputuskan.
-- Untuk metrik, setiap telaah menyimpan waktu mulai/selesai dan apakah dokter setuju dengan draf AI (`reviews.agrees_with_ai`).
-- Usulan dari draf AI tidak pernah "tidak dijamin": tanpa koreksi nilai, usulannya "tunda/klarifikasi".
-- Koreksi field belum menjalankan ulang aturan secara otomatis; dokter memutuskan rekomendasi final berdasarkan koreksinya.
-- **Admin** (`admin@mab.test`): halaman **Aturan & pengguna** menampilkan versi aturan aktif, aturan triase, daftar aturan per diagnosis, dan daftar pengguna (baca saja).
-
-Endpoint: `GET /review/queue`, `GET /review/{id}`, `POST /review/{id}/start`, `POST /review/{id}/release`, `PATCH /review/{id}/fields/{field_id}`, `POST /review/{id}/escalate`, `POST /review/{id}/sign`, `GET /admin/ruleset`.
-
-### Memakai DeepSeek
-
-Isi di `.env` (jangan di-commit):
-
-```
-LLM_PROVIDER=deepseek
-LLM_API_KEY=<kunci API Anda>
-```
-
-Lalu `docker compose up -d --build worker`. `LLM_BASE_URL` dan `LLM_MODEL` boleh kosong (bawaan `https://api.deepseek.com`, `deepseek-chat`). Untuk server lain yang kompatibel OpenAI pakai `LLM_PROVIDER=openai_compatible` dengan `LLM_BASE_URL` dan `LLM_MODEL`. Sebelum memakai data nyata, cek ulang lokasi pemrosesan data penyedia LLM.
-
-### Mengukur akurasi ekstraksi
-
-```bash
-make synthetic          # sekali, membuat 30 klaim + ground_truth.json
-make eval-extraction    # tanpa make: docker compose run --rm --no-deps worker python -m evaluation.extraction_accuracy
-```
-
-Laporan (Markdown + JSON) ditulis ke `evaluation/reports/`, dipisah per PDF digital dan pindaian. Target M4: akurasi field kunci >= 90% dengan LLM sungguhan. Mode mock hanya menguji alur (nilainya diambil dari data sintetis), jadi angkanya bukan ukuran kualitas LLM.
-
-Image worker memasang PaddleOCR dan mengunduh modelnya saat build, jadi build pertama lebih lama dan butuh internet.
-
-## Catatan
-
-- `LLM_PROVIDER=mock` adalah default, jadi tidak perlu API key untuk pengembangan.
-- Image MinIO memakai `bitnamilegacy/minio` karena `minio/minio` sudah tidak tersedia di Docker Hub dan tag di quay.io butuh login. Image ini tidak menyertakan web console; isi bucket bisa dicek lewat `docker compose exec minio mc ls local`.
+- [x] M8 Evaluasi, seed demo, naskah demo

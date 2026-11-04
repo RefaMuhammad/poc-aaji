@@ -25,11 +25,13 @@ synthetic: env
 seed-users:
 	docker compose exec api python infra/scripts/seed_users.py
 
+# Isi data demo ke database yang sedang jalan (butuh `make up` dan `make synthetic`).
 seed:
-	@echo "make seed belum diimplementasi (dijadwalkan di M8)."
+	docker compose exec api python infra/scripts/seed_demo.py
 
+# Kosongkan semua data lalu isi ulang data demo (minta konfirmasi).
 reset:
-	@echo "make reset belum diimplementasi (dijadwalkan di M8)."
+	bash infra/scripts/reset_demo.sh
 
 # Akurasi ekstraksi M4 terhadap ground_truth.json (butuh `make synthetic` dulu).
 # Pakai LLM_PROVIDER di .env; hasil di evaluation/reports/.
@@ -40,5 +42,6 @@ eval-extraction: env
 eval-triage: env
 	docker compose run --rm --no-deps worker python -m evaluation.triage_accuracy
 
-eval:
-	@echo "make eval belum diimplementasi (dijadwalkan di M8)."
+# Evaluasi lengkap Tahap 0 (ekstraksi, triase, hijau keliru, waktu proses) -> evaluation/reports/eval_*.md
+eval: env
+	docker compose run --rm --no-deps worker python -m evaluation.run_eval

@@ -38,6 +38,7 @@ function Shell({ children }: { children: React.ReactNode }) {
               {isAdmin && nav("/admin", "Aturan & pengguna")}
               {nav("/klaim", "Daftar klaim")}
               {isInsurer && nav("/klaim/baru", "Unggah klaim")}
+              {(isInsurer || isAdmin) && nav("/dashboard", "Dashboard")}
             </nav>
           </div>
           <div className="flex items-center gap-3 text-sm">

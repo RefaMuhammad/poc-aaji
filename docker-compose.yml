@@ -63,6 +63,7 @@ services:
       - ./infra/scripts:/app/infra/scripts
       - ./tests:/app/tests
       - ./evaluation:/app/evaluation
+      - ./data:/app/data
     environment:
       LLM_MOCK_FIXTURES_DIR: /app/data/synthetic_output
     ports:
