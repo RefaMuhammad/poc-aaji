@@ -12,6 +12,7 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt
 COPY apps/api/mab_api /app/mab_api
 COPY pipeline/mab_pipeline /app/mab_pipeline
 COPY rules /app/rules
+COPY synthetic /app/synthetic
 COPY tests /app/tests
 
 EXPOSE 8000

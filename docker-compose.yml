@@ -58,6 +58,7 @@ services:
       - ./apps/api/mab_api:/app/mab_api
       - ./pipeline/mab_pipeline:/app/mab_pipeline
       - ./rules:/app/rules
+      - ./synthetic:/app/synthetic
       - ./tests:/app/tests
     ports:
       - "8000:8000"
@@ -89,6 +90,19 @@ services:
       - "3000:3000"
     depends_on:
       - api
+
+  # Alat pembuat data sintetis. Tidak ikut "docker compose up";
+  # jalankan dengan: docker compose run --rm synthetic
+  synthetic:
+    profiles: ["tools"]
+    build:
+      context: .
+      dockerfile: infra/docker/synthetic.Dockerfile
+    volumes:
+      - ./synthetic:/app/synthetic
+      - ./pipeline/mab_pipeline:/app/mab_pipeline
+      - ./rules:/app/rules
+      - ./data:/app/data
 
 volumes:
   pgdata:

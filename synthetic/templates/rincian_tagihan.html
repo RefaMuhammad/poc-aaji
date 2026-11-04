@@ -1,0 +1,11 @@
+{% extends "_base.html" %}
+{% block content %}
+<table>
+  <tr><th style="width:4%">No</th><th style="width:13%">Tanggal</th><th style="width:8%">Jam</th><th>Uraian</th><th style="width:6%">Jml</th><th style="width:14%">Tarif</th><th style="width:15%">Subtotal</th></tr>
+  {% for it in case.billing %}
+  <tr><td>{{ loop.index }}</td><td>{{ fmt(it.date) }}</td><td>{{ it.time }}</td><td>{{ it.name }}</td><td class="num">{{ it.qty }}</td><td class="num">{{ num(it.price) }}</td><td class="num">{{ num(it.price * it.qty) }}</td></tr>
+  {% endfor %}
+  <tr><th colspan="6" class="num">TOTAL</th><th class="num">Rp {{ num(case.billing_total) }}</th></tr>
+</table>
+<div class="sign">Bagian keuangan<br><br><br>Kasir Rekaan</div>
+{% endblock %}

@@ -1,0 +1,338 @@
+# =============================================================================
+# SKENARIO KLAIM SINTETIS - TAHAP 0
+# =============================================================================
+# DATA REKAAN UNTUK DEMONSTRASI. Nama pasien, dokter, dan rumah sakit fiktif.
+#
+# Setiap skenario menjelaskan "kebenaran klinis" klaim. generate_cases.py
+# membangun dokumen (resume, lab harian, CPPT, tagihan) yang konsisten dengan
+# kebenaran ini, lalu menghitung ground truth dari dokumen tersebut.
+#
+# kategori:
+#   wajar                 klaim sesuai pedoman, harapan GREEN
+#   bermasalah            satu atau lebih aturan klinis seharusnya terpicu
+#   dokumen_tidak_lengkap dokumen wajib tidak dilampirkan (harapan PEND)
+#   duplikat              klaim tumpang tindih dengan klaim lain di riwayat
+#
+# Kunci "klinis" hanya untuk field ber-sumber "ai" di kamus data (dibaca AI
+# dari narasi). Kunci "lab", "terapi", "tagihan" adalah knob untuk membangun
+# dokumen; nilai field dokumen/hitung di ground truth dihitung dari dokumen.
+# =============================================================================
+
+seed: 20261104
+tanggal_mulai: "2026-03-02"
+proporsi_pindaian: 0.4
+
+skenario:
+  # ---------------------------------------------------------------- DBD / dengue
+  - claim_id: SYN-DEN-01
+    icd10: A91
+    kategori: wajar
+    deskripsi: "DBD dengan warning signs dan perembesan plasma, pulang sesuai kriteria"
+    pasien: {usia: 27, jk: P}
+    lama_rawat: 5
+    lab: {trombosit_min: 62000, kenaikan_ht: 22, ns1: pos}
+    klinis: {plasma_leakage: true, warning_signs: [nyeri abdomen, perdarahan mukosa]}
+    harapan: {status: GREEN, aturan: []}
+
+  - claim_id: SYN-DEN-02
+    icd10: A91
+    kategori: wajar
+    deskripsi: "DBD terkonfirmasi IgM (NS1 negatif karena datang hari ke-5)"
+    pasien: {usia: 34, jk: L}
+    lama_rawat: 4
+    lab: {trombosit_min: 78000, kenaikan_ht: 21, ns1: neg, igm: pos}
+    klinis: {plasma_leakage: true, warning_signs: [nyeri abdomen]}
+    harapan: {status: GREEN, aturan: []}
+
+  - claim_id: SYN-DEN-03
+    icd10: A90
+    kategori: wajar
+    deskripsi: "Demam dengue dengan muntah persisten, tanpa perembesan plasma"
+    pasien: {usia: 19, jk: P}
+    lama_rawat: 4
+    lab: {trombosit_min: 95000, kenaikan_ht: 12, ns1: pos}
+    klinis: {plasma_leakage: false, warning_signs: [muntah persisten]}
+    harapan: {status: GREEN, aturan: []}
+
+  - claim_id: SYN-DEN-04
+    icd10: A91
+    kategori: wajar
+    deskripsi: "DBD pada pasien diabetes, perembesan plasma"
+    pasien: {usia: 52, jk: L}
+    lama_rawat: 5
+    lab: {trombosit_min: 70000, kenaikan_ht: 20, ns1: pos}
+    klinis: {plasma_leakage: true, warning_signs: [nyeri abdomen], comorbidities: [diabetes melitus tipe 2]}
+    harapan: {status: GREEN, aturan: []}
+
+  - claim_id: SYN-DEN-05
+    icd10: A91
+    kategori: wajar
+    deskripsi: "Severe dengue: syok dan perdarahan spontan"
+    pasien: {usia: 23, jk: P}
+    lama_rawat: 6
+    lab: {trombosit_min: 28000, kenaikan_ht: 30, ns1: pos}
+    klinis: {plasma_leakage: true, shock: true, spontaneous_bleeding: true, warning_signs: [letargi, nyeri abdomen]}
+    harapan: {status: GREEN, aturan: []}
+
+  - claim_id: SYN-DEN-06
+    icd10: A90
+    kategori: wajar
+    deskripsi: "Demam dengue pada anak dengan muntah persisten"
+    pasien: {usia: 8, jk: L}
+    lama_rawat: 4
+    lab: {trombosit_min: 98000, kenaikan_ht: 10, ns1: pos}
+    klinis: {plasma_leakage: false, warning_signs: [muntah persisten]}
+    harapan: {status: GREEN, aturan: []}
+
+  - claim_id: SYN-DEN-07
+    icd10: A91
+    kategori: bermasalah
+    deskripsi: "Ditagih DBD padahal trombosit tidak turun, tanpa perembesan plasma dan tanpa warning signs"
+    pasien: {usia: 31, jk: L}
+    lama_rawat: 5
+    lab: {trombosit_min: 132000, kenaikan_ht: 7, ns1: pos}
+    klinis: {plasma_leakage: false, warning_signs: []}
+    harapan: {status: RED, aturan: [DEN-01, DEN-03]}
+
+  - claim_id: SYN-DEN-08
+    icd10: A90
+    kategori: bermasalah
+    deskripsi: "Ditagih dengue padahal NS1 dan IgM negatif, trombosit normal"
+    pasien: {usia: 40, jk: P}
+    lama_rawat: 3
+    lab: {trombosit_min: 168000, kenaikan_ht: 5, ns1: neg, igm: neg}
+    klinis: {plasma_leakage: false, warning_signs: [nyeri abdomen]}
+    harapan: {status: YELLOW, aturan: [DEN-02]}
+
+  - claim_id: SYN-DEN-09
+    icd10: A90
+    kategori: bermasalah
+    deskripsi: "Demam dengue tanpa warning signs dirawat inap, darah lengkap 4x sehari"
+    pasien: {usia: 26, jk: L}
+    lama_rawat: 4
+    lab: {trombosit_min: 112000, kenaikan_ht: 6, ns1: pos, cbc_maks_per_hari: 4}
+    klinis: {plasma_leakage: false, warning_signs: []}
+    harapan: {status: YELLOW, aturan: [DEN-03, DEN-05]}
+
+  - claim_id: SYN-DEN-10
+    icd10: A91
+    kategori: bermasalah
+    deskripsi: "DBD wajar, tetapi masih dirawat 3 hari setelah layak pulang dan ada item tagihan ganda"
+    pasien: {usia: 45, jk: P}
+    lama_rawat: 7
+    lab: {trombosit_min: 55000, kenaikan_ht: 23, ns1: pos}
+    klinis: {plasma_leakage: true, warning_signs: [nyeri abdomen], days_after_discharge_criteria: 3}
+    tagihan: {item_ganda: 1}
+    harapan: {status: RED, aturan: [GEN-02, DEN-04]}
+
+  # ---------------------------------------------------------------- Demam tifoid
+  - claim_id: SYN-TIF-01
+    icd10: A01.0
+    kategori: wajar
+    deskripsi: "Tifoid terkonfirmasi kultur darah, seftriakson 5 hari"
+    pasien: {usia: 29, jk: L}
+    lama_rawat: 5
+    lab: {kultur: pos, widal: [160]}
+    terapi: {seftriakson_hari: 5}
+    harapan: {status: GREEN, aturan: []}
+
+  - claim_id: SYN-TIF-02
+    icd10: A01.0
+    kategori: wajar
+    deskripsi: "Tifoid anak terkonfirmasi Tubex, tanpa kuinolon"
+    pasien: {usia: 12, jk: P}
+    lama_rawat: 5
+    lab: {tes_cepat: pos, widal: [160]}
+    terapi: {seftriakson_hari: 5}
+    harapan: {status: GREEN, aturan: []}
+
+  - claim_id: SYN-TIF-03
+    icd10: A01.0
+    kategori: wajar
+    deskripsi: "Tifoid dengan kenaikan titer Widal 4x pada tes ulang"
+    pasien: {usia: 38, jk: L}
+    lama_rawat: 6
+    lab: {kultur: neg, widal: [80, 320]}
+    terapi: {seftriakson_hari: 5}
+    harapan: {status: GREEN, aturan: []}
+
+  - claim_id: SYN-TIF-04
+    icd10: A01.0
+    kategori: wajar
+    deskripsi: "Tifoid dengan komplikasi perdarahan saluran cerna yang terdokumentasi, seftriakson 10 hari"
+    pasien: {usia: 47, jk: P}
+    lama_rawat: 10
+    sekunder: [K92.2]
+    lab: {kultur: pos, widal: [320]}
+    terapi: {seftriakson_hari: 10}
+    klinis: {complication_documented: true}
+    harapan: {status: GREEN, aturan: []}
+
+  - claim_id: SYN-TIF-05
+    icd10: A01.0
+    kategori: wajar
+    deskripsi: "Tifoid dari Widal tunggal 1/320 (temuan INFO saja)"
+    pasien: {usia: 33, jk: L}
+    lama_rawat: 5
+    lab: {widal: [320]}
+    terapi: {seftriakson_hari: 5}
+    harapan: {status: GREEN, aturan: [TIF-02]}
+
+  - claim_id: SYN-TIF-06
+    icd10: A01.0
+    kategori: bermasalah
+    deskripsi: "Tifoid hanya dari Widal tunggal 1/160, seftriakson 7 hari"
+    pasien: {usia: 44, jk: L}
+    lama_rawat: 6
+    lab: {widal: [160]}
+    terapi: {seftriakson_hari: 7}
+    harapan: {status: RED, aturan: [TIF-01, TIF-03]}
+
+  - claim_id: SYN-TIF-07
+    icd10: A01.0
+    kategori: bermasalah
+    deskripsi: "Remaja 15 tahun diberi siprofloksasin"
+    pasien: {usia: 15, jk: P}
+    lama_rawat: 5
+    lab: {kultur: pos, widal: [160]}
+    terapi: {seftriakson_hari: 0, kuinolon: Siprofloksasin}
+    harapan: {status: YELLOW, aturan: [TIF-04]}
+
+  - claim_id: SYN-TIF-08
+    icd10: A01.0
+    kategori: bermasalah
+    deskripsi: "Diagnosis sekunder hepatitis tifosa ditagihkan tanpa catatan klinis atau lab pendukung"
+    pasien: {usia: 36, jk: L}
+    lama_rawat: 5
+    sekunder: [K75.9]
+    lab: {kultur: pos, widal: [160]}
+    terapi: {seftriakson_hari: 5}
+    klinis: {complication_documented: false}
+    harapan: {status: RED, aturan: [TIF-05]}
+
+  - claim_id: SYN-TIF-09
+    icd10: A01.0
+    kategori: bermasalah
+    deskripsi: "Tifoid terkonfirmasi, masih dirawat 3 hari setelah layak pulang"
+    pasien: {usia: 51, jk: P}
+    lama_rawat: 8
+    lab: {kultur: pos, widal: [160]}
+    terapi: {seftriakson_hari: 5}
+    klinis: {days_after_discharge_criteria: 3}
+    harapan: {status: YELLOW, aturan: [TIF-06]}
+
+  - claim_id: SYN-TIF-10
+    icd10: A01.0
+    kategori: dokumen_tidak_lengkap
+    deskripsi: "Rincian tagihan tidak dilampirkan"
+    pasien: {usia: 27, jk: L}
+    lama_rawat: 5
+    lab: {kultur: pos, widal: [160]}
+    terapi: {seftriakson_hari: 5}
+    dokumen_tidak_ada: [rincian_tagihan]
+    harapan: {status: YELLOW, aturan: [GEN-03]}
+
+  # ------------------------------------------------------ Gastroenteritis akut
+  - claim_id: SYN-GEA-01
+    icd10: A09
+    kategori: wajar
+    deskripsi: "GEA dehidrasi berat dengan muntah persisten"
+    pasien: {usia: 36, jk: P}
+    lama_rawat: 3
+    klinis: {dehydration: berat, persistent_vomiting: true, daldiyono_score: 4}
+    terapi: {infus_hari: 2}
+    harapan: {status: GREEN, aturan: []}
+
+  - claim_id: SYN-GEA-02
+    icd10: A09
+    kategori: wajar
+    deskripsi: "GEA pada lansia dengan penyakit ginjal kronik dan muntah persisten"
+    pasien: {usia: 70, jk: L}
+    lama_rawat: 4
+    klinis: {dehydration: ringan-sedang, persistent_vomiting: true, daldiyono_score: 3, comorbidities: [penyakit ginjal kronik]}
+    terapi: {infus_hari: 3}
+    harapan: {status: GREEN, aturan: []}
+
+  - claim_id: SYN-GEA-03
+    icd10: A04.9
+    kategori: wajar
+    deskripsi: "Disentri bakteri, antibiotik sesuai indikasi"
+    pasien: {usia: 28, jk: P}
+    lama_rawat: 4
+    lab: {patogen_feses: true}
+    klinis: {dehydration: ringan-sedang, bloody_diarrhea: true, poor_general_condition: true, daldiyono_score: 3}
+    terapi: {infus_hari: 2, antibiotik: Siprofloksasin}
+    harapan: {status: GREEN, aturan: []}
+
+  - claim_id: SYN-GEA-04
+    icd10: A08.4
+    kategori: wajar
+    deskripsi: "Diare akut viral pada balita dengan dehidrasi berat"
+    pasien: {usia: 3, jk: L}
+    lama_rawat: 3
+    klinis: {dehydration: berat, persistent_vomiting: true, daldiyono_score: null}
+    terapi: {infus_hari: 2}
+    harapan: {status: GREEN, aturan: []}
+
+  - claim_id: SYN-GEA-05
+    icd10: K52.9
+    kategori: wajar
+    deskripsi: "Gastroenteritis dengan syok hipovolemik"
+    pasien: {usia: 45, jk: P}
+    lama_rawat: 3
+    klinis: {dehydration: berat, shock: true, persistent_vomiting: true, daldiyono_score: 6}
+    terapi: {infus_hari: 2}
+    harapan: {status: GREEN, aturan: []}
+
+  - claim_id: SYN-GEA-06
+    icd10: A09
+    kategori: bermasalah
+    deskripsi: "GEA dehidrasi ringan-sedang dirawat inap, infus 3 hari, antibiotik tanpa indikasi"
+    pasien: {usia: 30, jk: L}
+    lama_rawat: 3
+    klinis: {dehydration: ringan-sedang, persistent_vomiting: false, daldiyono_score: 1, days_after_discharge_criteria: 1}
+    terapi: {infus_hari: 3, antibiotik: Sefiksim}
+    harapan: {status: RED, aturan: [GEA-01, GEA-02, GEA-03]}
+
+  - claim_id: SYN-GEA-07
+    icd10: A09
+    kategori: bermasalah
+    deskripsi: "GEA dehidrasi berat, diberi antibiotik tanpa indikasi"
+    pasien: {usia: 41, jk: P}
+    lama_rawat: 3
+    klinis: {dehydration: berat, persistent_vomiting: true, daldiyono_score: 4}
+    terapi: {infus_hari: 2, antibiotik: Sefiksim}
+    harapan: {status: YELLOW, aturan: [GEA-03]}
+
+  - claim_id: SYN-GEA-08
+    icd10: A09
+    kategori: bermasalah
+    deskripsi: "GEA wajar, tetapi dirawat 2 hari setelah layak pulang dan 2 tindakan ditagih tanpa catatan klinis"
+    pasien: {usia: 55, jk: L}
+    lama_rawat: 5
+    klinis: {dehydration: berat, persistent_vomiting: true, daldiyono_score: 4, days_after_discharge_criteria: 2}
+    terapi: {infus_hari: 2}
+    tagihan: {tanpa_catatan: [USG Abdomen, Konsultasi Gizi]}
+    harapan: {status: RED, aturan: [GEN-04, GEA-04]}
+
+  - claim_id: SYN-GEA-09
+    icd10: A09
+    kategori: dokumen_tidak_lengkap
+    deskripsi: "Hasil laboratorium tidak dilampirkan"
+    pasien: {usia: 33, jk: P}
+    lama_rawat: 3
+    klinis: {dehydration: berat, persistent_vomiting: true, daldiyono_score: 4}
+    terapi: {infus_hari: 2}
+    dokumen_tidak_ada: [hasil_laboratorium]
+    harapan: {status: YELLOW, aturan: [GEN-03]}
+
+  - claim_id: SYN-GEA-10
+    icd10: A09
+    kategori: duplikat
+    deskripsi: "Klinis wajar, tetapi tanggal rawat tumpang tindih dengan klaim lain peserta yang sama di riwayat"
+    pasien: {usia: 38, jk: L}
+    lama_rawat: 3
+    klinis: {dehydration: berat, persistent_vomiting: true, daldiyono_score: 4}
+    terapi: {infus_hari: 2}
+    riwayat: {klaim_tumpang_tindih: [KLM-RIWAYAT-0001]}
+    harapan: {status: RED, aturan: [GEN-01]}

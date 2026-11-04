@@ -1,0 +1,17 @@
+{% extends "_base.html" %}
+{% block content %}
+<h2>Keluhan utama</h2><p>{{ case.resume.chief_complaint }}</p>
+<h2>Diagnosis</h2>
+<table>
+  <tr><th style="width:30%">Diagnosis utama</th><td>{{ case.resume.primary_dx }}</td></tr>
+  <tr><th>Diagnosis sekunder</th><td>{{ case.resume.secondary_dx | join(', ') if case.resume.secondary_dx else '-' }}</td></tr>
+</table>
+<h2>Ringkasan perjalanan penyakit</h2>
+<p>{% for n in case.cppt[:1] %}{{ n.S }}. {{ n.O }}.{% endfor %}</p>
+<h2>Pemeriksaan penunjang</h2>
+<p>{{ case.resume.supporting_findings | join('; ') if case.resume.supporting_findings else 'Hasil laboratorium terlampir.' }}</p>
+<h2>Terapi selama perawatan</h2>
+<ul>{% for t in case.resume.therapy %}<li>{{ t }}</li>{% endfor %}</ul>
+<h2>Kondisi saat pulang</h2><p>{{ case.resume.discharge_condition }}</p>
+<div class="sign">{{ case.hospital.city }}, {{ fmt(case.discharge_date) }}<br>Dokter penanggung jawab<br><br><br>{{ case.doctor }}</div>
+{% endblock %}

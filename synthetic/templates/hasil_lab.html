@@ -1,0 +1,26 @@
+{% extends "_base.html" %}
+{% block content %}
+{% for day, results in labs_by_day %}
+<h2>{{ fmt(day) }}</h2>
+<table>
+  <tr><th style="width:12%">Jam</th><th style="width:35%">Pemeriksaan</th><th>Hasil</th><th style="width:22%">Nilai rujukan</th></tr>
+  {% for r in results %}
+    {% if r.type == 'darah_lengkap' %}
+      <tr><td rowspan="4">{{ r.time }}</td><td>{{ L.hb }}</td><td>{{ r['values'].hb }} g/dL</td><td>12 - 16</td></tr>
+      <tr><td>{{ L.hct }}</td><td>{{ r['values'].hct }} %</td><td>37 - 48</td></tr>
+      <tr><td>{{ L.wbc }}</td><td>{{ r['values'].wbc }} 10^3/uL</td><td>4,0 - 10,0</td></tr>
+      <tr><td>{{ L.plt }}</td><td>{{ num(r['values'].plt) }} /uL</td><td>150.000 - 400.000</td></tr>
+    {% elif r.type == 'ns1' %}<tr><td>{{ r.time }}</td><td>NS1 Antigen Dengue</td><td>{{ posneg(r['values'].result) }}</td><td>Negatif</td></tr>
+    {% elif r.type == 'igm' %}<tr><td>{{ r.time }}</td><td>IgM Anti-Dengue</td><td>{{ posneg(r['values'].result) }}</td><td>Negatif</td></tr>
+    {% elif r.type == 'widal' %}<tr><td rowspan="2">{{ r.time }}</td><td>Widal S. typhi O</td><td>1/{{ r['values'].o }}</td><td>&lt; 1/80</td></tr>
+      <tr><td>Widal S. typhi H</td><td>1/{{ r['values'].h }}</td><td>&lt; 1/80</td></tr>
+    {% elif r.type == 'kultur' %}<tr><td>{{ r.time }}</td><td>Kultur darah</td><td>{{ 'Salmonella typhi tumbuh' if r['values'].result == 'pos' else 'Tidak ada pertumbuhan kuman' }}</td><td>Steril</td></tr>
+    {% elif r.type == 'tes_cepat' %}<tr><td>{{ r.time }}</td><td>{{ r['values'].name }}</td><td>{{ '6 (positif)' if r['values'].result == 'pos' else '2 (negatif)' }}</td><td>&le; 2 negatif</td></tr>
+    {% elif r.type == 'elektrolit' %}<tr><td>{{ r.time }}</td><td>Natrium / Kalium / Klorida</td><td>{{ r['values'].na }} / {{ r['values'].k }} / {{ r['values'].cl }} mmol/L</td><td>135-145 / 3,5-5,0 / 98-107</td></tr>
+    {% elif r.type == 'feses' %}<tr><td>{{ r.time }}</td><td>Feses rutin</td><td>{{ 'Leukosit penuh, eritrosit +, ditemukan bakteri patogen' if r['values'].pathogen else 'Konsistensi cair, tidak ditemukan bakteri/parasit patogen' }}</td><td>-</td></tr>
+    {% endif %}
+  {% endfor %}
+</table>
+{% endfor %}
+<div class="sign">Penanggung jawab laboratorium<br><br><br>dr. Laboran Rekaan, Sp.PK</div>
+{% endblock %}

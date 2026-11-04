@@ -1,0 +1,13 @@
+{% extends "_base.html" %}
+{% block content %}
+<table>
+  <tr><th style="width:13%">Tanggal</th><th>Catatan (S / O / A / P)</th><th style="width:16%">PPA</th></tr>
+  {% for n in case.cppt %}
+  <tr>
+    <td>{{ fmt(n.date) }}</td>
+    <td><b>S:</b> {{ n.S }}<br><b>O:</b> {{ n.O }}<br><b>A:</b> {{ n.A }}<br><b>P:</b> {{ n.P }}</td>
+    <td>{{ case.doctor }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}
