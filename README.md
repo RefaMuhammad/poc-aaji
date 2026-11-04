@@ -55,7 +55,7 @@ data/                    (diabaikan git) data referensi dan output sintetis
 - [x] M4 Pipeline baca dokumen
 - [x] M5 Penalaran klinis, cek bukti, rekomendasi
 - [x] M6 Portal asuransi
-- [ ] M7 Ruang kerja dokter
+- [x] M7 Ruang kerja dokter
 - [ ] M8 Evaluasi, seed demo, naskah demo
 
 ## Mesin aturan (M1)
@@ -98,8 +98,8 @@ docker compose exec api python infra/scripts/seed_users.py
 |---|---|---|
 | Staf klaim asuransi | staf@demo.test | demo12345 |
 | Manajer klaim | manajer@demo.test | demo12345 |
-| Dokter umum | dokter.umum@mab.test | demo12345 |
-| Dokter spesialis | dokter.spesialis@mab.test | demo12345 |
+| Dokter umum | dokter.umum@mab.test | demo12345 (PIN tanda tangan 123456) |
+| Dokter spesialis | dokter.spesialis@mab.test | demo12345 (PIN tanda tangan 123456) |
 | Admin MAB | admin@mab.test | demo12345 |
 
 Dokumentasi interaktif: http://localhost:8000/docs (klik **Authorize**, tempel token dari `POST /auth/login`).
@@ -156,6 +156,23 @@ Browser hanya memanggil `/api/*` di server web; server web meneruskannya ke API 
 Endpoint baru: `GET /documents/{id}/pages/{n}.png` (pratinjau halaman), `GET /claims/{id}/recommendation.pdf`, filter `?triage=` di `GET /claims`.
 
 Pengembangan frontend tanpa Docker: `cd apps/web && npm ci && npm run dev` (API harus jalan di http://localhost:8000).
+
+## Ruang kerja dokter (M7)
+
+Masuk sebagai dokter (mis. `dokter.spesialis@mab.test`), lalu buka **Antrean telaah**.
+
+- **Antrean**: kasus kuning untuk dokter umum; kasus merah dan hasil eskalasi untuk dokter spesialis sebidang (bidang per diagnosis diatur di `spesialisasi` pada file aturan). Urut skor risiko tertinggi, filter diagnosis, plus tab "Sudah saya tanda tangani".
+- **Layar telaah dua panel**: kiri dokumen asli (klik kutipan bukti untuk menyorot lokasinya), kanan temuan, draf rekomendasi, data ekstraksi, dan riwayat telaah.
+- **Mulai telaah** mengunci kasus untuk dokter itu dan mulai menghitung waktu telaah. **Lepas kasus** mengembalikannya ke antrean.
+- **Koreksi field**: nilai asli tetap disimpan; setiap koreksi tercatat (nilai lama, nilai baru, catatan, siapa, kapan).
+- **Aksi**: setujui draf, ubah rekomendasi (kode alasan wajib bila berbeda dari draf), eskalasi ke spesialis (dokter umum, catatan wajib), lalu tanda tangan dengan PIN.
+- Tanda tangan membuat versi rekomendasi baru berstatus SIGNED (draf AI tetap tersimpan sebagai versi lama) dan klaim langsung muncul di portal asuransi untuk diputuskan.
+- Untuk metrik, setiap telaah menyimpan waktu mulai/selesai dan apakah dokter setuju dengan draf AI (`reviews.agrees_with_ai`).
+- Usulan dari draf AI tidak pernah "tidak dijamin": tanpa koreksi nilai, usulannya "tunda/klarifikasi".
+- Koreksi field belum menjalankan ulang aturan secara otomatis; dokter memutuskan rekomendasi final berdasarkan koreksinya.
+- **Admin** (`admin@mab.test`): halaman **Aturan & pengguna** menampilkan versi aturan aktif, aturan triase, daftar aturan per diagnosis, dan daftar pengguna (baca saja).
+
+Endpoint: `GET /review/queue`, `GET /review/{id}`, `POST /review/{id}/start`, `POST /review/{id}/release`, `PATCH /review/{id}/fields/{field_id}`, `POST /review/{id}/escalate`, `POST /review/{id}/sign`, `GET /admin/ruleset`.
 
 ### Memakai DeepSeek
 

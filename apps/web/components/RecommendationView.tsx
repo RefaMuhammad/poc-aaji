@@ -8,8 +8,19 @@ import { FindingCard } from "./FindingCard";
 import { DocumentViewer, type ViewerTarget } from "./DocumentViewer";
 
 /** Rekomendasi per klaim sesuai spesifikasi output PRD. */
-export function RecommendationView({ rec, documents }: { rec: Recommendation; documents: DocumentInfo[] }) {
+export function RecommendationView({
+  rec,
+  documents,
+  onOpenEvidence,
+  showFindings = true,
+}: {
+  rec: Recommendation;
+  documents: DocumentInfo[];
+  onOpenEvidence?: (t: ViewerTarget) => void; // bila diisi, bukti dibuka di panel luar (ruang kerja dokter)
+  showFindings?: boolean;
+}) {
   const [viewer, setViewer] = useState<ViewerTarget | null>(null);
+  const openEvidence = onOpenEvidence ?? setViewer;
   const correction = rec.recommended_amount !== null ? rec.billed_amount - rec.recommended_amount : 0;
 
   return (
@@ -100,6 +111,7 @@ export function RecommendationView({ rec, documents }: { rec: Recommendation; do
         </div>
       )}
 
+      {showFindings && (
       <div>
         <h3 className="mb-2 font-medium">Temuan ({rec.findings.length})</h3>
         {rec.findings.length === 0 ? (
@@ -107,11 +119,12 @@ export function RecommendationView({ rec, documents }: { rec: Recommendation; do
         ) : (
           <div className="space-y-3">
             {rec.findings.map((f, i) => (
-              <FindingCard key={i} finding={f} documents={documents} onOpenEvidence={setViewer} />
+              <FindingCard key={i} finding={f} documents={documents} onOpenEvidence={openEvidence} />
             ))}
           </div>
         )}
       </div>
+      )}
 
       {rec.explanation_text && (
         <div className="card">

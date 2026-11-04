@@ -48,6 +48,7 @@ class DiagnosisRules:
     name: str
     icd10: tuple[str, ...]
     rules: tuple[Rule, ...]
+    specialty: str | None = None  # spesialisasi penelaah kasus merah / eskalasi
 
 
 @dataclass(frozen=True)
@@ -190,6 +191,7 @@ def parse_rules(doc: Any) -> RuleSet:
                 name=str(raw_dx.get("nama", dx_id)),
                 icd10=tuple(str(code) for code in raw_dx["icd10"]),
                 rules=tuple(rules),
+                specialty=str(raw_dx["spesialisasi"]) if raw_dx.get("spesialisasi") else None,
             )
         )
 

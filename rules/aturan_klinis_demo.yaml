@@ -192,6 +192,7 @@ diagnosis:
     nama: "Infeksi dengue (demam dengue / demam berdarah dengue)"
     icd10: [A90, A91]       # A90 demam dengue, A91 DBD
     sumber_utama: PNPK_DENGUE_2021
+    spesialisasi: Penyakit Dalam   # kasus merah / eskalasi ke spesialis bidang ini
     ringkasan_pedoman: |
       - PNPK 2021 memakai klasifikasi baru: dengue tanpa warning signs (Grup A),
         dengan warning signs (Grup B), dan severe dengue (Grup C).
@@ -289,6 +290,7 @@ diagnosis:
     nama: "Demam tifoid"
     icd10: [A01.0]
     sumber_utama: KMK_TIFOID_2006
+    spesialisasi: Penyakit Dalam   # kasus merah / eskalasi ke spesialis bidang ini
     ringkasan_pedoman: |
       - Definisi kasus (hlm. 34): suspek = gejala klinis tanpa pemeriksaan
         penunjang; probable = gejala + Widal tunggal positif (titer 1/320 atau
@@ -394,6 +396,7 @@ diagnosis:
     nama: "Gastroenteritis akut / diare akut"
     icd10: [A09, A08.4, A04.9, K52.9]
     sumber_utama: WHO_DEHIDRASI
+    spesialisasi: Penyakit Dalam   # kasus merah / eskalasi ke spesialis bidang ini
     sumber_tambahan: [TATALAKSANA_GEA]
     ringkasan_pedoman: |
       - Derajat dehidrasi (WHO): tanpa dehidrasi (rencana A, oralit di rumah),

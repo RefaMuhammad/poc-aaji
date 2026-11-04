@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiJson, saveSession } from "@/lib/api";
 import type { User } from "@/lib/types";
+import { homeFor } from "@/lib/format";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -22,7 +23,7 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
       saveSession(r.access_token, r.user);
-      router.replace("/klaim");
+      router.replace(homeFor(r.user.role));
     } catch (err) {
       setError((err as Error).message);
     } finally {
