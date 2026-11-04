@@ -50,7 +50,7 @@ data/                    (diabaikan git) data referensi dan output sintetis
 
 - [x] M0 Kerangka repo & infrastruktur
 - [x] M1 Mesin aturan & triase
-- [ ] M2 Generator data sintetis
+- [x] M2 Generator data sintetis
 - [ ] M3 API, database, unggah dokumen
 - [ ] M4 Pipeline baca dokumen
 - [ ] M5 Penalaran klinis, cek bukti, rekomendasi
@@ -67,6 +67,22 @@ docker compose run --rm --no-deps api python -m mab_pipeline.rules rules/aturan_
 ```
 
 Ekspresi `kondisi` dievaluasi tanpa `eval`: hanya field `kelompok.field`, konstanta, `and/or/not`, perbandingan, dan `len()` yang diizinkan. Ambang triase (bobot keparahan dan `skor_min`) diatur di bagian `triase` YAML.
+
+## Data sintetis (M2)
+
+```bash
+make synthetic
+# tanpa make:
+docker compose run --rm --build synthetic
+```
+
+Hasilnya di `data/synthetic_output/` (tidak masuk git):
+
+- `<claim_id>/` berisi `resume_medis.pdf`, `hasil_laboratorium.pdf`, `cppt.pdf`, `rincian_tagihan.pdf`, dan `case.json` (isi lengkap klaim). 12 dari 30 klaim dibuat versi pindaian (gambar miring, blur, noise, stempel).
+- `kunci_jawaban.csv`: status triase, rekomendasi, dan aturan yang diharapkan per klaim.
+- `ground_truth.json`: nilai field kamus data yang benar per klaim, untuk mengukur akurasi ekstraksi di M4.
+
+Skenario ada di `synthetic/scenarios.yaml` (16 wajar, 14 bermasalah termasuk 2 dokumen tidak lengkap dan 1 klaim duplikat). Semua nama pasien, dokter, dan rumah sakit fiktif, dan setiap halaman diberi tanda "DATA REKAAN".
 
 ## Catatan
 

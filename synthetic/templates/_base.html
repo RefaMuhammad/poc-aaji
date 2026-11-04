@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>{{ title }} - {{ case.claim_id }}</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 20mm 16mm;
+    @bottom-left { content: "DATA REKAAN - bukan rekam medis sungguhan"; font-size: 7pt; color: #999; }
+    @bottom-right { content: "Hal. " counter(page) " / " counter(pages); font-size: 8pt; color: #666; } }
+  body { font-family: {% if style == 'b' %}"DejaVu Serif", serif{% else %}"DejaVu Sans", sans-serif{% endif %}; font-size: {% if style == 'c' %}9pt{% else %}9.5pt{% endif %}; color: #111; }
+  .watermark { position: fixed; top: 42%; left: 8%; transform: rotate(-30deg); font-size: 64pt; color: rgba(200, 0, 0, 0.07); font-weight: bold; z-index: -1; }
+  .stamp-rekaan { position: fixed; top: -12mm; right: 0; font-size: 7pt; color: #b00; border: 1px solid #b00; padding: 1px 4px; }
+  header { border-bottom: {% if style == 'a' %}2px solid #0a5{% elif style == 'b' %}3px double #333{% else %}1px solid #036{% endif %}; margin-bottom: 8px; padding-bottom: 4px; }
+  header .rs { font-size: 13pt; font-weight: bold; color: {% if style == 'a' %}#0a5{% elif style == 'b' %}#222{% else %}#036{% endif %}; }
+  header .addr { font-size: 8pt; color: #555; }
+  h1 { font-size: 12pt; text-align: center; margin: 6px 0 10px; letter-spacing: {% if style == 'b' %}2px{% else %}0{% endif %}; }
+  h2 { font-size: 10pt; margin: 10px 0 4px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+  th, td { border: 1px solid #999; padding: 3px 5px; text-align: left; vertical-align: top; }
+  th { background: {% if style == 'a' %}#e8f5ee{% elif style == 'b' %}#eee{% else %}#e6eef6{% endif %}; }
+  table.id td { border: none; padding: 1px 4px; }
+  .num { text-align: right; }
+  .sign { margin-top: 24px; text-align: right; }
+</style>
+</head>
+<body>
+<div class="watermark">DATA REKAAN</div>
+<div class="stamp-rekaan">DATA REKAAN</div>
+<header>
+  <div class="rs">{{ case.hospital.name }}</div>
+  <div class="addr">Jl. Contoh No. {{ case.patient.mrn[-2:] }}, {{ case.hospital.city }} &middot; Telp. (000) 000-0000 &middot; Rumah sakit fiktif</div>
+</header>
+<h1>{{ title }}</h1>
+<table class="id">
+  <tr><td>Nama pasien</td><td>: {{ case.patient.name }}</td><td>No. RM</td><td>: {{ case.patient.mrn }}</td></tr>
+  <tr><td>Jenis kelamin / Usia</td><td>: {{ 'Perempuan' if case.patient.sex == 'P' else 'Laki-laki' }} / {{ case.patient.age }} tahun</td><td>No. peserta</td><td>: {{ case.patient.member_id }}</td></tr>
+  <tr><td>Tanggal masuk</td><td>: {{ fmt(case.admission_date) }}</td><td>Tanggal keluar</td><td>: {{ fmt(case.discharge_date) }}</td></tr>
+</table>
+{% block content %}{% endblock %}
+</body>
+</html>

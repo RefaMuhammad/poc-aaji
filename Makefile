@@ -1,7 +1,7 @@
-.PHONY: help env up down logs test seed reset eval
+.PHONY: help env up down logs test synthetic seed reset eval
 
 help:
-	@echo "Perintah: make env | up | down | logs | test | seed | reset | eval"
+	@echo "Perintah: make env | up | down | logs | test | synthetic | seed | reset | eval"
 
 env:
 	@test -f .env || cp .env.example .env && echo ".env siap"
@@ -18,6 +18,9 @@ logs:
 
 test: env
 	docker compose run --rm --no-deps api pytest -q tests
+
+synthetic: env
+	docker compose run --rm --build synthetic
 
 seed:
 	@echo "make seed belum diimplementasi (dijadwalkan di M8)."
