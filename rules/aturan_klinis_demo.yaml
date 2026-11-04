@@ -1,0 +1,460 @@
+# =============================================================================
+# ATURAN KLINIS DEMO - PLATFORM MAB INDONESIA
+# =============================================================================
+# Versi      : rules-2026.10-demo
+# Status     : DRAF UNTUK DEMO. Belum divalidasi dokter. Wajib ditelaah
+#              dokter panel client sebelum dipakai pada klaim sungguhan.
+# Cakupan    : 3 diagnosis rawat inap (DBD/dengue, demam tifoid,
+#              gastroenteritis akut) + aturan umum untuk semua klaim.
+#
+# CARA MEMBACA FILE INI
+# - "kondisi" adalah ekspresi yang dievaluasi mesin aturan terhadap data klaim
+#   hasil ekstraksi. Jika kondisi bernilai benar, temuan (finding) dibuat.
+# - "butuh_ai: true" berarti sebagian data di kondisi itu diisi oleh AI yang
+#   membaca narasi klinis (resume medis, CPPT), bukan hanya angka lab/tagihan.
+#   Temuan seperti ini selalu ditampilkan dengan kutipan bukti dan wajib
+#   ditelaah dokter.
+# - "keparahan" menentukan skor triase (lihat bagian triase di bawah).
+# - "pesan" adalah teks yang tampil di rekomendasi. {nama_field} diganti nilai
+#   sebenarnya dari klaim.
+# - Mesin aturan TIDAK PERNAH menolak klaim. Ia hanya membuat temuan dan
+#   status triase. Rekomendasi selain "bayar penuh" wajib ditandatangani dokter.
+# =============================================================================
+
+version: rules-2026.10-demo
+status: draft_demo_belum_divalidasi_dokter
+
+# -----------------------------------------------------------------------------
+# KAMUS DATA
+# Field yang dipakai di kondisi. Diisi oleh modul ekstraksi (OCR + LLM).
+# sumber: "dokumen" = dibaca langsung dari dokumen/tagihan;
+#         "ai"      = disimpulkan AI dari narasi klinis, wajib berkutipan bukti;
+#         "hitung"  = dihitung sistem dari field lain.
+# -----------------------------------------------------------------------------
+kamus_data:
+  claim.care_type:          {tipe: teks, sumber: dokumen, ket: "'inpatient' atau 'outpatient'"}
+  claim.los_days:           {tipe: angka, sumber: hitung, ket: "Lama rawat (hari) = tgl keluar - tgl masuk"}
+  claim.patient_age:        {tipe: angka, sumber: dokumen, ket: "Usia pasien (tahun)"}
+  dx.primary:               {tipe: teks, sumber: dokumen, ket: "Kode ICD-10 diagnosis utama yang ditagihkan"}
+  dx.secondary:             {tipe: daftar, sumber: dokumen, ket: "Kode ICD-10 diagnosis sekunder"}
+
+  lab.platelet_min:         {tipe: angka, sumber: dokumen, ket: "Trombosit terendah selama rawat (/µL)"}
+  lab.hct_rise_pct:         {tipe: angka, sumber: hitung, ket: "Kenaikan hematokrit tertinggi dibanding nilai awal/terendah (%)"}
+  lab.dengue_ns1:           {tipe: teks, sumber: dokumen, ket: "'pos', 'neg', atau null (tidak diperiksa)"}
+  lab.dengue_igm:           {tipe: teks, sumber: dokumen, ket: "'pos', 'neg', atau null"}
+  lab.cbc_max_per_day:      {tipe: angka, sumber: hitung, ket: "Jumlah maksimum pemeriksaan darah lengkap dalam satu hari"}
+  lab.widal_tests:          {tipe: angka, sumber: hitung, ket: "Berapa kali tes Widal dilakukan"}
+  lab.widal_o_max_titer:    {tipe: angka, sumber: dokumen, ket: "Titer O tertinggi, ditulis penyebutnya (1/320 -> 320)"}
+  lab.widal_fourfold_rise:  {tipe: ya_tidak, sumber: hitung, ket: "Ada kenaikan titer 4x pada tes ulang 5-7 hari"}
+  lab.blood_culture_typhi:  {tipe: teks, sumber: dokumen, ket: "Kultur darah S. typhi: 'pos', 'neg', atau null"}
+  lab.typhi_rapid:          {tipe: teks, sumber: dokumen, ket: "Tes serologi lain (Tubex/Typhidot/IgM): 'pos', 'neg', atau null"}
+  lab.stool_pathogen:       {tipe: ya_tidak, sumber: dokumen, ket: "Pemeriksaan feses menemukan bakteri/parasit patogen"}
+
+  clin.plasma_leakage:      {tipe: ya_tidak, sumber: ai, ket: "Ada tanda perembesan plasma (efusi pleura, asites, edema, hemokonsentrasi)"}
+  clin.warning_signs:       {tipe: daftar, sumber: ai, ket: "Warning signs dengue yang tercatat (PNPK Tabel 3)"}
+  clin.spontaneous_bleeding: {tipe: ya_tidak, sumber: ai, ket: "Perdarahan spontan"}
+  clin.shock:               {tipe: ya_tidak, sumber: ai, ket: "Syok atau tanda hipotensi/hipoperfusi"}
+  clin.unable_to_drink:     {tipe: ya_tidak, sumber: ai, ket: "Tidak mampu minum / intake oral gagal"}
+  clin.comorbidities:       {tipe: daftar, sumber: ai, ket: "Penyakit penyerta yang relevan"}
+  clin.dehydration:         {tipe: teks, sumber: ai, ket: "Derajat dehidrasi: 'tanpa', 'ringan-sedang', 'berat', atau null"}
+  clin.persistent_vomiting: {tipe: ya_tidak, sumber: ai, ket: "Muntah persisten / muntah setiap diberi minum"}
+  clin.bloody_diarrhea:     {tipe: ya_tidak, sumber: ai, ket: "Diare berdarah (disentri)"}
+  clin.suspected_cholera:   {tipe: ya_tidak, sumber: ai, ket: "Suspek kolera"}
+  clin.daldiyono_score:     {tipe: angka, sumber: ai, ket: "Skor Daldiyono (dewasa), null bila tidak tercatat"}
+  clin.poor_general_condition: {tipe: ya_tidak, sumber: ai, ket: "Keadaan umum buruk tercatat di CPPT"}
+  clin.days_after_discharge_criteria: {tipe: angka, sumber: ai, ket: "Jumlah hari pasien masih dirawat setelah kriteria pulang terpenuhi"}
+  clin.complication_documented: {tipe: ya_tidak, sumber: ai, ket: "Komplikasi yang ditagihkan didukung catatan klinis/penunjang"}
+
+  tx.iv_fluid_days:         {tipe: angka, sumber: dokumen, ket: "Jumlah hari pemberian cairan infus"}
+  tx.antibiotic_given:      {tipe: ya_tidak, sumber: dokumen, ket: "Ada antibiotik di resep/tagihan"}
+  tx.ceftriaxone_days:      {tipe: angka, sumber: hitung, ket: "Lama pemberian seftriakson (hari)"}
+  tx.fluoroquinolone_given: {tipe: ya_tidak, sumber: dokumen, ket: "Ada siprofloksasin/ofloksasin/levofloksasin/norfloksasin"}
+
+  bill.duplicate_items:     {tipe: angka, sumber: hitung, ket: "Jumlah item tagihan identik (nama, tanggal, jam sama)"}
+  bill.items_without_clinical_note: {tipe: angka, sumber: ai, ket: "Jumlah tindakan/pemeriksaan di tagihan tanpa catatan klinis pendukung"}
+  docs.missing:             {tipe: daftar, sumber: hitung, ket: "Jenis dokumen wajib yang tidak ditemukan"}
+  history.overlapping_claims: {tipe: angka, sumber: hitung, ket: "Klaim lain peserta yang sama dengan tanggal rawat tumpang tindih"}
+
+# -----------------------------------------------------------------------------
+# TRIASE
+# Skor = jumlah bobot temuan. Ambang awal; dikalibrasi ulang di set
+# pengembangan POC. Prinsip: lebih baik kuning keliru daripada hijau keliru.
+# -----------------------------------------------------------------------------
+triase:
+  bobot_keparahan: {HIGH: 40, MEDIUM: 20, LOW: 10, INFO: 0}
+  aturan_status:
+    - jika: "ada temuan DOC_MISSING"
+      status: YELLOW
+      rekomendasi_awal: PEND          # minta dokumen dulu
+    - jika: "ada temuan HIGH atau skor >= 40"
+      status: RED                     # langsung ke dokter spesialis
+    - jika: "skor >= 10"
+      status: YELLOW                  # ke dokter umum
+    - jika: "lainnya"
+      status: GREEN                   # rekomendasi bayar penuh
+  dokumen_wajib_rawat_inap: [resume_medis, rincian_tagihan, hasil_laboratorium]
+
+# -----------------------------------------------------------------------------
+# KODE ALASAN
+# Lima kode terakhir adalah tambahan terhadap daftar di PRD.
+# -----------------------------------------------------------------------------
+kode_alasan:
+  DX_NOT_SUPPORTED:        "Diagnosis tidak didukung data klinis/penunjang"
+  PROC_NOT_INDICATED:      "Tindakan tanpa indikasi"
+  LOS_EXCESS:              "Lama rawat melebihi kebutuhan klinis"
+  DUP_ITEM:                "Item tagihan ganda"
+  DUP_CLAIM:               "Klaim duplikat / tumpang tindih"
+  DOC_MISSING:             "Dokumen wajib tidak ada"
+  DOC_INCONSISTENT:        "Dokumen saling bertentangan"
+  ADMISSION_NOT_INDICATED: "Rawat inap tanpa indikasi yang tercatat"
+  OVER_SERVICE:            "Pemeriksaan/layanan melebihi kebutuhan"
+  DRUG_NOT_INDICATED:      "Obat tanpa indikasi atau di luar rekomendasi"
+  COMPLICATION_UNSUPPORTED: "Komplikasi/diagnosis sekunder tidak didukung bukti"
+  BILLED_NOT_DOCUMENTED:   "Item ditagihkan tanpa catatan klinis pendukung"
+
+# -----------------------------------------------------------------------------
+# SUMBER PEDOMAN
+# -----------------------------------------------------------------------------
+sumber:
+  PNPK_DENGUE_2021:
+    judul: "PNPK Tata Laksana Infeksi Dengue Anak dan Remaja"
+    dasar: "KMK No. HK.01.07/MENKES/4636/2021"
+    url: "https://keslan.kemkes.go.id/unduhan/fileunduhan_1660187378_126303.pdf"
+    catatan: "Untuk anak dan remaja. Penerapan ke pasien dewasa perlu dikonfirmasi dokter panel."
+  KMK_TIFOID_2006:
+    judul: "Pedoman Pengendalian Demam Tifoid"
+    dasar: "KMK No. 364/MENKES/SK/V/2006"
+    url: "https://regulasi.bkpk.kemkes.go.id/detail/e8992db6-67b9-4316-be0d-9704b37f5f7e/unduh"
+    catatan: "Pedoman tahun 2006. Praktik terapi terkini mungkin berbeda; ambang perlu ditinjau dokter."
+  WHO_DEHIDRASI:
+    judul: "Penilaian dehidrasi dan rencana rehidrasi A/B/C (WHO), via MSF Clinical Guidelines"
+    url: "https://medicalguidelines.msf.org/en/viewport/CG/english/dehydration-62194197.html"
+  TATALAKSANA_GEA:
+    judul: "Penatalaksanaan Gastroenteritis (rangkuman PPK IDI, WHO-Depkes, skor Daldiyono)"
+    url: "https://alomedika.com/penyakit/gastroentero-hepatologi/gastroenteritis/penatalaksanaan-diare"
+  WHO_SEARO_2011:
+    judul: "WHO SEARO 2011, Comprehensive Guideline for Prevention and Control of Dengue and DHF"
+    catatan: "Dipakai hanya untuk ambang kenaikan hematokrit 20%, karena PNPK 2021 tidak menetapkan persentase."
+
+# =============================================================================
+# ATURAN UMUM (berlaku untuk semua klaim rawat inap)
+# =============================================================================
+aturan_umum:
+  - id: GEN-01
+    nama: "Klaim tumpang tindih"
+    kondisi: "history.overlapping_claims > 0"
+    kode_alasan: DUP_CLAIM
+    keparahan: HIGH
+    butuh_ai: false
+    pesan: "Ditemukan {history.overlapping_claims} klaim lain untuk peserta yang sama dengan tanggal rawat tumpang tindih."
+
+  - id: GEN-02
+    nama: "Item tagihan ganda"
+    kondisi: "bill.duplicate_items > 0"
+    kode_alasan: DUP_ITEM
+    keparahan: MEDIUM
+    butuh_ai: false
+    pesan: "{bill.duplicate_items} item tagihan tercatat ganda (nama, tanggal, dan jam sama)."
+
+  - id: GEN-03
+    nama: "Dokumen wajib tidak lengkap"
+    kondisi: "len(docs.missing) > 0"
+    kode_alasan: DOC_MISSING
+    keparahan: MEDIUM
+    butuh_ai: false
+    pesan: "Dokumen wajib belum ada: {docs.missing}."
+
+  - id: GEN-04
+    nama: "Tindakan ditagihkan tanpa catatan klinis"
+    kondisi: "bill.items_without_clinical_note > 0"
+    kode_alasan: BILLED_NOT_DOCUMENTED
+    keparahan: HIGH
+    butuh_ai: true
+    pesan: "{bill.items_without_clinical_note} tindakan/pemeriksaan di tagihan tidak ditemukan catatannya di resume medis atau CPPT."
+
+# =============================================================================
+# DIAGNOSIS 1: INFEKSI DENGUE (Demam Dengue / DBD)
+# =============================================================================
+diagnosis:
+  - id: dengue
+    nama: "Infeksi dengue (demam dengue / demam berdarah dengue)"
+    icd10: [A90, A91]       # A90 demam dengue, A91 DBD
+    sumber_utama: PNPK_DENGUE_2021
+    ringkasan_pedoman: |
+      - PNPK 2021 memakai klasifikasi baru: dengue tanpa warning signs (Grup A),
+        dengan warning signs (Grup B), dan severe dengue (Grup C).
+      - DBD derajat I setara dengue tanpa warning signs; derajat II-III setara
+        dengue dengan warning signs; derajat IV setara severe dengue (Tabel 5).
+      - Penurunan trombosit cepat hingga <100.000/mm3 adalah tanda awal
+        perembesan plasma; trombosit <=100.000 bagian dari warning signs.
+      - Kriteria rawat inap (Tabel 8): ada warning sign, tanda hipotensi atau
+        perembesan plasma, perdarahan spontan, kerusakan organ, hematokrit
+        meningkat/efusi/asites, komorbid, bayi, atau masalah sosial.
+      - Kriteria pulang (Tabel 9): bebas demam 48 jam, klinis membaik,
+        trombosit cenderung naik >50.000/µL, hematokrit stabil tanpa infus.
+
+    aturan:
+      - id: DEN-01
+        nama: "DBD tanpa trombositopenia dan tanpa perembesan plasma"
+        kondisi: >
+          dx.primary == 'A91'
+          and lab.platelet_min is not None and lab.platelet_min > 100000
+          and not clin.plasma_leakage
+          and (lab.hct_rise_pct is None or lab.hct_rise_pct < 20)
+        kode_alasan: DX_NOT_SUPPORTED
+        keparahan: HIGH
+        butuh_ai: true
+        pesan: >
+          Ditagihkan sebagai DBD (A91), tetapi trombosit terendah {lab.platelet_min}/µL
+          (tidak <=100.000) dan tidak ditemukan tanda perembesan plasma.
+          Lebih sesuai dengan demam dengue tanpa warning signs (A90).
+        rujukan: "PNPK Dengue 2021, hlm. 17 & 28; Tabel 5 (pemetaan DBD ke klasifikasi baru)"
+
+      - id: DEN-02
+        nama: "Diagnosis dengue tanpa konfirmasi laboratorium"
+        kondisi: >
+          dx.primary in ('A90', 'A91')
+          and lab.dengue_ns1 != 'pos' and lab.dengue_igm != 'pos'
+          and (lab.platelet_min is None or lab.platelet_min >= 150000)
+        kode_alasan: DX_NOT_SUPPORTED
+        keparahan: MEDIUM
+        butuh_ai: false
+        pesan: >
+          Diagnosis dengue tanpa NS1/IgM dengue positif dan trombosit tidak turun
+          (terendah {lab.platelet_min}/µL). Perlu klarifikasi dasar diagnosis ke DPJP.
+        rujukan: "PNPK Dengue 2021, bagian diagnosis laboratorium"
+
+      - id: DEN-03
+        nama: "Rawat inap tanpa kriteria rawat inap yang tercatat"
+        kondisi: >
+          claim.care_type == 'inpatient'
+          and len(clin.warning_signs) == 0
+          and not clin.shock and not clin.spontaneous_bleeding
+          and not clin.unable_to_drink and not clin.plasma_leakage
+          and len(clin.comorbidities) == 0
+          and claim.patient_age >= 1
+          and (lab.platelet_min is None or lab.platelet_min > 100000)
+        kode_alasan: ADMISSION_NOT_INDICATED
+        keparahan: MEDIUM
+        butuh_ai: true
+        pesan: >
+          Pasien dirawat inap tanpa warning signs, tanda syok, perdarahan spontan,
+          komorbid, atau gangguan intake yang tercatat. Kasus seperti ini menurut
+          PNPK dapat dikelola rawat jalan dengan kontrol harian.
+        rujukan: "PNPK Dengue 2021, Tabel 8 (kriteria rawat inap), hlm. 31-32 & 35"
+
+      - id: DEN-04
+        nama: "Masih dirawat setelah kriteria pulang terpenuhi"
+        kondisi: "clin.days_after_discharge_criteria is not None and clin.days_after_discharge_criteria >= 2"
+        kode_alasan: LOS_EXCESS
+        keparahan: MEDIUM
+        butuh_ai: true
+        pesan: >
+          Kriteria pulang (bebas demam 48 jam, trombosit >50.000 dan naik,
+          hematokrit stabil tanpa infus) sudah terpenuhi, tetapi pasien masih
+          dirawat {clin.days_after_discharge_criteria} hari lagi.
+        rujukan: "PNPK Dengue 2021, Tabel 9 (kriteria pulang), hlm. 32"
+        catatan_untuk_dokter: "Toleransi 1 hari dipakai sebagai ambang awal; perlu disepakati."
+
+      - id: DEN-05
+        nama: "Pemeriksaan darah lengkap berlebihan pada kasus tanpa warning signs"
+        kondisi: >
+          len(clin.warning_signs) == 0 and not clin.shock
+          and lab.cbc_max_per_day > 2
+        kode_alasan: OVER_SERVICE
+        keparahan: LOW
+        butuh_ai: true
+        pesan: >
+          Darah lengkap diperiksa hingga {lab.cbc_max_per_day} kali dalam sehari
+          pada pasien tanpa warning signs. Pemantauan ketat (hematokrit tiap 6-12 jam)
+          di PNPK ditujukan untuk pasien dengan warning signs.
+        rujukan: "PNPK Dengue 2021, hlm. 35 & 40 (frekuensi pemantauan per grup)"
+
+# =============================================================================
+# DIAGNOSIS 2: DEMAM TIFOID
+# =============================================================================
+  - id: tifoid
+    nama: "Demam tifoid"
+    icd10: [A01.0]
+    sumber_utama: KMK_TIFOID_2006
+    ringkasan_pedoman: |
+      - Definisi kasus (hlm. 34): suspek = gejala klinis tanpa pemeriksaan
+        penunjang; probable = gejala + Widal tunggal positif (titer 1/320 atau
+        ambang lokal); konfirmasi = kultur S. typhi positif atau kenaikan titer
+        Widal 4x dalam 5-7 hari.
+      - Widal negatif tidak menyingkirkan tifoid; Widal dapat positif palsu
+        (vaksinasi, infeksi subklinis, reaksi silang).
+      - Seftriakson (lini kedua): dewasa 3-5 hari, anak 5 hari.
+      - Kuinolon tidak direkomendasikan untuk usia <18 tahun.
+      - Kriteria pulang (hlm. 23): bebas demam 5-7 hari, keadaan umum baik,
+        komplikasi teratasi.
+
+    aturan:
+      - id: TIF-01
+        nama: "Diagnosis tifoid hanya dari Widal tunggal di bawah ambang"
+        kondisi: >
+          dx.primary == 'A01.0'
+          and lab.blood_culture_typhi != 'pos' and lab.typhi_rapid != 'pos'
+          and not lab.widal_fourfold_rise
+          and (lab.widal_o_max_titer is None or lab.widal_o_max_titer < 320)
+        kode_alasan: DX_NOT_SUPPORTED
+        keparahan: HIGH
+        butuh_ai: false
+        pesan: >
+          Diagnosis demam tifoid tanpa kultur atau serologi positif, dan titer
+          Widal O tertinggi 1/{lab.widal_o_max_titer} (di bawah 1/320). Belum
+          memenuhi definisi kasus probable.
+        rujukan: "KMK 364/2006, definisi kasus hlm. 34; interpretasi Widal hlm. 10-11"
+
+      - id: TIF-02
+        nama: "Diagnosis tifoid berstatus probable (Widal tunggal tanpa konfirmasi)"
+        kondisi: >
+          dx.primary == 'A01.0'
+          and lab.blood_culture_typhi != 'pos' and lab.typhi_rapid != 'pos'
+          and not lab.widal_fourfold_rise
+          and lab.widal_o_max_titer is not None and lab.widal_o_max_titer >= 320
+        kode_alasan: DX_NOT_SUPPORTED
+        keparahan: INFO
+        butuh_ai: false
+        pesan: >
+          Diagnosis didukung Widal tunggal 1/{lab.widal_o_max_titer} tanpa kultur
+          atau uji ulang. Status kasus: probable, bukan konfirmasi. Dicatat sebagai
+          informasi, bukan dasar koreksi.
+        rujukan: "KMK 364/2006, definisi kasus hlm. 34"
+
+      - id: TIF-03
+        nama: "Seftriakson lebih lama dari rekomendasi"
+        kondisi: >
+          tx.ceftriaxone_days is not None
+          and tx.ceftriaxone_days > 5
+          and not clin.complication_documented
+        kode_alasan: DRUG_NOT_INDICATED
+        keparahan: MEDIUM
+        butuh_ai: true
+        pesan: >
+          Seftriakson diberikan {tx.ceftriaxone_days} hari pada tifoid tanpa
+          komplikasi yang tercatat. Pedoman menyebut 3-5 hari (dewasa) dan
+          5 hari (anak).
+        rujukan: "KMK 364/2006, tabel antibiotik hlm. 17-19"
+
+      - id: TIF-04
+        nama: "Kuinolon pada pasien di bawah 18 tahun"
+        kondisi: "claim.patient_age < 18 and tx.fluoroquinolone_given"
+        kode_alasan: DRUG_NOT_INDICATED
+        keparahan: MEDIUM
+        butuh_ai: false
+        pesan: "Antibiotik golongan kuinolon diberikan pada pasien usia {claim.patient_age} tahun; pedoman tidak merekomendasikannya di bawah 18 tahun."
+        rujukan: "KMK 364/2006, tabel antibiotik hlm. 17-19"
+
+      - id: TIF-05
+        nama: "Komplikasi tifoid ditagihkan tanpa bukti"
+        kondisi: "len(dx.secondary) > 0 and not clin.complication_documented"
+        kode_alasan: COMPLICATION_UNSUPPORTED
+        keparahan: HIGH
+        butuh_ai: true
+        pesan: >
+          Diagnosis sekunder/komplikasi {dx.secondary} ditagihkan, tetapi tidak
+          ditemukan catatan klinis atau pemeriksaan penunjang yang mendukungnya
+          (mis. penurunan kesadaran, perdarahan usus, foto abdomen, enzim hati).
+        rujukan: "KMK 364/2006, komplikasi hlm. 7-8 & 13-14"
+        catatan_untuk_dokter: "Daftar kode komplikasi yang diperiksa perlu difinalkan dokter."
+
+      - id: TIF-06
+        nama: "Masih dirawat setelah kriteria pulang terpenuhi"
+        kondisi: "clin.days_after_discharge_criteria is not None and clin.days_after_discharge_criteria >= 2"
+        kode_alasan: LOS_EXCESS
+        keparahan: MEDIUM
+        butuh_ai: true
+        pesan: >
+          Kriteria pulang (bebas demam, keadaan umum baik, komplikasi teratasi)
+          tercatat sudah terpenuhi, tetapi pasien masih dirawat
+          {clin.days_after_discharge_criteria} hari lagi.
+        rujukan: "KMK 364/2006, kriteria pulang hlm. 23"
+        catatan_untuk_dokter: >
+          Pedoman 2006 menyebut bebas demam 5-7 hari sebelum pulang. Praktik
+          terkini sering lebih singkat. Definisi 'kriteria pulang terpenuhi'
+          untuk aturan ini perlu disepakati dokter panel.
+
+# =============================================================================
+# DIAGNOSIS 3: GASTROENTERITIS AKUT / DIARE AKUT
+# =============================================================================
+  - id: gea
+    nama: "Gastroenteritis akut / diare akut"
+    icd10: [A09, A08.4, A04.9, K52.9]
+    sumber_utama: WHO_DEHIDRASI
+    sumber_tambahan: [TATALAKSANA_GEA]
+    ringkasan_pedoman: |
+      - Derajat dehidrasi (WHO): tanpa dehidrasi (rencana A, oralit di rumah),
+        dehidrasi ringan-sedang (rencana B, oralit 75 ml/kgBB, tanpa infus),
+        dehidrasi berat (rencana C, cairan IV).
+      - Cairan IV diindikasikan untuk dehidrasi berat, syok, atau muntah
+        setiap diberi minum. Dewasa: skor Daldiyono >=3 disertai syok -> IV;
+        <3 tanpa syok -> oral.
+      - Indikasi rawat inap: dehidrasi berat/syok, dehidrasi sedang dengan
+        keadaan umum buruk, bayi <1 tahun, diare berdarah dengan malnutrisi
+        berat, diare persisten, atau komorbid.
+      - Antibiotik hanya bila dicurigai infeksi bakteri/parasit: diare berdarah
+        (disentri), suspek kolera, amebiasis/giardiasis, atau infeksi penyerta.
+
+    aturan:
+      - id: GEA-01
+        nama: "Rawat inap tanpa indikasi yang tercatat"
+        kondisi: >
+          claim.care_type == 'inpatient'
+          and clin.dehydration in ('tanpa', 'ringan-sedang')
+          and not clin.shock and not clin.persistent_vomiting
+          and not clin.poor_general_condition
+          and not clin.bloody_diarrhea
+          and len(clin.comorbidities) == 0
+          and claim.patient_age >= 1
+        kode_alasan: ADMISSION_NOT_INDICATED
+        keparahan: MEDIUM
+        butuh_ai: true
+        pesan: >
+          Pasien dirawat inap dengan derajat dehidrasi '{clin.dehydration}', tanpa
+          syok, muntah persisten, keadaan umum buruk, diare berdarah, atau komorbid
+          yang tercatat. Kondisi ini umumnya ditangani dengan rehidrasi oral.
+        rujukan: "WHO rencana rehidrasi A/B; kriteria rawat inap gastroenteritis"
+
+      - id: GEA-02
+        nama: "Cairan infus tanpa indikasi"
+        kondisi: >
+          tx.iv_fluid_days > 0
+          and clin.dehydration in ('tanpa', 'ringan-sedang')
+          and not clin.shock and not clin.persistent_vomiting
+          and (clin.daldiyono_score is None or clin.daldiyono_score < 3)
+        kode_alasan: PROC_NOT_INDICATED
+        keparahan: MEDIUM
+        butuh_ai: true
+        pesan: >
+          Infus diberikan {tx.iv_fluid_days} hari pada dehidrasi '{clin.dehydration}'
+          tanpa syok atau muntah persisten. Pedoman merekomendasikan rehidrasi
+          oral untuk kondisi ini.
+        rujukan: "WHO rencana B/C; skor Daldiyono (IV bila >=3 disertai syok)"
+
+      - id: GEA-03
+        nama: "Antibiotik tanpa indikasi"
+        kondisi: >
+          tx.antibiotic_given
+          and not clin.bloody_diarrhea and not clin.suspected_cholera
+          and not lab.stool_pathogen
+        kode_alasan: DRUG_NOT_INDICATED
+        keparahan: MEDIUM
+        butuh_ai: true
+        pesan: >
+          Antibiotik diberikan tanpa diare berdarah, suspek kolera, atau temuan
+          patogen pada feses yang tercatat. Pedoman membatasi antibiotik pada
+          indikasi tersebut.
+        rujukan: "LINTAS Diare (antibiotik selektif); WHO-Depkes; PPK IDI"
+
+      - id: GEA-04
+        nama: "Masih dirawat setelah kondisi memungkinkan pulang"
+        kondisi: "clin.days_after_discharge_criteria is not None and clin.days_after_discharge_criteria >= 2"
+        kode_alasan: LOS_EXCESS
+        keparahan: MEDIUM
+        butuh_ai: true
+        pesan: >
+          Pasien sudah bisa minum, infus sudah dilepas, dan klinis stabil, tetapi
+          masih dirawat {clin.days_after_discharge_criteria} hari lagi.
+        rujukan: "WHO: beralih ke oralit segera setelah pasien bisa minum"
+        catatan_untuk_dokter: "Definisi 'kondisi memungkinkan pulang' untuk GEA perlu disepakati dokter panel."

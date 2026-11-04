@@ -1,0 +1,23 @@
+# Data (sintetis & referensi) tidak masuk git
+data/*
+!data/.gitkeep
+
+# Env
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+*.egg-info/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+next-env.d.ts
+
+# Lain-lain
+.DS_Store
+evaluation/reports/
