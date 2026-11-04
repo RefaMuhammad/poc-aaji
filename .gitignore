@@ -21,3 +21,4 @@ next-env.d.ts
 # Lain-lain
 .DS_Store
 evaluation/reports/
+*.tsbuildinfo

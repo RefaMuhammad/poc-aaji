@@ -52,6 +52,7 @@ class DocumentOut(BaseModel):
     content_type: str
     size_bytes: int
     doc_type: str
+    page_count: int | None = None
     created_at: datetime
 
 
@@ -74,10 +75,22 @@ class ClaimOut(BaseModel):
     updated_at: datetime
 
 
+class ClaimListItem(ClaimOut):
+    """Baris daftar klaim. Triase/rekomendasi hanya terisi bila sudah boleh dilihat peran ini."""
+
+    triage_status: str | None = None
+    risk_score: int | None = None
+    recommendation: str | None = None
+    decision: str | None = None
+
+
 class ClaimDetail(ClaimOut):
     documents: list[DocumentOut]
     missing_documents: list[str]
     triage_status: str | None = None
+    recommendation_available: bool = False   # sudah ada rekomendasi yang boleh dilihat peran ini
+    awaiting_doctor: bool = False            # ada draf yang menunggu tanda tangan dokter
+    decision: str | None = None
 
 
 class ClaimStatusOut(BaseModel):

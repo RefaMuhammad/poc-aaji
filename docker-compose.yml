@@ -95,7 +95,8 @@ services:
       context: .
       dockerfile: infra/docker/web.Dockerfile
     environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      # Browser memanggil /api/* di web; web meneruskannya ke API di jaringan compose.
+      API_INTERNAL_URL: http://api:8000
     ports:
       - "3000:3000"
     depends_on:

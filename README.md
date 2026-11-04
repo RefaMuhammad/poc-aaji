@@ -54,7 +54,7 @@ data/                    (diabaikan git) data referensi dan output sintetis
 - [x] M3 API, database, unggah dokumen
 - [x] M4 Pipeline baca dokumen
 - [x] M5 Penalaran klinis, cek bukti, rekomendasi
-- [ ] M6 Portal asuransi
+- [x] M6 Portal asuransi
 - [ ] M7 Ruang kerja dokter
 - [ ] M8 Evaluasi, seed demo, naskah demo
 
@@ -140,6 +140,22 @@ make eval-triage        # tanpa make: docker compose run --rm --no-deps worker p
 ```
 
 Target M5: >= 90% status triase sesuai kunci jawaban, 0 klaim bermasalah menjadi hijau, setiap temuan punya bukti.
+
+## Portal asuransi (M6)
+
+Buka http://localhost:3000 lalu masuk dengan akun demo (mis. `staf@demo.test` / `demo12345`).
+
+- **Daftar klaim**: filter status dan triase, badge triase, status proses (diperbarui otomatis selama klaim diproses), setujui massal klaim hijau, ekspor CSV.
+- **Unggah klaim**: formulir satu klaim + dokumen (PDF/JPG/PNG), atau ZIP berisi `manifest.xlsx` dan satu folder per klaim. Setelah unggah, halaman detail menampilkan progres proses.
+- **Detail klaim**: rekomendasi sesuai format PRD (triase, skor risiko, nilai rekomendasi, koreksi per item, temuan, rujukan, versi model/prompt/aturan). Klik kutipan bukti untuk membuka halaman dokumen dengan lokasi kutipan disorot.
+- **Keputusan**: setuju / berbeda (alasan wajib bila berbeda). Rekomendasi bisa diunduh sebagai PDF.
+- Rekomendasi selain bayar penuh tidak tampil ke asuransi sebelum ditandatangani dokter; portal menampilkan "perlu telaah dokter". Ruang kerja dokter dibuat di M7.
+
+Browser hanya memanggil `/api/*` di server web; server web meneruskannya ke API (`API_INTERNAL_URL`, di compose `http://api:8000`). Jadi cukup port 3000 yang perlu dibuka.
+
+Endpoint baru: `GET /documents/{id}/pages/{n}.png` (pratinjau halaman), `GET /claims/{id}/recommendation.pdf`, filter `?triage=` di `GET /claims`.
+
+Pengembangan frontend tanpa Docker: `cd apps/web && npm ci && npm run dev` (API harus jalan di http://localhost:8000).
 
 ### Memakai DeepSeek
 
