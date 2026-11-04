@@ -1,7 +1,7 @@
 # =============================================================================
 # ATURAN KLINIS DEMO - PLATFORM MAB INDONESIA
 # =============================================================================
-# Versi      : rules-2026.10-demo
+# Versi      : rules-2026.11-demo
 # Status     : DRAF UNTUK DEMO. Belum divalidasi dokter. Wajib ditelaah
 #              dokter panel client sebelum dipakai pada klaim sungguhan.
 # Cakupan    : 3 diagnosis rawat inap (DBD/dengue, demam tifoid,
@@ -21,7 +21,7 @@
 #   status triase. Rekomendasi selain "bayar penuh" wajib ditandatangani dokter.
 # =============================================================================
 
-version: rules-2026.10-demo
+version: rules-2026.11-demo
 status: draft_demo_belum_divalidasi_dokter
 
 # -----------------------------------------------------------------------------
@@ -82,16 +82,28 @@ kamus_data:
 # -----------------------------------------------------------------------------
 triase:
   bobot_keparahan: {HIGH: 40, MEDIUM: 20, LOW: 10, INFO: 0}
+  # Dievaluasi berurutan; yang pertama cocok dipakai. Sebuah baris cocok bila
+  # SALAH SATU syaratnya terpenuhi (ada_kode_alasan, ada_keparahan, skor_min).
+  # Baris tanpa syarat adalah default dan wajib ada di urutan terakhir.
+  # "jika" hanya keterangan untuk manusia.
   aturan_status:
     - jika: "ada temuan DOC_MISSING"
+      ada_kode_alasan: [DOC_MISSING]
       status: YELLOW
       rekomendasi_awal: PEND          # minta dokumen dulu
     - jika: "ada temuan HIGH atau skor >= 40"
+      ada_keparahan: [HIGH]
+      skor_min: 40
       status: RED                     # langsung ke dokter spesialis
+      rekomendasi_awal: DOCTOR_REVIEW
     - jika: "skor >= 10"
+      skor_min: 10
       status: YELLOW                  # ke dokter umum
+      rekomendasi_awal: DOCTOR_REVIEW
     - jika: "lainnya"
       status: GREEN                   # rekomendasi bayar penuh
+      rekomendasi_awal: PAY_FULL
+  skor_maksimum: 100
   dokumen_wajib_rawat_inap: [resume_medis, rincian_tagihan, hasil_laboratorium]
 
 # -----------------------------------------------------------------------------
