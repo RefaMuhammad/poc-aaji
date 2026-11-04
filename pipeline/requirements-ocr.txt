@@ -2,3 +2,7 @@
 # PaddleOCR 2.x + PaddlePaddle 2.6 (CPU) mendukung Python 3.11 dan numpy 1.26.
 paddlepaddle==2.6.2
 paddleocr==2.9.1
+# pyclipper 1.4.0 dibangun dengan Cython 3.2 yang memakai string terkompresi zlib;
+# setelah PaddlePaddle/OpenCV dimuat, impornya gagal dengan
+# "zlib.error: Error -2 ... inconsistent stream state". Kunci ke versi sebelumnya.
+pyclipper==1.3.0.post6
