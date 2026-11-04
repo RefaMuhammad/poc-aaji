@@ -62,6 +62,9 @@ services:
       - ./synthetic:/app/synthetic
       - ./infra/scripts:/app/infra/scripts
       - ./tests:/app/tests
+      - ./evaluation:/app/evaluation
+    environment:
+      LLM_MOCK_FIXTURES_DIR: /app/data/synthetic_output
     ports:
       - "8000:8000"
     depends_on:
@@ -75,10 +78,14 @@ services:
       context: .
       dockerfile: infra/docker/worker.Dockerfile
     command: python -m mab_pipeline.worker
+    environment:
+      LLM_MOCK_FIXTURES_DIR: /app/data/synthetic_output
     volumes:
       - ./apps/api/mab_api:/app/mab_api
       - ./pipeline/mab_pipeline:/app/mab_pipeline
       - ./rules:/app/rules
+      - ./evaluation:/app/evaluation
+      - ./data:/app/data
     depends_on:
       redis: {condition: service_healthy}
       postgres: {condition: service_healthy}

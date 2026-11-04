@@ -1,7 +1,7 @@
-.PHONY: help env up down logs test synthetic seed-users seed reset eval
+.PHONY: help env up down logs test synthetic seed-users seed reset eval eval-extraction
 
 help:
-	@echo "Perintah: make env | up | down | logs | test | synthetic | seed-users | seed | reset | eval"
+	@echo "Perintah: make env | up | down | logs | test | synthetic | seed-users | seed | reset | eval | eval-extraction"
 
 env:
 	@test -f .env || cp .env.example .env && echo ".env siap"
@@ -30,6 +30,11 @@ seed:
 
 reset:
 	@echo "make reset belum diimplementasi (dijadwalkan di M8)."
+
+# Akurasi ekstraksi M4 terhadap ground_truth.json (butuh `make synthetic` dulu).
+# Pakai LLM_PROVIDER di .env; hasil di evaluation/reports/.
+eval-extraction: env
+	docker compose run --rm --no-deps worker python -m evaluation.extraction_accuracy
 
 eval:
 	@echo "make eval belum diimplementasi (dijadwalkan di M8)."

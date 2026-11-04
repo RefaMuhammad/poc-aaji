@@ -17,6 +17,7 @@ COPY pipeline/mab_pipeline /app/mab_pipeline
 COPY rules /app/rules
 COPY synthetic /app/synthetic
 COPY tests /app/tests
+COPY evaluation /app/evaluation
 
 EXPOSE 8000
 CMD ["sh", "-c", "alembic upgrade head && uvicorn mab_api.main:app --host 0.0.0.0 --port 8000"]

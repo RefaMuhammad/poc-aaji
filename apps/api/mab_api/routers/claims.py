@@ -26,6 +26,7 @@ from mab_api.api_schemas import (
     DecisionCreate,
     DocumentOut,
     EvidenceOut,
+    ExtractedFieldOut,
     FindingOut,
     InsurerDecisionOut,
     RecommendationOut,
@@ -41,6 +42,7 @@ from mab_api.models import (
     Claim,
     ClaimStatus,
     DecisionCode,
+    ExtractedField,
     InsurerDecision,
     Recommendation,
     RecommendationCode,
@@ -383,6 +385,14 @@ def get_claim(claim_id: str, db: Session = Depends(get_db), user: User = Depends
 def get_claim_status(claim_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> ClaimStatusOut:
     claim = get_visible_claim(db, user, claim_id)
     return ClaimStatusOut(id=claim.id, status=claim.status, processing_error=claim.processing_error, updated_at=claim.updated_at)
+
+
+@router.get("/{claim_id}/fields", response_model=list[ExtractedFieldOut])
+def get_extracted_fields(claim_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> list[ExtractedFieldOut]:
+    """Field hasil baca dokumen beserta bukti (dokumen, halaman, bbox, kutipan)."""
+    claim = get_visible_claim(db, user, claim_id)
+    rows = db.scalars(select(ExtractedField).where(ExtractedField.claim_id == claim.id).order_by(ExtractedField.field_path))
+    return [ExtractedFieldOut.model_validate(r) for r in rows]
 
 
 @router.post("/{claim_id}/documents", response_model=UploadResult, status_code=status.HTTP_201_CREATED)

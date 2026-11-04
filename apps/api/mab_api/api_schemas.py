@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -136,6 +137,18 @@ class EvidenceOut(BaseModel):
     page: int | None = None
     quote: str | None = None
     bbox: list[float] | None = None
+
+
+class ExtractedFieldOut(BaseModel):
+    """Field kamus data hasil pipeline, dengan bukti lokasi di dokumen."""
+
+    model_config = ConfigDict(from_attributes=True)
+    field_path: str
+    value: Any = None
+    source: str
+    confidence: float | None = None
+    evidence: list[dict[str, Any]] = Field(default_factory=list)
+    corrected_value: Any = None
 
 
 class FindingOut(BaseModel):

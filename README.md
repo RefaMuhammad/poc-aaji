@@ -40,7 +40,7 @@ apps/api/                FastAPI: klaim, dokumen, telaah, keputusan, audit
 pipeline/mab_pipeline/   ingest, ocr, extraction, reasoning, rules, redflags, triage, llm, worker RQ
 rules/                   aturan_klinis_demo.yaml (konfigurasi aturan), CHANGELOG.md
 synthetic/               generator data sintetis (M2)
-evaluation/              skrip evaluasi (M8)
+evaluation/              skrip evaluasi (akurasi ekstraksi M4; lengkap di M8)
 tests/                   tes otomatis
 infra/docker/            Dockerfile api, worker, web
 data/                    (diabaikan git) data referensi dan output sintetis
@@ -52,7 +52,7 @@ data/                    (diabaikan git) data referensi dan output sintetis
 - [x] M1 Mesin aturan & triase
 - [x] M2 Generator data sintetis
 - [x] M3 API, database, unggah dokumen
-- [ ] M4 Pipeline baca dokumen
+- [x] M4 Pipeline baca dokumen
 - [ ] M5 Penalaran klinis, cek bukti, rekomendasi
 - [ ] M6 Portal asuransi
 - [ ] M7 Ruang kerja dokter
@@ -109,6 +109,40 @@ Endpoint utama: `POST /claims`, `POST /claims/{id}/documents` (PDF/JPG/PNG maks.
 Kolom `manifest.xlsx`: `folder, nomor_klaim, nomor_polis, id_peserta, nama_peserta, nama_rs, tanggal_masuk, tanggal_keluar, nilai_tagihan`.
 
 Aturan akses: staf/manajer hanya melihat klaim asuransinya; dokter melihat klaim yang ditugaskan kepadanya atau yang menunggu dokter; rekomendasi selain bayar penuh baru terlihat oleh asuransi setelah ditandatangani dokter. Semua aksi tulis, login, dan akses dokumen tercatat di `audit_logs`, yang di PostgreSQL tidak bisa diubah atau dihapus (trigger).
+
+## Pipeline baca dokumen (M4)
+
+Setelah dokumen klaim diunggah, worker menjalankan:
+
+1. **Ingest** (`ingest/pdf_loader.py`): halaman PDF yang punya lapisan teks dibaca pdfplumber (teks + koordinat, watermark miring dibuang). Halaman tanpa teks dirender 200 DPI.
+2. **Pra-pemrosesan dan OCR** (`ingest/image_preprocess.py`, `ocr/engine.py`): kontras, denoise, koreksi miring, lalu PaddleOCR. Hasilnya baris teks dengan bbox dan skor keyakinan.
+3. **Klasifikasi** (`ingest/doc_classifier.py`): judul dokumen dicocokkan dengan kata kunci; bila gagal, LLM; bila tetap gagal, tebakan dari nama file.
+4. **Ekstraksi** (`extraction/llm_extractor.py`): teks bernomor + prompt berversi (`extraction/prompts/`, versi `extract_v1`) dikirim ke LLM. Setiap nilai wajib membawa `source_line_ids`. Jawaban divalidasi Pydantic, diulang sekali bila tidak valid, lalu ditandai gagal.
+5. **Field turunan** (`extraction/derived_fields.py`): lama rawat, trombosit terendah, kenaikan hematokrit, darah lengkap per hari, Widal, lama seftriakson, hari infus, item tagihan ganda, dokumen yang kurang. Klaim tumpang tindih dihitung dari database.
+
+Field disimpan di tabel `extracted_fields` beserta bukti `{document_id, page, bbox, quote}` dan bisa dilihat di `GET /claims/{id}/fields`. Status klaim menjadi `EXTRACTED`; penalaran klinis dan rekomendasi menyusul di M5. Versi model, prompt, dan mesin OCR dicatat di `audit_logs` (`PIPELINE_EXTRACTED`).
+
+### Memakai DeepSeek
+
+Isi di `.env` (jangan di-commit):
+
+```
+LLM_PROVIDER=deepseek
+LLM_API_KEY=<kunci API Anda>
+```
+
+Lalu `docker compose up -d --build worker`. `LLM_BASE_URL` dan `LLM_MODEL` boleh kosong (bawaan `https://api.deepseek.com`, `deepseek-chat`). Untuk server lain yang kompatibel OpenAI pakai `LLM_PROVIDER=openai_compatible` dengan `LLM_BASE_URL` dan `LLM_MODEL`. Sebelum memakai data nyata, cek ulang lokasi pemrosesan data penyedia LLM.
+
+### Mengukur akurasi ekstraksi
+
+```bash
+make synthetic          # sekali, membuat 30 klaim + ground_truth.json
+make eval-extraction    # tanpa make: docker compose run --rm --no-deps worker python -m evaluation.extraction_accuracy
+```
+
+Laporan (Markdown + JSON) ditulis ke `evaluation/reports/`, dipisah per PDF digital dan pindaian. Target M4: akurasi field kunci >= 90% dengan LLM sungguhan. Mode mock hanya menguji alur (nilainya diambil dari data sintetis), jadi angkanya bukan ukuran kualitas LLM.
+
+Image worker memasang PaddleOCR dan mengunduh modelnya saat build, jadi build pertama lebih lama dan butuh internet.
 
 ## Catatan
 

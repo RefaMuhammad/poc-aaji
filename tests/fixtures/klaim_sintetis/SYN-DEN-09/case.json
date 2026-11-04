@@ -1,0 +1,432 @@
+{
+  "claim_id": "SYN-DEN-09",
+  "label": "DATA REKAAN UNTUK DEMONSTRASI",
+  "scenario": {
+    "claim_id": "SYN-DEN-09",
+    "icd10": "A90",
+    "kategori": "bermasalah",
+    "deskripsi": "Demam dengue tanpa warning signs dirawat inap, darah lengkap 4x sehari",
+    "pasien": {
+      "usia": 26,
+      "jk": "L"
+    },
+    "lama_rawat": 4,
+    "lab": {
+      "trombosit_min": 112000,
+      "kenaikan_ht": 6,
+      "ns1": "pos",
+      "cbc_maks_per_hari": 4
+    },
+    "klinis": {
+      "plasma_leakage": false,
+      "warning_signs": []
+    },
+    "harapan": {
+      "status": "YELLOW",
+      "aturan": [
+        "DEN-03",
+        "DEN-05"
+      ]
+    }
+  },
+  "dx_group": "dengue",
+  "icd10": "A90",
+  "secondary_icd10": [],
+  "hospital": {
+    "key": "rs_c",
+    "name": "RS Mitra Medika Nusantara",
+    "city": "Kota Fiktif Timur",
+    "style": "c",
+    "date_format": "indo",
+    "labels": {
+      "plt": "Trombosit (PLT)",
+      "hct": "Hematokrit (HCT)",
+      "hb": "Hemoglobin (Hb)",
+      "wbc": "Leukosit (WBC)"
+    }
+  },
+  "doctor": "dr. Andika Wirawan, Sp.PD",
+  "patient": {
+    "name": "Fajar Rahayu",
+    "sex": "L",
+    "age": 26,
+    "mrn": "RM-249490",
+    "member_id": "PST-15720019",
+    "policy_no": "POL-DEMO-8181"
+  },
+  "admission_date": "2026-03-26",
+  "discharge_date": "2026-03-30",
+  "documents": [
+    "resume_medis",
+    "hasil_laboratorium",
+    "cppt",
+    "rincian_tagihan"
+  ],
+  "labs": [
+    {
+      "type": "darah_lengkap",
+      "day": 1,
+      "date": "2026-03-26",
+      "time": "06:00",
+      "values": {
+        "hb": 13.9,
+        "hct": 41.8,
+        "wbc": 3.3,
+        "plt": 190000
+      }
+    },
+    {
+      "type": "darah_lengkap",
+      "day": 2,
+      "date": "2026-03-27",
+      "time": "06:00",
+      "values": {
+        "hb": 14.0,
+        "hct": 42.0,
+        "wbc": 8.8,
+        "plt": 159000
+      }
+    },
+    {
+      "type": "darah_lengkap",
+      "day": 2,
+      "date": "2026-03-27",
+      "time": "12:00",
+      "values": {
+        "hb": 13.8,
+        "hct": 41.5,
+        "wbc": 9.1,
+        "plt": 161000
+      }
+    },
+    {
+      "type": "darah_lengkap",
+      "day": 3,
+      "date": "2026-03-28",
+      "time": "06:00",
+      "values": {
+        "hb": 14.5,
+        "hct": 43.5,
+        "wbc": 6.6,
+        "plt": 112000
+      }
+    },
+    {
+      "type": "darah_lengkap",
+      "day": 3,
+      "date": "2026-03-28",
+      "time": "12:00",
+      "values": {
+        "hb": 14.1,
+        "hct": 42.2,
+        "wbc": 7.9,
+        "plt": 114000
+      }
+    },
+    {
+      "type": "darah_lengkap",
+      "day": 3,
+      "date": "2026-03-28",
+      "time": "18:00",
+      "values": {
+        "hb": 14.1,
+        "hct": 42.2,
+        "wbc": 8.7,
+        "plt": 116000
+      }
+    },
+    {
+      "type": "darah_lengkap",
+      "day": 3,
+      "date": "2026-03-28",
+      "time": "23:00",
+      "values": {
+        "hb": 14.1,
+        "hct": 42.2,
+        "wbc": 6.3,
+        "plt": 118000
+      }
+    },
+    {
+      "type": "darah_lengkap",
+      "day": 4,
+      "date": "2026-03-29",
+      "time": "06:00",
+      "values": {
+        "hb": 13.7,
+        "hct": 41.0,
+        "wbc": 7.0,
+        "plt": 143000
+      }
+    },
+    {
+      "type": "ns1",
+      "day": 1,
+      "date": "2026-03-26",
+      "time": "07:00",
+      "values": {
+        "result": "pos"
+      }
+    }
+  ],
+  "treatment": {
+    "iv_days": [
+      1,
+      2,
+      3
+    ],
+    "meds": [
+      {
+        "name": "Parasetamol 500 mg",
+        "kind": "parasetamol",
+        "days": [
+          1,
+          2,
+          3,
+          4
+        ]
+      }
+    ]
+  },
+  "clinical": {
+    "comorbidities": [],
+    "days_after_discharge_criteria": 0,
+    "plasma_leakage": false,
+    "warning_signs": [],
+    "spontaneous_bleeding": false,
+    "shock": false,
+    "unable_to_drink": false
+  },
+  "cppt": [
+    {
+      "day": 1,
+      "date": "2026-03-26",
+      "S": "Demam tinggi 3 hari, nyeri kepala, nyeri otot; tidak ada muntah, tidak ada nyeri perut, masih bisa makan dan minum",
+      "O": "TD 110/70 mmHg, nadi 96x/menit, suhu 38.6 C; Lab: Hb 13.9. Ht 41.8%. trombosit 190.000",
+      "A": "Demam dengue",
+      "P": "Infus kristaloid, pantau tanda vital dan darah lengkap",
+      "meds": [
+        "Infus kristaloid"
+      ]
+    },
+    {
+      "day": 2,
+      "date": "2026-03-27",
+      "S": "Tidak ada keluhan baru",
+      "O": "TD 110/70 mmHg, nadi 96x/menit, suhu 38.6 C; Lab: Hb 14.0. Ht 42.0%. trombosit 159.000",
+      "A": "Demam dengue",
+      "P": "Infus kristaloid, pantau tanda vital dan darah lengkap",
+      "meds": [
+        "Infus kristaloid"
+      ]
+    },
+    {
+      "day": 3,
+      "date": "2026-03-28",
+      "S": "Tidak ada keluhan baru",
+      "O": "TD 110/70 mmHg, nadi 96x/menit, suhu 36.8 C; Lab: Hb 14.5. Ht 43.5%. trombosit 112.000",
+      "A": "Demam dengue",
+      "P": "Infus kristaloid, pantau tanda vital dan darah lengkap",
+      "meds": [
+        "Infus kristaloid"
+      ]
+    },
+    {
+      "day": 4,
+      "date": "2026-03-29",
+      "S": "Tidak ada keluhan baru",
+      "O": "TD 110/70 mmHg, nadi 96x/menit, suhu 36.8 C; Lab: Hb 13.7. Ht 41.0%. trombosit 143.000",
+      "A": "Kondisi membaik",
+      "P": "Bebas demam > 48 jam, trombosit cenderung naik, hematokrit stabil tanpa infus. Pasien layak pulang.",
+      "meds": []
+    }
+  ],
+  "billing": [
+    {
+      "date": "2026-03-26",
+      "time": "00:00",
+      "name": "Kamar rawat inap kelas 1",
+      "qty": 1,
+      "price": 450000
+    },
+    {
+      "date": "2026-03-26",
+      "time": "06:00",
+      "name": "Pemeriksaan Darah Lengkap",
+      "qty": 1,
+      "price": 95000
+    },
+    {
+      "date": "2026-03-26",
+      "time": "07:00",
+      "name": "NS1 Antigen Dengue",
+      "qty": 1,
+      "price": 350000
+    },
+    {
+      "date": "2026-03-26",
+      "time": "08:00",
+      "name": "Cairan infus Ringer Laktat 500 ml",
+      "qty": 3,
+      "price": 65000
+    },
+    {
+      "date": "2026-03-26",
+      "time": "08:00",
+      "name": "Parasetamol 500 mg",
+      "qty": 1,
+      "price": 8000
+    },
+    {
+      "date": "2026-03-26",
+      "time": "09:00",
+      "name": "Visite dokter spesialis",
+      "qty": 1,
+      "price": 150000
+    },
+    {
+      "date": "2026-03-27",
+      "time": "00:00",
+      "name": "Kamar rawat inap kelas 1",
+      "qty": 1,
+      "price": 450000
+    },
+    {
+      "date": "2026-03-27",
+      "time": "06:00",
+      "name": "Pemeriksaan Darah Lengkap",
+      "qty": 1,
+      "price": 95000
+    },
+    {
+      "date": "2026-03-27",
+      "time": "08:00",
+      "name": "Cairan infus Ringer Laktat 500 ml",
+      "qty": 3,
+      "price": 65000
+    },
+    {
+      "date": "2026-03-27",
+      "time": "08:00",
+      "name": "Parasetamol 500 mg",
+      "qty": 1,
+      "price": 8000
+    },
+    {
+      "date": "2026-03-27",
+      "time": "09:00",
+      "name": "Visite dokter spesialis",
+      "qty": 1,
+      "price": 150000
+    },
+    {
+      "date": "2026-03-27",
+      "time": "12:00",
+      "name": "Pemeriksaan Darah Lengkap",
+      "qty": 1,
+      "price": 95000
+    },
+    {
+      "date": "2026-03-28",
+      "time": "00:00",
+      "name": "Kamar rawat inap kelas 1",
+      "qty": 1,
+      "price": 450000
+    },
+    {
+      "date": "2026-03-28",
+      "time": "06:00",
+      "name": "Pemeriksaan Darah Lengkap",
+      "qty": 1,
+      "price": 95000
+    },
+    {
+      "date": "2026-03-28",
+      "time": "08:00",
+      "name": "Cairan infus Ringer Laktat 500 ml",
+      "qty": 3,
+      "price": 65000
+    },
+    {
+      "date": "2026-03-28",
+      "time": "08:00",
+      "name": "Parasetamol 500 mg",
+      "qty": 1,
+      "price": 8000
+    },
+    {
+      "date": "2026-03-28",
+      "time": "09:00",
+      "name": "Visite dokter spesialis",
+      "qty": 1,
+      "price": 150000
+    },
+    {
+      "date": "2026-03-28",
+      "time": "12:00",
+      "name": "Pemeriksaan Darah Lengkap",
+      "qty": 1,
+      "price": 95000
+    },
+    {
+      "date": "2026-03-28",
+      "time": "18:00",
+      "name": "Pemeriksaan Darah Lengkap",
+      "qty": 1,
+      "price": 95000
+    },
+    {
+      "date": "2026-03-28",
+      "time": "23:00",
+      "name": "Pemeriksaan Darah Lengkap",
+      "qty": 1,
+      "price": 95000
+    },
+    {
+      "date": "2026-03-29",
+      "time": "00:00",
+      "name": "Kamar rawat inap kelas 1",
+      "qty": 1,
+      "price": 450000
+    },
+    {
+      "date": "2026-03-29",
+      "time": "06:00",
+      "name": "Pemeriksaan Darah Lengkap",
+      "qty": 1,
+      "price": 95000
+    },
+    {
+      "date": "2026-03-29",
+      "time": "08:00",
+      "name": "Parasetamol 500 mg",
+      "qty": 1,
+      "price": 8000
+    },
+    {
+      "date": "2026-03-29",
+      "time": "09:00",
+      "name": "Visite dokter spesialis",
+      "qty": 1,
+      "price": 150000
+    }
+  ],
+  "billing_total": 4127000,
+  "resume": {
+    "chief_complaint": "Demam",
+    "primary_dx": "A90 Demam dengue",
+    "secondary_dx": [],
+    "supporting_findings": [
+      "Trombosit terendah 112.000/uL",
+      "NS1 positif"
+    ],
+    "therapy": [
+      "infus RL 3 hari",
+      "Parasetamol 500 mg"
+    ],
+    "discharge_condition": "Membaik, diizinkan pulang"
+  },
+  "undocumented_billed_items": [],
+  "overlapping_claims": [],
+  "scanned": false
+}
