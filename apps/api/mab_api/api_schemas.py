@@ -133,10 +133,12 @@ class BulkAgreeResult(BaseModel):
 
 
 class EvidenceOut(BaseModel):
-    doc: str | None = None
+    doc: str | None = None          # id dokumen
     page: int | None = None
     quote: str | None = None
-    bbox: list[float] | None = None
+    bbox: list[float] | None = None  # x0, y0, x1, y1 dalam proporsi halaman
+    field: str | None = None        # field kamus data yang dibuktikan
+    claim_id: str | None = None     # untuk bukti klaim tumpang tindih
 
 
 class ExtractedFieldOut(BaseModel):
@@ -147,6 +149,7 @@ class ExtractedFieldOut(BaseModel):
     value: Any = None
     source: str
     confidence: float | None = None
+    status: str | None = None
     evidence: list[dict[str, Any]] = Field(default_factory=list)
     corrected_value: Any = None
 
@@ -189,6 +192,7 @@ class RecommendationOut(BaseModel):
     next_action: str | None
     reviewer: ReviewerOut | None
     explanation_text: str | None
+    quality_flags: list[dict] = []
     model_version: str
     prompt_version: str
     ruleset_version: str

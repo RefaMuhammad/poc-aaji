@@ -341,7 +341,7 @@ def test_process_claim_saves_fields_with_evidence(client, login, session_factory
     files = [("files", (f"{t}.pdf", (FIXTURES / "SYN-DEN-09" / f"{t}.pdf").read_bytes(), "application/pdf")) for t in DOC_TYPES]
     assert client.post(f"/claims/{claim['id']}/documents", files=files, headers=headers).status_code == 201
 
-    assert process_claim(claim["id"], session_factory=session_factory, storage=storage, llm=mock_llm, ocr=NullOCREngine()) == "EXTRACTED"
+    assert process_claim(claim["id"], session_factory=session_factory, storage=storage, llm=mock_llm, ocr=NullOCREngine()) == "AWAITING_DOCTOR"
 
     fields = {f["field_path"]: f for f in client.get(f"/claims/{claim['id']}/fields", headers=headers).json()}
     expected = _expected("SYN-DEN-09")
@@ -356,14 +356,14 @@ def test_process_claim_saves_fields_with_evidence(client, login, session_factory
 
     with session_factory() as db:
         c = db.get(Claim, claim["id"])
-        assert c.status == "EXTRACTED" and c.primary_icd10 == case["icd10"]
+        assert c.status == "AWAITING_DOCTOR" and c.primary_icd10 == case["icd10"]
         docs = db.scalars(select(Document).where(Document.claim_id == c.id)).all()
         assert {d.doc_type for d in docs} == set(DOC_TYPES) and all(d.page_count for d in docs)
-        assert any(ev["document_id"] == d.id for d in docs)
+        assert any(ev["doc"] == d.id for d in docs)
         pages = json.loads(storage.get(docs[0].storage_key + ".pages.json"))
         assert pages["pages"][0]["lines"][0]["id"].startswith("D")
-        audit = db.scalar(select(AuditLog).where(AuditLog.action == "PIPELINE_EXTRACTED"))
-        assert audit.detail["model_version"] == "mock-llm-1" and audit.detail["prompt_version"] == PROMPT_VERSION
+        audit = db.scalar(select(AuditLog).where(AuditLog.action == "PIPELINE_COMPLETED"))
+        assert audit.detail["model_version"] == "mock-llm-1" and audit.detail["prompt_version"].startswith(PROMPT_VERSION)
         assert audit.detail["ocr_engine"] == "none"
 
     # menjalankan ulang tidak menggandakan field

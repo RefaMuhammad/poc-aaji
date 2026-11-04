@@ -52,3 +52,12 @@ def classify(doc: LoadedDocument, llm=None, hint: str | None = None) -> tuple[st
     if hint in DOC_TYPES and hint != "unknown":
         return hint, "filename"
     return "unknown", "none"
+
+
+def title_line(doc: LoadedDocument):
+    """Baris judul dokumen (dipakai sebagai bukti bahwa dokumen jenis ini diterima)."""
+    words = TITLE_KEYWORDS.get(doc.doc_type, ())
+    for line in doc.lines[:HEAD_LINES]:
+        if any(w in normalize(line.text) for w in words):
+            return line
+    return doc.lines[0] if doc.lines else None

@@ -53,7 +53,7 @@ data/                    (diabaikan git) data referensi dan output sintetis
 - [x] M2 Generator data sintetis
 - [x] M3 API, database, unggah dokumen
 - [x] M4 Pipeline baca dokumen
-- [ ] M5 Penalaran klinis, cek bukti, rekomendasi
+- [x] M5 Penalaran klinis, cek bukti, rekomendasi
 - [ ] M6 Portal asuransi
 - [ ] M7 Ruang kerja dokter
 - [ ] M8 Evaluasi, seed demo, naskah demo
@@ -120,7 +120,26 @@ Setelah dokumen klaim diunggah, worker menjalankan:
 4. **Ekstraksi** (`extraction/llm_extractor.py`): teks bernomor + prompt berversi (`extraction/prompts/`, versi `extract_v1`) dikirim ke LLM. Setiap nilai wajib membawa `source_line_ids`. Jawaban divalidasi Pydantic, diulang sekali bila tidak valid, lalu ditandai gagal.
 5. **Field turunan** (`extraction/derived_fields.py`): lama rawat, trombosit terendah, kenaikan hematokrit, darah lengkap per hari, Widal, lama seftriakson, hari infus, item tagihan ganda, dokumen yang kurang. Klaim tumpang tindih dihitung dari database.
 
-Field disimpan di tabel `extracted_fields` beserta bukti `{document_id, page, bbox, quote}` dan bisa dilihat di `GET /claims/{id}/fields`. Status klaim menjadi `EXTRACTED`; penalaran klinis dan rekomendasi menyusul di M5. Versi model, prompt, dan mesin OCR dicatat di `audit_logs` (`PIPELINE_EXTRACTED`).
+Field disimpan di tabel `extracted_fields` beserta bukti `{doc, page, bbox, quote, line_ids}` dan bisa dilihat di `GET /claims/{id}/fields`.
+
+## Penalaran klinis dan rekomendasi (M5)
+
+Masih di job yang sama, setelah dokumen terbaca:
+
+1. **Penalaran klinis** (`reasoning/clinical_reasoner.py`, prompt `clinical_v1`): LLM membaca resume, CPPT, lab, dan tagihan, lalu mengisi field `sumber: ai` di kamus data yang dipakai aturan diagnosis tersebut. Setiap nilai yang menyatakan sesuatu ada wajib membawa kutipan persis.
+2. **Cek bukti** (`reasoning/evidence_check.py`): kutipan dicocokkan ke teks dokumen (fuzzy, skor >= 0,9, boleh melintasi 2-3 baris). Kutipan yang tidak ditemukan dibuang dan nilainya menjadi null (tidak diketahui), bukan "tidak ada".
+3. **Aturan** M1 dijalankan; setiap temuan diberi bukti dari field yang dipakai aturannya (dokumen, halaman, bbox, kutipan). Temuan yang butuh bukti AI tetapi tidak punya bukti dibuang.
+4. **Rekomendasi** (`triage/recommender.py`): status, skor, rekomendasi awal (`PAY_FULL`, `DOCTOR_REVIEW`, `PEND`), usulan koreksi tagihan (item ganda, item tanpa catatan klinis, hari rawat berlebih), draf penjelasan, rujukan pedoman, serta versi model, prompt, dan aturan.
+
+Pengaman kualitas data: bila ada dokumen tidak terbaca, diagnosis tidak terbaca, kutipan AI tidak terbukti, aturan tidak bisa dinilai, atau temuan dibuang, klaim tidak pernah hijau (dinaikkan ke kuning, dengan catatan di `quality_flags`). AI tidak pernah menolak klaim.
+
+Klaim bayar penuh langsung berstatus `AWAITING_DECISION` dan terlihat oleh asuransi. Selain itu berstatus `AWAITING_DOCTOR` dan baru terlihat oleh asuransi setelah ditandatangani dokter (M7). Semua versi dicatat di `audit_logs` (`PIPELINE_COMPLETED`).
+
+```bash
+make eval-triage        # tanpa make: docker compose run --rm --no-deps worker python -m evaluation.triage_accuracy
+```
+
+Target M5: >= 90% status triase sesuai kunci jawaban, 0 klaim bermasalah menjadi hijau, setiap temuan punya bukti.
 
 ### Memakai DeepSeek
 

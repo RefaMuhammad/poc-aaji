@@ -110,6 +110,7 @@ def build_recommendation_view(claim: Claim, rec: Recommendation) -> Recommendati
         next_action=rec.next_action,
         reviewer=reviewer,
         explanation_text=rec.explanation_text,
+        quality_flags=rec.quality_flags or [],
         model_version=rec.model_version,
         prompt_version=rec.prompt_version,
         ruleset_version=rec.ruleset_version,
