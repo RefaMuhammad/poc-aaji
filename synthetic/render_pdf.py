@@ -60,7 +60,15 @@ def render_case(case_dir: Path) -> list[Path]:
     written = []
     for doc_type in case["documents"]:
         out = case_dir / f"{doc_type}.pdf"
-        HTML(string=render_html(case, doc_type), base_url=str(TEMPLATES)).write_pdf(out)
+        pdf = HTML(string=render_html(case, doc_type), base_url=str(TEMPLATES)).write_pdf()
+        try:
+            out.write_bytes(pdf)
+        except PermissionError:
+            # Di Windows, file yang sedang dibuka (penampil PDF, pratinjau File Explorer)
+            # terkunci dan tidak bisa ditimpa dari container.
+            sys.exit(f"Tidak bisa menulis {out}: file sedang dibuka atau terkunci. "
+                     "Tutup penampil PDF/pratinjau File Explorer, atau hapus folder "
+                     "data/synthetic_output, lalu jalankan ulang.")
         written.append(out)
     return written
 
