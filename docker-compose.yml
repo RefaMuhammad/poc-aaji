@@ -53,12 +53,14 @@ services:
     build:
       context: .
       dockerfile: infra/docker/api.Dockerfile
-    command: uvicorn mab_api.main:app --host 0.0.0.0 --port 8000 --reload
+    command: sh -c "alembic upgrade head && uvicorn mab_api.main:app --host 0.0.0.0 --port 8000 --reload"
     volumes:
       - ./apps/api/mab_api:/app/mab_api
+      - ./apps/api/alembic:/app/alembic
       - ./pipeline/mab_pipeline:/app/mab_pipeline
       - ./rules:/app/rules
       - ./synthetic:/app/synthetic
+      - ./infra/scripts:/app/infra/scripts
       - ./tests:/app/tests
     ports:
       - "8000:8000"
@@ -74,6 +76,7 @@ services:
       dockerfile: infra/docker/worker.Dockerfile
     command: python -m mab_pipeline.worker
     volumes:
+      - ./apps/api/mab_api:/app/mab_api
       - ./pipeline/mab_pipeline:/app/mab_pipeline
       - ./rules:/app/rules
     depends_on:

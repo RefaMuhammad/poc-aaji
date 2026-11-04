@@ -10,4 +10,9 @@ boto3==1.35.90
 PyYAML==6.0.2
 Jinja2==3.1.5
 httpx==0.28.1
+alembic==1.14.0
+PyJWT==2.10.1
+openpyxl==3.1.5
+python-multipart==0.0.20
+fakeredis==2.26.2
 pytest==8.3.4

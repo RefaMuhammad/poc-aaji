@@ -8,8 +8,11 @@ WORKDIR /app
 
 # PaddleOCR dan dependensi sistemnya ditambahkan di M4.
 COPY pipeline/requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+COPY apps/api/requirements.txt /tmp/api-requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt -r /tmp/api-requirements.txt
 
+# Worker memakai model database yang sama dengan API
+COPY apps/api/mab_api /app/mab_api
 COPY pipeline/mab_pipeline /app/mab_pipeline
 COPY rules /app/rules
 
