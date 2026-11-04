@@ -36,7 +36,6 @@ class ClaimStatus(str, Enum):
     RECEIVED = "RECEIVED"                    # diterima, belum ada dokumen diproses
     QUEUED = "QUEUED"                        # dokumen masuk, menunggu worker
     PROCESSING = "PROCESSING"                # diproses
-    EXTRACTED = "EXTRACTED"                  # dokumen terbaca, field terisi (M4); penalaran klinis menyusul (M5)
     AWAITING_DOCTOR = "AWAITING_DOCTOR"      # menunggu dokter
     AWAITING_DECISION = "AWAITING_DECISION"  # menunggu keputusan asuransi
     COMPLETED = "COMPLETED"                  # selesai
@@ -136,7 +135,8 @@ class ExtractedField(Base):
     value: Mapped[Any] = mapped_column(JSON, nullable=True)
     source: Mapped[str] = mapped_column(String(20))  # dokumen / ai / hitung
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
-    evidence: Mapped[list] = mapped_column(JSON, default=list)  # [{document_id, page, bbox, quote}]
+    evidence: Mapped[list] = mapped_column(JSON, default=list)  # [{doc, page, bbox, quote, line_ids, field}]
+    status: Mapped[str | None] = mapped_column(String(20), nullable=True)  # field ai: verified/absent/unverified/unknown
     corrected_value: Mapped[Any] = mapped_column(JSON, nullable=True)
     corrected_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     corrected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -159,6 +159,7 @@ class Recommendation(Base):
     guideline_refs: Mapped[list] = mapped_column(JSON, default=list)
     next_action: Mapped[str | None] = mapped_column(Text, nullable=True)
     explanation_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    quality_flags: Mapped[list | None] = mapped_column(JSON, nullable=True, default=list)  # [{code, message}]
     model_version: Mapped[str] = mapped_column(String(50))
     prompt_version: Mapped[str] = mapped_column(String(50))
     ruleset_version: Mapped[str] = mapped_column(String(50))

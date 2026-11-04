@@ -18,6 +18,26 @@ from typing import Any
 MONTHS = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
 MOCK_MODEL_VERSION = "mock-llm-1"
 
+# Frasa yang ditulis generator sintetis untuk setiap temuan klinis (dipakai juga oleh generator)
+WARNING_SIGN_TEXT = {
+    "nyeri abdomen": "nyeri perut kanan atas",
+    "perdarahan mukosa": "gusi berdarah saat sikat gigi",
+    "muntah persisten": "muntah terus-menerus setiap diberi makan/minum",
+    "letargi": "pasien tampak letargis",
+}
+CLINICAL_PHRASES = {
+    "clin.plasma_leakage": "efusi pleura",
+    "clin.spontaneous_bleeding": "petekie spontan",
+    "clin.shock": "akral dingin",
+    "clin.unable_to_drink": "tidak mau minum",
+    "clin.persistent_vomiting": "muntah setiap diberi minum",
+    "clin.bloody_diarrhea": "berlendir darah",
+    "clin.poor_general_condition": "keadaan umum lemah",
+    "clin.days_after_discharge_criteria": "layak pulang",
+    "clin.complication_documented": "melena",
+}
+DEHYDRATION_TEXT = {"berat": "kesan dehidrasi berat", "ringan-sedang": "kesan dehidrasi ringan-sedang", "tanpa": "tanpa dehidrasi"}
+
 
 def _default_fixtures_dir() -> Path:
     env = os.getenv("LLM_MOCK_FIXTURES_DIR")
@@ -208,10 +228,51 @@ class MockLLMClient:
                 return json.loads(self._by_mrn[mrn].read_text(encoding="utf-8"))
         return None
 
+    def _reason(self, case: dict, lines: list[dict], paths: list[str]) -> dict:
+        """Jawaban penalaran klinis: nilai dari kebenaran klinis skenario, kutipan = baris
+        dokumen yang memuat frasanya (bila terbaca)."""
+        compact = [(re.sub(r"\s+", "", l["text"].lower()), l["text"]) for l in lines]
+
+        def quote(phrase: str) -> str:
+            key = re.sub(r"\s+", "", phrase.lower())
+            return next((text for norm, text in compact if key in norm), phrase)
+
+        clin = case["clinical"]
+        out: dict[str, Any] = {}
+        for path in paths:
+            if path == "bill.items_without_clinical_note":
+                if "rincian_tagihan" not in case["documents"]:
+                    out[path] = {"value": None}
+                else:
+                    out[path] = {"value": [{"item": i, "quote": quote(i)} for i in case["undocumented_billed_items"]]}
+                continue
+            name = path.split(".", 1)[1]
+            value = clin.get(name)
+            if value is None:
+                out[path] = {"value": None}
+            elif name == "warning_signs":
+                out[path] = {"value": [{"item": w, "quote": quote(WARNING_SIGN_TEXT[w])} for w in value]}
+            elif name == "comorbidities":
+                out[path] = {"value": [{"item": c, "quote": quote(f"riwayat {c}")} for c in value]}
+            elif name == "dehydration":
+                out[path] = {"value": value, "quotes": [quote(DEHYDRATION_TEXT[value])]}
+            elif name == "daldiyono_score":
+                out[path] = {"value": value, "quotes": [quote(f"Skor Daldiyono: {value}")]}
+            elif value in (False, 0):
+                out[path] = {"value": value, "quotes": []}
+            else:
+                out[path] = {"value": value, "quotes": [quote(CLINICAL_PHRASES.get(path, str(value)))]}
+        return {"fields": out}
+
     def complete_json(self, system: str, user: str, *, task: str, context: dict[str, Any]) -> str:
         lines: list[dict] = context.get("lines") or []
         if task == "classify":
             return json.dumps({"doc_type": "unknown"})
+        if task == "reason":
+            case = self._find_case(context.get("claim_number"), "\n".join(l["text"] for l in lines)) if lines else None
+            if case is None:
+                return json.dumps({"fields": {}})
+            return json.dumps(self._reason(case, lines, context.get("fields") or []), ensure_ascii=False)
         doc_type = task.split(":", 1)[1]
         empty = {"resume_medis": {}, "hasil_laboratorium": {"results": []}, "rincian_tagihan": {"items": []}, "cppt": {"medications": []}}
         if not lines:

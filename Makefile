@@ -1,7 +1,7 @@
-.PHONY: help env up down logs test synthetic seed-users seed reset eval eval-extraction
+.PHONY: help env up down logs test synthetic seed-users seed reset eval eval-extraction eval-triage
 
 help:
-	@echo "Perintah: make env | up | down | logs | test | synthetic | seed-users | seed | reset | eval | eval-extraction"
+	@echo "Perintah: make env | up | down | logs | test | synthetic | seed-users | seed | reset | eval | eval-extraction | eval-triage"
 
 env:
 	@test -f .env || cp .env.example .env && echo ".env siap"
@@ -35,6 +35,10 @@ reset:
 # Pakai LLM_PROVIDER di .env; hasil di evaluation/reports/.
 eval-extraction: env
 	docker compose run --rm --no-deps worker python -m evaluation.extraction_accuracy
+
+# Triase dan rekomendasi M5 terhadap kunci_jawaban.csv (butuh `make synthetic` dulu).
+eval-triage: env
+	docker compose run --rm --no-deps worker python -m evaluation.triage_accuracy
 
 eval:
 	@echo "make eval belum diimplementasi (dijadwalkan di M8)."

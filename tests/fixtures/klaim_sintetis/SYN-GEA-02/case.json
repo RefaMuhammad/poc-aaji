@@ -1,0 +1,363 @@
+{
+  "claim_id": "SYN-GEA-02",
+  "label": "DATA REKAAN UNTUK DEMONSTRASI",
+  "scenario": {
+    "claim_id": "SYN-GEA-02",
+    "icd10": "A09",
+    "kategori": "wajar",
+    "deskripsi": "GEA pada lansia dengan penyakit ginjal kronik dan muntah persisten",
+    "pasien": {
+      "usia": 70,
+      "jk": "L"
+    },
+    "lama_rawat": 4,
+    "klinis": {
+      "dehydration": "ringan-sedang",
+      "persistent_vomiting": true,
+      "daldiyono_score": 3,
+      "comorbidities": [
+        "penyakit ginjal kronik"
+      ]
+    },
+    "terapi": {
+      "infus_hari": 3
+    },
+    "harapan": {
+      "status": "GREEN",
+      "aturan": []
+    }
+  },
+  "dx_group": "gea",
+  "icd10": "A09",
+  "secondary_icd10": [],
+  "hospital": {
+    "key": "rs_a",
+    "name": "RS Sehat Sentosa",
+    "city": "Kota Rekaan Barat",
+    "style": "a",
+    "date_format": "%d/%m/%Y",
+    "labels": {
+      "plt": "Trombosit",
+      "hct": "Hematokrit",
+      "hb": "Hemoglobin",
+      "wbc": "Leukosit"
+    }
+  },
+  "doctor": "dr. Yudha Prasetyo, Sp.PD",
+  "patient": {
+    "name": "Hendra Nugroho",
+    "sex": "L",
+    "age": 70,
+    "mrn": "RM-427126",
+    "member_id": "PST-58762576",
+    "policy_no": "POL-DEMO-4041"
+  },
+  "admission_date": "2026-05-04",
+  "discharge_date": "2026-05-08",
+  "documents": [
+    "resume_medis",
+    "hasil_laboratorium",
+    "cppt",
+    "rincian_tagihan"
+  ],
+  "labs": [
+    {
+      "type": "darah_lengkap",
+      "day": 1,
+      "date": "2026-05-04",
+      "time": "07:00",
+      "values": {
+        "hb": 15.0,
+        "hct": 45.0,
+        "wbc": 4.9,
+        "plt": 310000
+      }
+    },
+    {
+      "type": "elektrolit",
+      "day": 1,
+      "date": "2026-05-04",
+      "time": "07:00",
+      "values": {
+        "na": 132,
+        "k": 3.2,
+        "cl": 98
+      }
+    },
+    {
+      "type": "feses",
+      "day": 1,
+      "date": "2026-05-04",
+      "time": "10:00",
+      "values": {
+        "pathogen": false
+      }
+    }
+  ],
+  "treatment": {
+    "iv_days": [
+      1,
+      2,
+      3
+    ],
+    "meds": [
+      {
+        "name": "Oralit",
+        "kind": "oralit",
+        "days": [
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      {
+        "name": "Zinc 20 mg",
+        "kind": "zinc",
+        "days": [
+          1,
+          2,
+          3,
+          4
+        ]
+      }
+    ]
+  },
+  "clinical": {
+    "comorbidities": [
+      "penyakit ginjal kronik"
+    ],
+    "days_after_discharge_criteria": 0,
+    "dehydration": "ringan-sedang",
+    "shock": false,
+    "persistent_vomiting": true,
+    "poor_general_condition": false,
+    "bloody_diarrhea": false,
+    "suspected_cholera": false,
+    "daldiyono_score": 3
+  },
+  "cppt": [
+    {
+      "day": 1,
+      "date": "2026-05-04",
+      "S": "BAB cair 10x/hari sejak 1 hari; muntah setiap diberi minum; riwayat penyakit ginjal kronik",
+      "O": "TD 110/70 mmHg, nadi 96x/menit, suhu 38.6 C; Mata cekung, haus, turgor kulit kembali lambat; kesan dehidrasi ringan-sedang; Skor Daldiyono: 3",
+      "A": "Diare dan gastroenteritis yang diduga infeksi",
+      "P": "Terapi: infus RL, oralit, zinc",
+      "meds": [
+        "infus RL",
+        "oralit",
+        "zinc"
+      ]
+    },
+    {
+      "day": 2,
+      "date": "2026-05-05",
+      "S": "Tidak ada keluhan baru",
+      "O": "TD 110/70 mmHg, nadi 96x/menit, suhu 38.6 C",
+      "A": "Diare dan gastroenteritis yang diduga infeksi",
+      "P": "Terapi: infus RL, oralit, zinc",
+      "meds": [
+        "infus RL",
+        "oralit",
+        "zinc"
+      ]
+    },
+    {
+      "day": 3,
+      "date": "2026-05-06",
+      "S": "Tidak ada keluhan baru",
+      "O": "TD 110/70 mmHg, nadi 96x/menit, suhu 36.8 C",
+      "A": "Diare dan gastroenteritis yang diduga infeksi",
+      "P": "Terapi: infus RL, oralit, zinc",
+      "meds": [
+        "infus RL",
+        "oralit",
+        "zinc"
+      ]
+    },
+    {
+      "day": 4,
+      "date": "2026-05-07",
+      "S": "Tidak ada keluhan baru",
+      "O": "TD 110/70 mmHg, nadi 96x/menit, suhu 36.8 C",
+      "A": "Kondisi membaik",
+      "P": "BAB lembek 1-2x/hari, tidak muntah, minum baik. Pasien layak pulang.",
+      "meds": []
+    }
+  ],
+  "billing": [
+    {
+      "date": "2026-05-04",
+      "time": "00:00",
+      "name": "Kamar rawat inap kelas 1",
+      "qty": 1,
+      "price": 450000
+    },
+    {
+      "date": "2026-05-04",
+      "time": "07:00",
+      "name": "Elektrolit (Na, K, Cl)",
+      "qty": 1,
+      "price": 180000
+    },
+    {
+      "date": "2026-05-04",
+      "time": "07:00",
+      "name": "Pemeriksaan Darah Lengkap",
+      "qty": 1,
+      "price": 95000
+    },
+    {
+      "date": "2026-05-04",
+      "time": "08:00",
+      "name": "Cairan infus Ringer Laktat 500 ml",
+      "qty": 3,
+      "price": 65000
+    },
+    {
+      "date": "2026-05-04",
+      "time": "08:00",
+      "name": "Oralit",
+      "qty": 1,
+      "price": 5000
+    },
+    {
+      "date": "2026-05-04",
+      "time": "08:00",
+      "name": "Zinc 20 mg",
+      "qty": 1,
+      "price": 6000
+    },
+    {
+      "date": "2026-05-04",
+      "time": "09:00",
+      "name": "Visite dokter spesialis",
+      "qty": 1,
+      "price": 150000
+    },
+    {
+      "date": "2026-05-04",
+      "time": "10:00",
+      "name": "Feses Rutin",
+      "qty": 1,
+      "price": 70000
+    },
+    {
+      "date": "2026-05-05",
+      "time": "00:00",
+      "name": "Kamar rawat inap kelas 1",
+      "qty": 1,
+      "price": 450000
+    },
+    {
+      "date": "2026-05-05",
+      "time": "08:00",
+      "name": "Cairan infus Ringer Laktat 500 ml",
+      "qty": 3,
+      "price": 65000
+    },
+    {
+      "date": "2026-05-05",
+      "time": "08:00",
+      "name": "Oralit",
+      "qty": 1,
+      "price": 5000
+    },
+    {
+      "date": "2026-05-05",
+      "time": "08:00",
+      "name": "Zinc 20 mg",
+      "qty": 1,
+      "price": 6000
+    },
+    {
+      "date": "2026-05-05",
+      "time": "09:00",
+      "name": "Visite dokter spesialis",
+      "qty": 1,
+      "price": 150000
+    },
+    {
+      "date": "2026-05-06",
+      "time": "00:00",
+      "name": "Kamar rawat inap kelas 1",
+      "qty": 1,
+      "price": 450000
+    },
+    {
+      "date": "2026-05-06",
+      "time": "08:00",
+      "name": "Cairan infus Ringer Laktat 500 ml",
+      "qty": 3,
+      "price": 65000
+    },
+    {
+      "date": "2026-05-06",
+      "time": "08:00",
+      "name": "Oralit",
+      "qty": 1,
+      "price": 5000
+    },
+    {
+      "date": "2026-05-06",
+      "time": "08:00",
+      "name": "Zinc 20 mg",
+      "qty": 1,
+      "price": 6000
+    },
+    {
+      "date": "2026-05-06",
+      "time": "09:00",
+      "name": "Visite dokter spesialis",
+      "qty": 1,
+      "price": 150000
+    },
+    {
+      "date": "2026-05-07",
+      "time": "00:00",
+      "name": "Kamar rawat inap kelas 1",
+      "qty": 1,
+      "price": 450000
+    },
+    {
+      "date": "2026-05-07",
+      "time": "08:00",
+      "name": "Oralit",
+      "qty": 1,
+      "price": 5000
+    },
+    {
+      "date": "2026-05-07",
+      "time": "08:00",
+      "name": "Zinc 20 mg",
+      "qty": 1,
+      "price": 6000
+    },
+    {
+      "date": "2026-05-07",
+      "time": "09:00",
+      "name": "Visite dokter spesialis",
+      "qty": 1,
+      "price": 150000
+    }
+  ],
+  "billing_total": 3374000,
+  "resume": {
+    "chief_complaint": "Diare dan muntah",
+    "primary_dx": "A09 Diare dan gastroenteritis yang diduga infeksi",
+    "secondary_dx": [],
+    "supporting_findings": [
+      "Trombosit terendah 310.000/uL"
+    ],
+    "therapy": [
+      "infus RL 3 hari",
+      "Oralit",
+      "Zinc 20 mg"
+    ],
+    "discharge_condition": "Membaik, diizinkan pulang"
+  },
+  "undocumented_billed_items": [],
+  "overlapping_claims": [],
+  "scanned": false
+}

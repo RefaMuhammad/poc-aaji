@@ -26,7 +26,7 @@ import yaml
 
 from mab_pipeline.extraction.derived_fields import derive, to_claim_dict
 from mab_pipeline.extraction.facts import ClaimFacts
-from mab_pipeline.llm.mock import case_to_facts
+from mab_pipeline.llm.mock import WARNING_SIGN_TEXT, case_to_facts
 
 ROOT = Path(__file__).resolve().parents[1]
 SCENARIOS_FILE = Path(__file__).with_name("scenarios.yaml")
@@ -110,12 +110,6 @@ PRICES = {
     "Transfusi Trombosit": 850_000,
 }
 
-WARNING_SIGN_TEXT = {
-    "nyeri abdomen": "nyeri perut kanan atas",
-    "perdarahan mukosa": "gusi berdarah saat sikat gigi",
-    "muntah persisten": "muntah terus-menerus setiap diberi makan/minum",
-    "letargi": "pasien tampak letargis",
-}
 
 # Kata yang hanya boleh muncul bila ada perembesan plasma (dipakai juga di tes)
 PLASMA_LEAKAGE_WORDS = ("efusi pleura", "asites", "hemokonsentrasi")

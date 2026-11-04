@@ -1,6 +1,12 @@
 """Fixture bersama untuk tes API: SQLite di memori, storage memori, antrean RQ di fakeredis."""
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
+# File aturan dari repo (di container sama dengan /app/rules/...)
+os.environ.setdefault("RULES_PATH", str(Path(__file__).resolve().parents[1] / "rules" / "aturan_klinis_demo.yaml"))
+
 import fakeredis
 import pytest
 from fastapi.testclient import TestClient
