@@ -100,6 +100,24 @@ def _record_for_fraud(db, claim, facts) -> None:
     upsert_platform_record(db, claim, doctor=doctor, lab_panels=panels, icd10=claim.primary_icd10)
 
 
+def _assign_preferred(db, claim, doctor_id) -> bool:
+    """U4: tugaskan ke dokter yang menandatangani rekomendasi sebelum dokumen diminta, bila masih berhak."""
+    from mab_api.assignment import assign, claim_reviews, current_recommendation, eligible_doctors, routing, sla_due
+    from mab_api.tenancy import tenant_config
+
+    rec = current_recommendation(claim)
+    if not doctor_id or rec is None or claim.assigned_doctor_id:
+        return False
+    reviews = claim_reviews(db, claim)
+    level, specialty, _, _ = routing(claim, rec, reviews)
+    doctor = next((d for d in eligible_doctors(db, level, specialty) if d.id == doctor_id), None)
+    if doctor is None:
+        return False
+    assign(db, claim, rec, doctor, level=level, specialty=specialty,
+           due=sla_due(rec, reviews, level, tenant_config(db, claim.insurer_id)), method="AUTO")
+    return True
+
+
 def process_claim(claim_id: str, session_factory=None, storage=None, llm=None, ocr=None, ruleset=None,
                   benefit_ruleset=None, job_queue=None) -> str:
     from sqlalchemy import delete, select
@@ -203,7 +221,12 @@ def process_claim(claim_id: str, session_factory=None, storage=None, llm=None, o
                                severity=f.severity, source=f.source, text=f.text, evidence=f.evidence,
                                guideline_refs=f.guideline_refs))
 
-            claim.status = (ClaimStatus.AWAITING_DECISION if draft.recommendation == RecommendationCode.PAY_FULL.value
+            # U4: klaim yang dokumen susulannya baru dilengkapi selalu kembali ke dokter
+            from mab_api.doc_requests import requires_doctor_after_documents
+
+            after_docs, preferred_doctor = requires_doctor_after_documents(db, claim)
+            claim.status = (ClaimStatus.AWAITING_DECISION
+                            if draft.recommendation == RecommendationCode.PAY_FULL.value and not after_docs
                             else ClaimStatus.AWAITING_DOCTOR).value
             # proses ulang: penugasan lama tidak berlaku lagi
             close_active(db, claim, AssignmentStatus.CANCELLED)
@@ -227,6 +250,7 @@ def process_claim(claim_id: str, session_factory=None, storage=None, llm=None, o
                     "triage_yellow_min_score": tenant_cfg.triage_yellow_min_score,
                     "disabled_rules": list(tenant_cfg.disabled_rules),
                 } if tenant_cfg.has_rule_overrides else None,
+                "after_late_documents": after_docs,
                 "ocr_engine": read.ocr_engine,
                 "documents": {
                     d.document_id: {"doc_type": d.doc_type, "method": read.classification.get(d.document_id),
@@ -243,12 +267,17 @@ def process_claim(claim_id: str, session_factory=None, storage=None, llm=None, o
             })
             db.flush()
             db.refresh(claim)
-            auto_assign(db, claim)
+            if not (after_docs and _assign_preferred(db, claim, preferred_doctor)):
+                auto_assign(db, claim)
             from mab_api.webhooks import queue_event
 
             # bayar penuh langsung dirilis ke asuransi; selain itu webhook menunggu tanda tangan dokter
-            hook = queue_event(db, claim, "claim.recommendation_released") \
-                if claim.status == ClaimStatus.AWAITING_DECISION.value else None
+            hook = None
+            if claim.status == ClaimStatus.AWAITING_DECISION.value:
+                from mab_api.notify import recommendation_released
+
+                hook = queue_event(db, claim, "claim.recommendation_released")
+                recommendation_released(db, claim)
             db.commit()
             _send_webhooks(job_queue, [hook])
             log.info("Klaim %s: %s / %s", claim.claim_number, draft.triage_status, draft.recommendation)

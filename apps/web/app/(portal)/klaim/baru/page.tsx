@@ -184,7 +184,8 @@ function useTargetTenant() {
     apiJson<Tenant[]>("/tenants")
       .then((t) => {
         setTenants(t);
-        setInsurerId(t[0]?.insurer_id ?? null);
+        const wanted = new URLSearchParams(window.location.search).get("insurer_id");
+        setInsurerId(t.find((x) => x.insurer_id === wanted)?.insurer_id ?? t[0]?.insurer_id ?? null);
       })
       .catch(() => setTenants([]));
   }, [isTpa]);

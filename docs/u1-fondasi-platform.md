@@ -41,12 +41,12 @@ Password semua akun `demo12345`. Semua akun ada di pemilih **Ganti peran (demo)*
 | Operator TPA | `tpa@mab.test` | Unggah & keputusan untuk DEMO **dan** Pelita; memilih asuransi saat unggah |
 | Auditor internal | `auditor@demo.test` | Hanya-baca klaim DEMO: daftar, detail, rekomendasi yang sudah dirilis, dashboard, ekspor |
 | Auditor regulator | `auditor@ojk.test` | Hanya-baca semua tenant |
-| Petugas faskes | `faskes@demo.test` | Daftar dan status klaim dari RS-nya (RSU Harapan Bunda), lintas asuransi |
-| Peserta | `peserta@demo.test` | Daftar dan status klaim atas nomor pesertanya (peserta SYN-DEN-09 di DEMO) |
+| Petugas faskes | `faskes@demo.test` | Portal faskes: klaim dari RS-nya (RSU Harapan Bunda) lintas asuransi, unggah dokumen susulan (U4) |
+| Peserta | `peserta@demo.test` | Portal peserta: status dan penjelasan klaim atas nomor pesertanya (peserta SYN-TIF-10 di DEMO, U4) |
 | Underwriter | `underwriter@demo.test` | Belum ada akses data klaim; modul underwriting di U7 |
 
-Portal faskes dan peserta yang lengkap (dokumen susulan, penjelasan keputusan) dibangun di U4.
-Akun peserta baru melihat klaim setelah SYN-DEN-09 diunggah ke DEMO saat demo.
+Portal faskes dan peserta (dokumen susulan, linimasa, penjelasan keputusan) dijelaskan di
+[u4-portal-faskes-peserta.md](u4-portal-faskes-peserta.md).
 
 ## 3. Matriks hak akses
 
@@ -68,6 +68,11 @@ Sumber kebenaran: `apps/api/mab_api/rbac.py`. Cakupan data (tenant mana, RS mana
 | (U2) Impor polis, ubah plan | ✓ | ✓ | | | | | | ✓ |
 | (U3) Fraud Monitor, kartu fraud klaim | ✓ | ✓ | | ✓ | | | | ✓ |
 | (U3) Impor riwayat, analisis, telaah sinyal fraud | manajer saja | | | | | | | ✓ |
+| (U4) Portal faskes / peserta (status awam, linimasa, penjelasan) | | | | | ✓ | ✓ | | |
+| (U4) Minta dokumen susulan, batalkan permintaan | ✓ | ✓ | | | | | | |
+| (U4) Unggah dokumen susulan | ✓ | ✓ | | | ✓ | | | |
+| (U4) Ringkasan TPA per asuransi | | ✓ | | | | | | ✓ |
+| (U4) Kotak masuk notifikasi sendiri | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 Prinsip yang tidak berubah:
 

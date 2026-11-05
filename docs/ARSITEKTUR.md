@@ -279,6 +279,8 @@ Kode di `apps/api/mab_api/`. Dokumentasi interaktif otomatis di http://localhost
 | `integrations` demo (U2) | `POST /integrations/demo-sink/{KODE}` (penerima webhook rekaan, cek HMAC), `GET /integrations/demo-sink` | hanya `DEMO_MODE`; daftar: peran tenant |
 | `policies` (U2) | `GET /policies`, `GET/PUT /policies/plans`, `POST /policies/import` (CSV/XLSX), `GET /policies/template.csv` | lihat: operator, auditor, admin; ubah: operator, admin |
 | `fraud` (U3) | `GET /fraud/overview`, `GET /fraud/signals`, `GET /fraud/signals/{id}`, `GET /fraud/claims/{claim_id}`, `GET /fraud/ruleset`, `GET /fraud/records/template.csv`; `POST /fraud/runs`, `POST /fraud/records/import`, `PUT /fraud/signals/{id}/review` | lihat: operator, auditor, admin; impor/analisis/telaah: manajer klaim, admin |
+| `claims` (U4) | `GET/POST /claims/{id}/document-requests`, `POST /claims/{id}/document-requests/cancel`; `POST /claims/{id}/decision` dengan `doc_types` (setuju menunda); `GET /claims?insurer_id=` | minta/batalkan: asuransi, TPA |
+| `portal` (U4) | `GET /portal/claims`, `GET /portal/claims/{id}`, `POST /portal/claims/{id}/documents`; `GET /notifications`, `GET /notifications/unread-count`, `POST /notifications/{id}/read`, `POST /notifications/read-all`; `GET /tpa/summary` | portal: faskes, peserta; unggah: faskes; notifikasi: semua (milik sendiri); ringkasan TPA: TPA, admin |
 | `tenants` (U2) | `GET /tenants/api-scopes`, `GET /tenants/{id}/integration-jobs`, `GET /tenants/{id}/webhook-deliveries`, `POST /tenants/{id}/webhook-deliveries/{did}/resend` | lihat: peran tenant; kirim ulang: admin |
 
 Hak akses per peran ada di satu tempat, `rbac.py` (matriks izin, `require_perm`); cakupan data di `access.py`. Matriks lengkap di [u1-fondasi-platform.md](u1-fondasi-platform.md#3-matriks-hak-akses).
@@ -314,6 +316,8 @@ Tabel utama (`apps/api/mab_api/models.py`, migrasi `apps/api/alembic/versions/`)
 | `fraud_runs` (U3) | `insurer_id`, `ruleset_version`, `record_count`, `signal_count`, `entities` | Satu kali analisis fraud |
 | `fraud_signals` (U3) | `run_id`, `rule_id`, `entity_type`, `entity_key`, `message`, `weight`, `claim_numbers`, `evidence` | Sinyal fraud beserta bukti |
 | `fraud_reviews` (U3) | `insurer_id`, `rule_id`, `entity_key`, `status`, `notes`, `reviewed_by_id` | Telaah investigator, bertahan lintas run |
+| `document_requests` (U4) | `claim_id`, `recommendation_id`, `doc_types[]`, `message`, `status` (OPEN/FULFILLED/CANCELLED), `due_at`, `fulfilled_at`, `fulfilled_by_id`, `document_ids[]` | Permintaan dokumen susulan ke faskes; klaim `PENDING_DOCUMENTS` selama OPEN |
+| `notifications` (U4) | `user_id`, `claim_id`, `event`, `email`, `subject`, `body`, `delivery` (SIMULATED), `read_at` | Kotak masuk + email (disimulasikan) |
 
 Kolom U2 lain: `claims.source` (PORTAL/BATCH/API/SFTP/FHIR), `claims.api_client_id`, `claims.policy_id`, `tenant_settings.webhook_url/webhook_secret`, `recommendations.benefit_ruleset_version`. Klaim dan dokumen dari integrasi tidak punya `created_by_id`/`uploaded_by_id`.
 | `claims` | `claim_number`, `policy_number`, `member_id`, `hospital_name`, tanggal rawat, `billed_amount`, `primary_icd10`, `status`, `processing_error`, `assigned_doctor_id` | Satu klaim rawat inap |
@@ -343,6 +347,9 @@ stateDiagram-v2
     AWAITING_DOCTOR --> AWAITING_DOCTOR: eskalasi / lepas kasus
     AWAITING_DOCTOR --> AWAITING_DECISION: dokter tanda tangan (versi SIGNED)
     AWAITING_DECISION --> COMPLETED: keputusan asuransi
+    AWAITING_DECISION --> PENDING_DOCUMENTS: U4 tunda, minta dokumen ke faskes
+    PENDING_DOCUMENTS --> QUEUED: dokumen susulan lengkap (proses ulang, wajib telaah dokter)
+    PENDING_DOCUMENTS --> AWAITING_DECISION: permintaan dibatalkan
     COMPLETED --> [*]
 ```
 
@@ -384,7 +391,7 @@ Komponen utama di `components/`: `DocumentViewer` (`DocumentPane` inline + modal
 - **Akses dokter:** klaim yang ditugaskan kepadanya, atau yang menunggu dokter dan belum dikunci dokter lain; antrean memfilter level dan spesialisasi.
 - **Pemisahan peran:** hanya asuransi/TPA yang bisa membuat klaim dan memutuskan; hanya dokter yang bisa menelaah dan menandatangani; hanya dokter umum yang bisa mengeskalasi; auditor, faskes, dan peserta hanya-baca; admin mengatur tenant dan penugasan tetapi tidak memutuskan klaim.
 - **Validasi unggahan:** tipe file dari magic bytes (bukan ekstensi), maksimum 20 MB per file dan 500 MB per ZIP, nama file disanitasi, sha256 disimpan.
-- **Audit:** middleware mencatat setiap aksi tulis dan akses dokumen; endpoint mencatat kejadian penting (`LOGIN_*`, `PIPELINE_COMPLETED/FAILED`, `REVIEW_STARTED/ESCALATED/RELEASED`, `FIELD_CORRECTED`, `SIGN_PIN_FAILED`, `RECOMMENDATION_SIGNED`, dan sejak U1 `CASE_ASSIGNED`, `TENANT_CREATED`, `TENANT_SETTINGS_UPDATED`, `API_CLIENT_CREATED/REVOKED`, `INTEGRATION_ACCESS`). Di PostgreSQL, trigger `audit_logs_no_change` menolak UPDATE dan DELETE.
+- **Audit:** middleware mencatat setiap aksi tulis dan akses dokumen; endpoint mencatat kejadian penting (`LOGIN_*`, `PIPELINE_COMPLETED/FAILED`, `REVIEW_STARTED/ESCALATED/RELEASED`, `FIELD_CORRECTED`, `SIGN_PIN_FAILED`, `RECOMMENDATION_SIGNED`, dan sejak U1 `CASE_ASSIGNED`, `TENANT_CREATED`, `TENANT_SETTINGS_UPDATED`, `API_CLIENT_CREATED/REVOKED`, `INTEGRATION_ACCESS`, dan sejak U4 `DOCUMENTS_REQUESTED`, `LATE_DOCUMENTS_UPLOADED`, `DOCUMENT_REQUEST_FULFILLED/CANCELLED`). Di PostgreSQL, trigger `audit_logs_no_change` menolak UPDATE dan DELETE.
 - **Rahasia:** hanya di `.env` (diabaikan git). Nilai di `.env.example` khusus lokal.
 - **Data:** hanya data sintetis di Tahap 0. Sebelum memakai data nyata, cek ulang lokasi pemrosesan data penyedia LLM dan terapkan penyamaran.
 
@@ -415,6 +422,7 @@ Setiap rekomendasi menyimpan `model_version` (mis. `mock-llm-1` atau nama model)
 | `tests/test_rbac.py` | (U1) Matriks peran × endpoint, isolasi antar tenant dan antar peran, draf tersembunyi, TPA multi-tenant |
 | `tests/test_tenants.py` | (U1) Ambang triase & aturan per tenant, versi aturan bertenant, audit pengaturan, API key, penugasan otomatis, SLA |
 | `tests/test_u2_integrasi.py` | (U2) Aturan benefit, impor polis dan cakupannya, API klaim masuk, webhook bertanda tangan + percobaan ulang, FHIR Bundle → ClaimResponse, folder SFTP, penerima webhook demo |
+| `tests/test_u4_portal.py` | (U4) SYN-TIF-10 ujung ke ujung (tunda, minta dokumen, faskes unggah, proses ulang, telaah ulang dokter yang sama, keputusan, penjelasan peserta), unggahan sebagian dan pembatalan, cakupan portal, notifikasi, ringkasan TPA |
 | `tests/test_u3_fraud.py` | (U3) Validasi aturan fraud, semua pola tertanam tertangkap dengan bukti tanpa alarm palsu (beberapa seed), populasi normal tanpa sinyal, impor riwayat, Fraud Monitor + telaah + isolasi tenant, klaim platform masuk analisis tanpa mengubah klaim |
 
 Frontend dicek dengan `npm run build` (TypeScript strict) dan uji alur di browser (Playwright) selama pengembangan.

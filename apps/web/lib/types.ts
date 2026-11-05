@@ -27,6 +27,7 @@ export type ClaimStatus =
   | "PROCESSING"
   | "AWAITING_DOCTOR"
   | "AWAITING_DECISION"
+  | "PENDING_DOCUMENTS"
   | "COMPLETED"
   | "FAILED";
 
@@ -75,6 +76,7 @@ export interface ClaimDetail extends Omit<ClaimListItem, "risk_score" | "recomme
   recommendation_available: boolean;
   awaiting_doctor: boolean;
   policy: Policy | null;
+  document_requests: DocumentRequest[];
 }
 
 export interface Evidence {
@@ -541,4 +543,78 @@ export interface FraudRuleset {
   params: Record<string, unknown>;
   reason_codes: Record<string, string>;
   rules: FraudRule[];
+}
+
+// ----------------------------------------------------------------------------- U4: portal faskes & peserta
+
+export interface DocumentRequest {
+  id: string;
+  claim_id: string;
+  status: "OPEN" | "FULFILLED" | "CANCELLED";
+  doc_types: string[];
+  outstanding: string[];
+  message: string;
+  requested_by: string;
+  created_at: string;
+  due_at: string;
+  overdue: boolean;
+  fulfilled_at: string | null;
+  fulfilled_by: string | null;
+  document_ids: string[];
+  response_note: string | null;
+}
+
+export interface NotificationItem {
+  id: string;
+  claim_id: string | null;
+  event: string;
+  email: string;
+  subject: string;
+  body: string;
+  delivery: string;
+  created_at: string;
+  read_at: string | null;
+}
+
+export interface TimelineEvent {
+  at: string;
+  title: string;
+  detail: string | null;
+}
+
+export interface PortalClaimItem {
+  id: string;
+  claim_number: string;
+  member_id: string;
+  patient_name: string | null;
+  hospital_name: string;
+  insurer_name: string | null;
+  admission_date: string;
+  discharge_date: string;
+  billed_amount: number;
+  status: ClaimStatus;
+  status_label: string;
+  open_request: DocumentRequest | null;
+  outcome: string | null;
+  updated_at: string;
+}
+
+export interface PortalClaimDetail extends PortalClaimItem {
+  documents: DocumentInfo[];
+  timeline: TimelineEvent[];
+  explanation: string | null;
+  recommended_amount: number | null;
+  decision: string | null;
+  reviewer: string | null;
+  document_requests: DocumentRequest[];
+}
+
+export interface TpaTenantSummary {
+  insurer_id: string;
+  insurer_name: string;
+  total: number;
+  by_status: Record<string, number>;
+  awaiting_decision: number;
+  pending_documents: number;
+  overdue_requests: number;
 }

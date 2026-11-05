@@ -16,6 +16,9 @@ Langkah:
 8. (U3) Riwayat klaim sintetis dengan pola fraud tertanam (data/synthetic_output/fraud/riwayat_klaim.csv,
    dibuat otomatis bila belum ada) diimpor ke kedua tenant, lalu analisis fraud dijalankan. Klaim yang
    sudah diproses di langkah sebelumnya ikut dianalisis. Fraud Monitor langsung berisi 8 sinyal.
+9. (U4) SYN-TIF-10 (rincian tagihan tidak dikirim): dokter umum menunda, asuransi setuju menunda dan
+   meminta rincian tagihan ke RS. Klaim berhenti di "menunggu dokumen susulan" supaya saat demo akun
+   faskes mengunggah data/synthetic_output/SYN-TIF-10/susulan/rincian_tagihan.pdf lewat Portal Faskes.
 
 Butuh: `make up` dan `make synthetic` sudah dijalankan. Jalankan di container api:
     docker compose exec api python infra/scripts/seed_demo.py
@@ -51,8 +54,9 @@ DOC_ORDER = ["resume_medis", "hasil_laboratorium", "cppt", "rincian_tagihan"]
 HISTORY_FOR = "SYN-GEA-10"
 SECOND_TENANT_STAFF = "staf@pelita.test"
 SECOND_TENANT_CLAIMS = ["SYN-DEN-02", "SYN-GEA-02", "SYN-DEN-08", "SYN-DEN-09", "SYN-GEA-07", "SYN-TIF-07"]
-FACILITY_FROM = "SYN-TIF-10"   # akun faskes = RS klaim ini (skenario dokumen tidak lengkap)
-MEMBER_FROM = LIVE_DEMO_CLAIM  # akun peserta = peserta klaim yang diunggah langsung saat demo
+LATE_DOCS_CLAIM = "SYN-TIF-10"  # U4: alur "tunda: minta dokumen" (rincian tagihan menyusul)
+FACILITY_FROM = LATE_DOCS_CLAIM  # akun faskes = RS klaim ini
+MEMBER_FROM = LATE_DOCS_CLAIM    # akun peserta = peserta klaim ini (U4: ikut memantau klaim yang ditunda)
 
 # --- U2: polis, webhook, kanal integrasi ---
 ADMIN = "admin@mab.test"
@@ -292,7 +296,9 @@ def doctor_reviews() -> None:
 
     # Hanya klaim tenant DEMO yang ditelaah; klaim PELITA dibiarkan di antrean untuk demo SLA.
     # Dokter umum: eskalasi satu kasus, setujui draf sisanya kecuali dua kasus terakhir (tetap di antrean).
-    gp_queue = [i for i in gp.get("/review/queue") if i["insurer_name"] == "Asuransi Sehat Demo"]
+    # SYN-TIF-10 ditangani tersendiri di langkah U4 (late_documents_demo).
+    gp_queue = [i for i in gp.get("/review/queue")
+                if i["insurer_name"] == "Asuransi Sehat Demo" and i["claim_number"] != LATE_DOCS_CLAIM]
     for i, item in enumerate(gp_queue[:-2] if len(gp_queue) > 2 else []):
         if i == 0:
             gp.post(f"/review/{item['id']}/start")
@@ -321,7 +327,8 @@ def doctor_reviews() -> None:
 
 
 def insurer_decisions(staf: Api) -> None:
-    ready = [c for c in staf.get("/claims", params={"limit": 500, "status": "AWAITING_DECISION"})]
+    ready = [c for c in staf.get("/claims", params={"limit": 500, "status": "AWAITING_DECISION"})
+             if c["claim_number"] != LATE_DOCS_CLAIM]
     greens = [c for c in ready if c["triage_status"] == "GREEN" and c["recommendation"] == "PAY_FULL"]
     others = [c for c in ready if c not in greens]
     to_agree = [c["id"] for c in greens[:-3]] if len(greens) > 3 else []
@@ -356,6 +363,34 @@ def fraud_history() -> None:
               f"{run.get('signal_count', 0)} sinyal fraud")
 
 
+def late_documents_demo(staf: Api) -> None:
+    """U4: SYN-TIF-10 ditunda dokter, asuransi meminta rincian tagihan ke RS. Faskes mengunggahnya saat demo."""
+    claim = next((c for c in staf.get("/claims", params={"limit": 500}) if c["claim_number"] == LATE_DOCS_CLAIM), None)
+    if claim is None:
+        print(f"  {LATE_DOCS_CLAIM} tidak ditemukan; langkah U4 dilewati")
+        return
+    if claim["status"] == "AWAITING_DOCTOR":
+        gp = Api("dokter.umum@mab.test")
+        ws = gp.get(f"/review/{claim['id']}")
+        if not ws.get("can_start"):
+            print(f"  PERINGATAN: {LATE_DOCS_CLAIM} tidak bisa ditelaah dokter umum ({ws.get('blocked_reason')})")
+            return
+        sign(gp, claim["id"], {"recommendation": "PEND",
+                               "notes": "Rincian tagihan tidak ada; nilai klaim belum bisa dinilai."})
+        print(f"  dokter umum menunda {LATE_DOCS_CLAIM} (rincian tagihan tidak ada)")
+    detail = staf.get(f"/claims/{claim['id']}")
+    if detail["status"] == "AWAITING_DECISION" and not detail["decision"]:
+        staf.post(f"/claims/{claim['id']}/decision", json={
+            "decision": "AGREE", "doc_types": ["rincian_tagihan"],
+            "message": "Mohon kirimkan rincian tagihan perawatan supaya klaim bisa dinilai."})
+        print(f"  asuransi setuju menunda {LATE_DOCS_CLAIM} dan meminta rincian tagihan ke RS")
+    late = DATA / LATE_DOCS_CLAIM / "susulan" / "rincian_tagihan.pdf"
+    if late.exists():
+        print(f"  dokumen susulan untuk demo: {late}")
+    else:
+        print("  PERINGATAN: dokumen susulan belum ada. Jalankan ulang `docker compose run --rm --build synthetic`.")
+
+
 def main() -> None:
     print("1. Akun demo")
     created = seed_users()
@@ -385,6 +420,8 @@ def main() -> None:
     insurer_decisions(staf)
     print("7. Riwayat klaim dan analisis fraud (U3)")
     fraud_history()
+    print("8. Portal faskes & peserta: minta dokumen susulan (U4)")
+    late_documents_demo(staf)
     print(f"\nSelesai. Buka http://localhost:3000 (staf@demo.test / {PASSWORD}).")
     print(f"Klaim {LIVE_DEMO_CLAIM} sengaja belum diunggah ke tenant DEMO untuk diunggah langsung saat demo.")
     print(f"Tenant kedua: {SECOND_TENANT_STAFF} melihat {len(pelita_ids)} klaim Asuransi Pelita (ambang merah 20).")

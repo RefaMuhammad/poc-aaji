@@ -110,6 +110,7 @@ class ClaimDetail(ClaimOut):
     awaiting_doctor: bool = False            # ada draf yang menunggu tanda tangan dokter
     decision: str | None = None
     policy: "PolicyOut | None" = None        # U2: polis yang dipakai aturan benefit
+    document_requests: list["DocumentRequestOut"] = []  # U4: permintaan dokumen susulan
 
 
 class ClaimStatusOut(BaseModel):
@@ -144,6 +145,9 @@ class BatchResult(BaseModel):
 class DecisionCreate(BaseModel):
     decision: str = Field(pattern="^(AGREE|DIFFER)$")
     reason: str | None = Field(default=None, max_length=2000)
+    # U4: setuju dengan rekomendasi "tunda" membuka permintaan dokumen ke faskes
+    doc_types: list[str] | None = Field(default=None, max_length=10)
+    message: str | None = Field(default=None, max_length=2000)
 
     @model_validator(mode="after")
     def reason_required_for_differ(self) -> "DecisionCreate":
@@ -799,5 +803,90 @@ class FraudRulesetOut(BaseModel):
     rules: list[FraudRuleOut]
 
 
-ClaimDetail.model_rebuild()
 RulesetOut.model_rebuild()
+
+
+# ----------------------------------------------------------------------------- U4: portal faskes & peserta
+
+
+class DocumentRequestCreate(BaseModel):
+    doc_types: list[str] = Field(default_factory=list, max_length=10)
+    message: str | None = Field(default=None, max_length=2000)
+    due_days: int = Field(default=7, ge=1, le=30)
+
+
+class DocumentRequestOut(BaseModel):
+    id: str
+    claim_id: str
+    status: str
+    doc_types: list[str]
+    outstanding: list[str]
+    message: str
+    requested_by: str
+    created_at: datetime
+    due_at: datetime
+    overdue: bool = False
+    fulfilled_at: datetime | None = None
+    fulfilled_by: str | None = None
+    document_ids: list[str] = []
+    response_note: str | None = None
+
+
+class NotificationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    claim_id: str | None
+    event: str
+    email: str
+    subject: str
+    body: str
+    delivery: str
+    created_at: datetime
+    read_at: datetime | None
+
+
+class TimelineEvent(BaseModel):
+    at: datetime
+    title: str
+    detail: str | None = None
+
+
+class PortalClaimItem(BaseModel):
+    id: str
+    claim_number: str
+    member_id: str
+    patient_name: str | None
+    hospital_name: str
+    insurer_name: str | None
+    admission_date: date
+    discharge_date: date
+    billed_amount: int
+    status: str
+    status_label: str
+    open_request: DocumentRequestOut | None = None
+    outcome: str | None = None          # ringkasan hasil bila sudah diputuskan
+    updated_at: datetime
+
+
+class PortalClaimDetail(PortalClaimItem):
+    documents: list[DocumentOut]
+    timeline: list[TimelineEvent]
+    explanation: str | None = None      # penjelasan keputusan untuk peserta / faskes
+    recommended_amount: int | None = None
+    decision: str | None = None
+    reviewer: str | None = None
+    document_requests: list[DocumentRequestOut] = []
+
+
+class TpaTenantSummary(BaseModel):
+    insurer_id: str
+    insurer_name: str
+    total: int
+    by_status: dict[str, int]
+    awaiting_decision: int
+    pending_documents: int
+    overdue_requests: int
+
+
+ClaimDetail.model_rebuild()
+PortalClaimDetail.model_rebuild()

@@ -4,6 +4,7 @@ Peristiwa:
 - claim.recommendation_released : rekomendasi boleh dilihat asuransi (bayar penuh, atau sudah ditandatangani dokter)
 - claim.decision_recorded       : asuransi mencatat keputusan
 - claim.processing_failed       : pipeline gagal memproses klaim
+- claim.documents_requested     : U4, asuransi menunda klaim dan meminta dokumen susulan ke faskes
 
 Payload hanya berisi rekomendasi yang SUDAH dirilis (draf yang menunggu dokter tidak pernah dikirim).
 Setiap pengiriman ditandatangani HMAC-SHA256 atas body mentah dengan rahasia webhook tenant:
@@ -27,7 +28,8 @@ from mab_api.models import Claim, Insurer, RecommendationCode, RecommendationSta
 
 log = logging.getLogger(__name__)
 
-EVENTS = ("claim.recommendation_released", "claim.decision_recorded", "claim.processing_failed")
+EVENTS = ("claim.recommendation_released", "claim.decision_recorded", "claim.processing_failed",
+          "claim.documents_requested")
 LABEL = "Data rekaan untuk demonstrasi"
 
 
@@ -39,11 +41,23 @@ def released(rec) -> bool:
     return rec.recommendation == RecommendationCode.PAY_FULL.value or rec.state == RecommendationState.SIGNED.value
 
 
+def current_decision(c: Claim):
+    """Keputusan asuransi atas rekomendasi yang berlaku sekarang.
+
+    Setelah dokumen susulan (U4) klaim diproses ulang dan mendapat rekomendasi baru; keputusan
+    "tunda" atas rekomendasi lama tidak lagi berlaku sebagai keputusan klaim.
+    """
+    rec = next((r for r in reversed(c.recommendations) if r.is_current), None)
+    if rec is None:
+        return None
+    return next((d for d in reversed(c.decisions) if d.recommendation_id == rec.id), None)
+
+
 def claim_status(c: Claim) -> dict:
     """Status klaim untuk sistem asuransi (dipakai API integrasi dan webhook)."""
     rec = next((r for r in reversed(c.recommendations) if r.is_current), None)
     ok = rec is not None and released(rec)
-    dec = c.decisions[-1] if c.decisions else None
+    dec = current_decision(c)
     return {
         "claim_number": c.claim_number,
         "status": c.status,

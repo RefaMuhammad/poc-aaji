@@ -6,6 +6,7 @@ export const STATUS_LABEL: Record<ClaimStatus, string> = {
   PROCESSING: "Diproses",
   AWAITING_DOCTOR: "Menunggu dokter",
   AWAITING_DECISION: "Menunggu keputusan asuransi",
+  PENDING_DOCUMENTS: "Menunggu dokumen susulan",
   COMPLETED: "Selesai",
   FAILED: "Gagal diproses",
 };
@@ -123,6 +124,9 @@ export function homeFor(role: string | undefined): string {
   if (role === "doctor_gp" || role === "doctor_specialist") return "/telaah";
   if (role === "admin") return "/admin";
   if (role === "underwriter") return "/underwriting";
+  if (role === "facility_officer") return "/faskes";
+  if (role === "member") return "/peserta";
+  if (role === "tpa_operator") return "/tpa";
   return "/klaim";
 }
 
@@ -198,3 +202,15 @@ export function desimal(n: number | null | undefined, digits = 1): string {
   if (n === null || n === undefined) return "-";
   return n.toLocaleString("id-ID", { maximumFractionDigits: digits });
 }
+
+/** Jenis dokumen yang bisa diminta sebagai dokumen susulan (sama dengan KNOWN_DOC_TYPES di API). */
+export const REQUESTABLE_DOC_TYPES = ["resume_medis", "rincian_tagihan", "hasil_laboratorium", "cppt", "laporan_operasi", "resep"];
+
+export const REQUEST_STATUS_LABEL: Record<string, string> = { OPEN: "Menunggu dokumen", FULFILLED: "Sudah dipenuhi", CANCELLED: "Dibatalkan" };
+
+export const NOTIFICATION_EVENT_LABEL: Record<string, string> = {
+  "claim.documents_requested": "Permintaan dokumen",
+  "claim.documents_received": "Dokumen diterima",
+  "claim.recommendation_released": "Rekomendasi dirilis",
+  "claim.decision_recorded": "Keputusan klaim",
+};

@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from mab_api import audit
+from mab_api import audit, notify
 from mab_api.access import get_visible_claim, visible_claims_query
 from mab_api.assignment import (
     auto_assign,
@@ -510,6 +510,7 @@ def sign(claim_id: str, body: SignRequest, request: Request, db: Session = Depen
                          "recommended_amount": amount, "agrees_with_ai": agrees, "reason_code": reason_code,
                          "review_seconds": int((now - started).total_seconds())})
     hook = queue_event(db, claim, "claim.recommendation_released")
+    notify.recommendation_released(db, claim)
     db.commit()
     dispatch(queue, [hook])
     db.refresh(claim)
