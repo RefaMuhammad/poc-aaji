@@ -86,6 +86,11 @@ ACTION_LABEL = {
     "REPORT_GENERATED": "Laporan dibuat", "REPORT_DOWNLOADED": "Laporan diunduh",
     "AUDIT_LOG_EXPORTED": "Log audit diekspor",
     "AUDIT_TRACE_EXPORTED": "Jejak keputusan diekspor",
+    # U7: underwriting medis
+    "UW_SUBMITTED": "Pengajuan underwriting diterima", "UW_PROCESSED": "Draf underwriting dibuat sistem",
+    "UW_FAILED": "Proses underwriting gagal", "UW_SIGNED": "Dokter menandatangani rekomendasi underwriting",
+    "UW_SIGN_PIN_FAILED": "PIN tanda tangan underwriting salah", "UW_DECIDED": "Underwriter memutuskan pengajuan",
+    "UW_PDF_DOWNLOADED": "PDF rekomendasi underwriting diunduh", "UW_DOCUMENT_VIEWED": "Dokumen underwriting dibuka",
 }
 
 # Aksi tulis yang dicatat middleware sebagai "METHOD /path": dipetakan ke label yang terbaca.
@@ -104,6 +109,9 @@ _ROUTE_LABEL: list[tuple[str, str]] = [
     (rf"^POST /portal/claims/{_UUID}/documents$", "Faskes mengunggah dokumen susulan"),
     (rf"^POST /portal/claims/{_UUID}/disputes(/withdraw)?$", "Banding (portal)"),
     (r"^POST /reports$", "Laporan dibuat"),
+    (r"^POST /underwriting/applications$", "Pengajuan underwriting diunggah"),
+    (rf"^POST /underwriting/applications/{_UUID}/sign$", "Tanda tangan rekomendasi underwriting"),
+    (rf"^POST /underwriting/applications/{_UUID}/decision$", "Keputusan underwriting"),
 ]
 
 
@@ -122,6 +130,8 @@ def action_group(action: str) -> str:
         return "AUTH"
     if action == "DOCUMENT_ACCESS":
         return "ACCESS"
+    if action.startswith("UW_") or "/underwriting" in action:
+        return "UNDERWRITING"
     if action.startswith(("PIPELINE_",)):
         return "SYSTEM"
     if action.startswith(("REVIEW_", "RECOMMENDATION_", "SIGN_", "CASE_", "FIELD_")) or "/review/" in action:
@@ -144,7 +154,8 @@ def action_group(action: str) -> str:
 ACTION_GROUPS = {
     "AUTH": "Masuk / keluar", "ACCESS": "Akses dokumen", "SYSTEM": "Proses sistem", "REVIEW": "Telaah dokter",
     "DECISION": "Keputusan asuransi", "DOCUMENTS": "Dokumen susulan", "DISPUTE": "Banding",
-    "FRAUD": "Fraud", "REPORT": "Laporan & audit", "ADMIN": "Pengaturan & integrasi", "OTHER": "Lainnya",
+    "FRAUD": "Fraud", "REPORT": "Laporan & audit", "ADMIN": "Pengaturan & integrasi",
+    "UNDERWRITING": "Underwriting", "OTHER": "Lainnya",
 }
 
 
@@ -782,10 +793,10 @@ def _pdf():
         pdf.multi_cell(pdf.epw, size * 0.5, clean(str(s)), new_x="LMARGIN", new_y="NEXT")
         pdf.ln(gap)
 
-    def table(columns: list[str], rows: list[list], size: int = 8) -> None:
+    def table(columns: list[str], rows: list[list], size: int = 8, widths: tuple | None = None) -> None:
         pdf.set_font(family, "", size)
         pdf.set_text_color(30, 41, 59)
-        with pdf.table(text_align="LEFT", line_height=size * 0.55, first_row_as_headings=True) as t:
+        with pdf.table(text_align="LEFT", line_height=size * 0.55, first_row_as_headings=True, col_widths=widths) as t:
             r = t.row()
             for c in columns:
                 r.cell(clean(str(c)))

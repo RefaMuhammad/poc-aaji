@@ -1,7 +1,7 @@
-.PHONY: help env up down logs test synthetic seed-users seed reset eval eval-extraction eval-triage
+.PHONY: help env up down logs test synthetic seed-users seed reset eval eval-extraction eval-triage eval-underwriting
 
 help:
-	@echo "Perintah: make env | up | down | logs | test | synthetic | seed-users | seed | reset | eval | eval-extraction | eval-triage"
+	@echo "Perintah: make env | up | down | logs | test | synthetic | seed-users | seed | reset | eval | eval-extraction | eval-triage | eval-underwriting"
 
 env:
 	@test -f .env || cp .env.example .env && echo ".env siap"
@@ -45,3 +45,7 @@ eval-triage: env
 # Evaluasi lengkap Tahap 0 (ekstraksi, triase, hijau keliru, waktu proses) -> evaluation/reports/eval_*.md
 eval: env
 	docker compose run --rm --no-deps worker python -m evaluation.run_eval
+
+# U7: akurasi kelas risiko underwriting atas 35 kasus sintetis -> evaluation/reports/underwriting_*.md
+eval-underwriting: env
+	docker compose run --rm --no-deps worker python -m evaluation.underwriting_eval

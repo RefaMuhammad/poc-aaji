@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     webhook_max_attempts: int = 3
     # U3: aturan fraud. Kosong = aturan_fraud_demo.yaml di folder yang sama dengan rules_path.
     fraud_rules_path: str | None = None
+    # U7: aturan underwriting. Kosong = aturan_underwriting_demo.yaml di folder yang sama dengan rules_path.
+    underwriting_rules_path: str | None = None
 
     def resolved_benefit_rules_path(self) -> str:
         from pathlib import Path
@@ -45,6 +47,11 @@ class Settings(BaseSettings):
         from pathlib import Path
 
         return self.fraud_rules_path or str(Path(self.rules_path).with_name("aturan_fraud_demo.yaml"))
+
+    def resolved_underwriting_rules_path(self) -> str:
+        from pathlib import Path
+
+        return self.underwriting_rules_path or str(Path(self.rules_path).with_name("aturan_underwriting_demo.yaml"))
     llm_provider: str = "mock"
     # Tampilkan pemilih "Ganti peran (demo)" di portal. Hanya untuk data rekaan.
     demo_mode: bool = True

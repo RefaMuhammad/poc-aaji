@@ -295,3 +295,58 @@ def process_claim(claim_id: str, session_factory=None, storage=None, llm=None, o
             db.commit()
             _send_webhooks(job_queue, [hook])
             return claim.status
+
+
+def process_underwriting(application_id: str, session_factory=None, storage=None, llm=None, ocr=None,
+                         ruleset=None) -> str:
+    """U7: baca dokumen pengajuan, terapkan aturan underwriting, simpan draf rekomendasi.
+
+    Hasil: AWAITING_UNDERWRITER (terima standar dengan data lengkap) atau AWAITING_DOCTOR
+    (bersyarat, tunda, usul tolak, atau data kurang: wajib ditelaah dan ditandatangani dokter).
+    """
+    from mab_api.audit import record
+    from mab_api.db import make_session_factory
+    from mab_api.models import UwApplication, UwStatus
+    from mab_api.underwriting import apply_result, uw_ruleset
+    from mab_pipeline.llm.client import get_llm_client
+    from mab_pipeline.ocr.engine import get_ocr_engine
+    from mab_pipeline.underwriting.pipeline import InputDocument, assess_application
+
+    session_factory = session_factory or make_session_factory()
+    with session_factory() as db:
+        app = db.get(UwApplication, application_id)
+        if app is None:
+            log.warning("Pengajuan underwriting %s tidak ditemukan", application_id)
+            return "missing"
+        app.status = UwStatus.PROCESSING.value
+        app.processing_error = None
+        db.commit()
+        try:
+            storage = storage or _default_storage()
+            llm = llm or get_llm_client()
+            ocr = ocr or get_ocr_engine()
+            ruleset = ruleset or uw_ruleset()
+            if not app.documents:
+                raise ValueError("Pengajuan belum punya dokumen")
+            inputs = [InputDocument(d.id, d.filename, d.content_type, storage.get(d.storage_key), d.doc_type)
+                      for d in app.documents]
+            result = assess_application(inputs, llm, ocr, ruleset)
+            a = apply_result(db, app, result, getattr(ocr, "name", type(ocr).__name__))
+            db.flush()
+            record(db, "UW_PROCESSED", detail={
+                "application_id": app.id, "application_number": app.application_number, "assessment_id": a.id,
+                "recommendation": a.recommendation, "risk_class": a.risk_class, "loading_pct": a.loading_pct,
+                "needs_doctor": a.needs_doctor, "rules_version": a.rules_version, "model_version": a.model_version,
+                "prompt_version": a.prompt_version, "ocr_engine": a.ocr_engine})
+            db.commit()
+            log.info("Underwriting %s: %s / %s", app.application_number, a.risk_class, a.recommendation)
+            return app.status
+        except Exception as exc:
+            log.exception("Pipeline underwriting gagal untuk %s", application_id)
+            db.rollback()
+            app = db.get(UwApplication, application_id)
+            app.status = UwStatus.FAILED.value
+            app.processing_error = f"{type(exc).__name__}: {exc}"[:1000]
+            record(db, "UW_FAILED", detail={"application_id": app.id, "error": app.processing_error})
+            db.commit()
+            return app.status

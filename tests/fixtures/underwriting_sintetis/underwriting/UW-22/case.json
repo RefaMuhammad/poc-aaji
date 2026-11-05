@@ -1,0 +1,137 @@
+{
+  "case_id": "UW-22",
+  "label": "Data rekaan untuk demonstrasi",
+  "scenario": "dm_tidak_terkontrol",
+  "scenario_desc": "Diabetes, HbA1c >= 10",
+  "spaj_number": "SPAJ-2026-0022",
+  "spaj_date": "2026-10-22",
+  "agent": "Agen Rekaan 0342",
+  "applicant": {
+    "name": "Fajar Nugroho",
+    "sex": "L",
+    "birth_date": "1985-09-19",
+    "age": 41,
+    "occupation": "Apoteker",
+    "city": "Kabupaten Contoh"
+  },
+  "product": {
+    "name": "Sehat Prima Rawat Inap (rekaan)",
+    "sum_assured": 1000000000,
+    "base_premium": 17000000
+  },
+  "questionnaire": [
+    {
+      "code": "Q1",
+      "field": "hypertension",
+      "text": "Hipertensi (tekanan darah tinggi)",
+      "answer": false,
+      "detail": null
+    },
+    {
+      "code": "Q2",
+      "field": "diabetes",
+      "text": "Diabetes melitus (kencing manis)",
+      "answer": true,
+      "detail": "Minum obat rutin"
+    },
+    {
+      "code": "Q3",
+      "field": "heart_disease",
+      "text": "Penyakit jantung koroner / serangan jantung",
+      "answer": false,
+      "detail": null
+    },
+    {
+      "code": "Q4",
+      "field": "cancer_5y",
+      "text": "Kanker/tumor ganas dalam 5 tahun terakhir",
+      "answer": false,
+      "detail": null
+    },
+    {
+      "code": "Q5",
+      "field": "asthma",
+      "text": "Asma atau penyakit paru kronis",
+      "answer": false,
+      "detail": null
+    },
+    {
+      "code": "Q6",
+      "field": "liver_disease",
+      "text": "Hepatitis atau penyakit hati lain",
+      "answer": false,
+      "detail": null
+    },
+    {
+      "code": "Q7",
+      "field": "pending_treatment",
+      "text": "Menunggu pemeriksaan lanjutan / operasi",
+      "answer": false,
+      "detail": null
+    },
+    {
+      "code": "Q8",
+      "field": "pregnant",
+      "text": "Sedang hamil (khusus perempuan)",
+      "answer": false,
+      "detail": null
+    },
+    {
+      "code": "Q9",
+      "field": "smoker",
+      "text": "Merokok dalam 12 bulan terakhir",
+      "answer": false,
+      "detail": null
+    }
+  ],
+  "mcu": {
+    "date": "2026-10-28",
+    "height_cm": 166,
+    "weight_kg": 62,
+    "systolic": 110,
+    "diastolic": 72,
+    "pulse": 87,
+    "ecg": "normal",
+    "doctor": "dr. Bagus Hartono",
+    "lab_doctor": "dr. Nur Fadhilah, Sp.PK",
+    "clinic_city": "Kota Rekaan Barat"
+  },
+  "lab": {
+    "fasting_glucose": 259,
+    "hba1c": 10.6,
+    "total_cholesterol": 179,
+    "ldl": 133,
+    "hdl": 43,
+    "triglycerides": 118,
+    "sgot": 21,
+    "sgpt": 14,
+    "creatinine": 0.8,
+    "hbsag": "neg",
+    "urine_protein": "neg"
+  },
+  "documents": [
+    "spaj",
+    "kuesioner_kesehatan",
+    "hasil_mcu",
+    "hasil_lab_uw",
+    "surat_dokter"
+  ],
+  "scanned_documents": [],
+  "letter": {
+    "condition": "diabetes",
+    "diagnosis": "Diabetes melitus tipe 2 (E11)",
+    "treatment": "Metformin 500 mg 2x sehari",
+    "since_year": 2017,
+    "controlled": false,
+    "condition_text": "Belum terkontrol, gula darah masih tinggi meski sudah berobat",
+    "doctor": "dr. Wening Asih, Sp.PD-KEMD",
+    "date": "2026-09-12"
+  },
+  "expected": {
+    "risk_class": "DECLINE",
+    "decision": "DECLINE",
+    "loading_pct": 0,
+    "exclusions": [],
+    "notes": []
+  }
+}

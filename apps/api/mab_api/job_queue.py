@@ -3,6 +3,7 @@ from __future__ import annotations
 
 PROCESS_CLAIM = "mab_pipeline.tasks.process_claim"
 DELIVER_WEBHOOK = "mab_pipeline.tasks.deliver_webhook"
+PROCESS_UNDERWRITING = "mab_pipeline.tasks.process_underwriting"
 WEBHOOK_RETRY_INTERVALS = [10, 60]   # detik antar percobaan ulang (total 3 percobaan)
 
 
@@ -16,6 +17,10 @@ class RQJobQueue:
 
     def enqueue_process_claim(self, claim_id: str) -> str:
         job = self.queue.enqueue(PROCESS_CLAIM, claim_id, job_timeout=900, result_ttl=86400)
+        return job.id
+
+    def enqueue_process_underwriting(self, application_id: str) -> str:
+        job = self.queue.enqueue(PROCESS_UNDERWRITING, application_id, job_timeout=900, result_ttl=86400)
         return job.id
 
     def enqueue_webhook(self, delivery_id: str) -> str:

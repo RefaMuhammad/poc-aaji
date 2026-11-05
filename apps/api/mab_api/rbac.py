@@ -36,12 +36,16 @@ class Perm(str, Enum):
     AUDIT_VIEW = "audit.view"              # U6: penampil log audit dan jejak keputusan klaim
     REPORT_VIEW = "report.view"            # U6: lihat dan unduh laporan bulanan
     REPORT_GENERATE = "report.generate"    # U6: buat / buat ulang laporan bulanan
+    UW_VIEW = "underwriting.view"          # U7: antrean dan ruang kerja underwriting (sesuai cakupan)
+    UW_SUBMIT = "underwriting.submit"      # U7: ajukan calon peserta (unggah SPAJ dan dokumen kesehatan)
+    UW_DECIDE = "underwriting.decide"      # U7: keputusan underwriting akhir
+    UW_SIGN = "underwriting.sign"          # U7: dokter menelaah dan menandatangani rekomendasi underwriting
 
 
 _OPERATOR = {Perm.CLAIM_LIST, Perm.CLAIM_DETAIL, Perm.CLAIM_SUBMIT, Perm.CLAIM_DECIDE, Perm.CLAIM_EXPORT,
              Perm.DASHBOARD, Perm.TENANT_VIEW, Perm.POLICY_VIEW, Perm.POLICY_MANAGE, Perm.FRAUD_VIEW,
              Perm.DISPUTE_VIEW}
-_DOCTOR = {Perm.CLAIM_LIST, Perm.CLAIM_DETAIL, Perm.REVIEW, Perm.RULESET_VIEW}
+_DOCTOR = {Perm.CLAIM_LIST, Perm.CLAIM_DETAIL, Perm.REVIEW, Perm.RULESET_VIEW, Perm.UW_VIEW, Perm.UW_SIGN}
 
 ROLE_PERMS: dict[Role, frozenset[Perm]] = {
     Role.INSURER_STAFF: frozenset(_OPERATOR),
@@ -53,18 +57,18 @@ ROLE_PERMS: dict[Role, frozenset[Perm]] = {
     Role.DOCTOR_SPECIALIST: frozenset(_DOCTOR),
     Role.AUDITOR: frozenset({Perm.CLAIM_LIST, Perm.CLAIM_DETAIL, Perm.CLAIM_EXPORT, Perm.DASHBOARD,
                              Perm.RULESET_VIEW, Perm.TENANT_VIEW, Perm.POLICY_VIEW, Perm.FRAUD_VIEW,
-                             Perm.DISPUTE_VIEW, Perm.AUDIT_VIEW, Perm.REPORT_VIEW}),
+                             Perm.DISPUTE_VIEW, Perm.AUDIT_VIEW, Perm.REPORT_VIEW, Perm.UW_VIEW}),
     # Portal faskes & peserta (U4): klaimnya sendiri, status, penjelasan keputusan. Faskes juga
     # menjawab permintaan dokumen. Keduanya tidak melihat draf AI, field hasil baca, atau skor risiko.
     Role.FACILITY_OFFICER: frozenset({Perm.CLAIM_LIST, Perm.PORTAL_VIEW, Perm.FACILITY_UPLOAD, Perm.DISPUTE_FILE}),
     Role.MEMBER: frozenset({Perm.CLAIM_LIST, Perm.PORTAL_VIEW, Perm.DISPUTE_FILE}),
-    # Modul underwriting menyusul di U7; underwriter belum punya akses data klaim.
-    Role.UNDERWRITER: frozenset(),
+    # U7: underwriter mengajukan dan memutus pengajuan calon peserta tenant-nya; tidak melihat data klaim.
+    Role.UNDERWRITER: frozenset({Perm.UW_VIEW, Perm.UW_SUBMIT, Perm.UW_DECIDE}),
     Role.ADMIN: frozenset({Perm.CLAIM_LIST, Perm.CLAIM_DETAIL, Perm.DASHBOARD, Perm.RULESET_VIEW,
                            Perm.TENANT_VIEW, Perm.TENANT_ADMIN, Perm.USER_ADMIN, Perm.ASSIGN_ADMIN,
                            Perm.POLICY_VIEW, Perm.POLICY_MANAGE, Perm.FRAUD_VIEW, Perm.FRAUD_MANAGE,
                            Perm.TPA_OVERVIEW, Perm.DISPUTE_VIEW, Perm.AUDIT_VIEW, Perm.REPORT_VIEW,
-                           Perm.REPORT_GENERATE}),
+                           Perm.REPORT_GENERATE, Perm.UW_VIEW}),
 }
 
 # Peran yang boleh melihat draf AI sebelum ditandatangani dokter. Selain ini hanya melihat

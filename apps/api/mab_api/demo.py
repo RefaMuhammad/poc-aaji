@@ -19,7 +19,7 @@ DEMO_ACCOUNTS: list[tuple[str, str]] = [
     ("auditor@demo.test", "8. Auditor: hanya-baca"),
     ("faskes@demo.test", "9. Petugas faskes: status klaim RS-nya"),
     ("peserta@demo.test", "10. Peserta: status klaimnya"),
-    ("underwriter@demo.test", "11. Underwriter (modul menyusul di U7)"),
+    ("underwriter@demo.test", "11. Underwriter (underwriting medis)"),
     # U5
     ("dokter.spesialis2@mab.test", "12. Dokter spesialis kedua: telaah banding"),
 ]

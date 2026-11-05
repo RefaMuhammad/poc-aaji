@@ -1,0 +1,21 @@
+{% extends "uw/_base.html" %}
+{% block content %}
+<table class="id">
+  <tr><td style="width:32%">Tanggal pemeriksaan</td><td>: {{ fmt(case.mcu.date) }}</td></tr>
+  <tr><td>Usia</td><td>: {{ case.applicant.age }} tahun</td></tr>
+</table>
+<h2>Pemeriksaan fisik</h2>
+<table>
+  <tr><th style="width:35%">Tinggi badan</th><td>{{ case.mcu.height_cm }} cm</td></tr>
+  <tr><th>Berat badan</th><td>{{ case.mcu.weight_kg }} kg</td></tr>
+  <tr><th>Tekanan darah</th><td>{{ case.mcu.systolic }}/{{ case.mcu.diastolic }} mmHg</td></tr>
+  <tr><th>Nadi</th><td>{{ case.mcu.pulse }} x/menit</td></tr>
+  <tr><th>Paru</th><td>Vesikuler, tidak ada ronki maupun mengi</td></tr>
+</table>
+<h2>Pemeriksaan penunjang</h2>
+<table>
+  <tr><th style="width:35%">EKG istirahat</th><td>{{ ecg_text }}</td></tr>
+  <tr><th>Foto toraks</th><td>Cor dan pulmo dalam batas normal</td></tr>
+</table>
+<div class="sign">{{ case.mcu.clinic_city }}, {{ fmt(case.mcu.date) }}<br>Dokter pemeriksa<br><br><br>{{ case.mcu.doctor }}</div>
+{% endblock %}
