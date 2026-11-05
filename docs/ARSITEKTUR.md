@@ -259,7 +259,7 @@ Kode di `apps/api/mab_api/`. Dokumentasi interaktif otomatis di http://localhost
 
 | Router | Endpoint utama | Peran |
 |---|---|---|
-| `auth` | `POST /auth/login`, `GET /auth/me` | semua |
+| `auth` | `POST /auth/login`, `GET /auth/me`; mode demo: `GET /auth/demo-accounts`, `POST /auth/demo-switch` | semua (ganti peran: hanya akun demo, `DEMO_MODE=true`) |
 | `claims` | `POST /claims`, `POST /claims/{id}/documents`, `POST /claims/batch` (ZIP + `manifest.xlsx`), `GET /claims` (filter `status`, `triage`), `GET /claims/{id}`, `GET /claims/{id}/status`, `GET /claims/{id}/fields`, `GET /claims/{id}/recommendation`, `GET /claims/{id}/recommendation.pdf`, `POST /claims/{id}/decision`, `POST /claims/decisions/bulk-agree`, `GET /claims/export.csv` | asuransi (tulis), semua (baca sesuai akses) |
 | `documents` | `GET /documents/{id}/pages/{n}.png?dpi=`, `GET /documents/{id}/download` | sesuai akses klaim |
 | `review` | `GET /review/queue`, `GET /review/{id}`, `POST /review/{id}/start`, `POST /review/{id}/release`, `PATCH /review/{id}/fields/{field_id}`, `POST /review/{id}/escalate`, `POST /review/{id}/sign` | dokter (admin: baca) |
@@ -341,6 +341,7 @@ Komponen utama di `components/`: `DocumentViewer` (`DocumentPane` inline + modal
 ## 12. Keamanan, akses, dan audit
 
 - **Autentikasi:** JWT HS256 (`JWT_SECRET`), kedaluwarsa 8 jam. Password dan PIN di-hash PBKDF2-SHA256 240.000 iterasi dengan salt acak.
+- **Ganti peran (demo):** akun demo (`mab_api/demo.py`) bisa berpindah ke akun demo lain tanpa password lewat `POST /auth/demo-switch`, untuk menjalankan seluruh alur dari satu jendela. Bukan peran super: token baru membawa peran akun tujuan, jadi semua batasan peran tetap berlaku, dan perpindahan dicatat sebagai `DEMO_SWITCH` di log audit. Hanya aktif bila `DEMO_MODE=true`; wajib dimatikan sebelum memakai data sungguhan.
 - **Isolasi tenant:** staf/manajer hanya melihat klaim `insurer_id` miliknya. Klaim di luar akses menjawab **404**, bukan 403, supaya keberadaannya tidak bocor.
 - **Akses dokter:** klaim yang ditugaskan kepadanya, atau yang menunggu dokter dan belum dikunci dokter lain; antrean memfilter level dan spesialisasi.
 - **Pemisahan peran:** hanya asuransi yang bisa membuat klaim dan memutuskan; hanya dokter yang bisa menelaah dan menandatangani; hanya dokter umum yang bisa mengeskalasi; admin baca saja.

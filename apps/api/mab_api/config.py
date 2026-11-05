@@ -27,6 +27,8 @@ class Settings(BaseSettings):
 
     rules_path: str = "/app/rules/aturan_klinis_demo.yaml"
     llm_provider: str = "mock"
+    # Tampilkan pemilih "Ganti peran (demo)" di portal. Hanya untuk data rekaan.
+    demo_mode: bool = True
 
 
 @lru_cache
