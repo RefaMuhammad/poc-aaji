@@ -123,6 +123,9 @@ class TenantSettings(Base):
     sla_gp_hours: Mapped[int] = mapped_column(Integer, default=24)
     sla_specialist_hours: Mapped[int] = mapped_column(Integer, default=48)
     auto_assign: Mapped[bool] = mapped_column(Boolean, default=True)
+    # U2: webhook keluar (rekomendasi dirilis, keputusan dicatat, proses gagal)
+    webhook_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    webhook_secret: Mapped[str | None] = mapped_column(String(100), nullable=True)
     version: Mapped[int] = mapped_column(Integer, default=1)
     updated_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
@@ -171,6 +174,87 @@ class Assignment(Base):
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class ClaimSource(str, Enum):
+    PORTAL = "PORTAL"   # formulir satu klaim di portal
+    BATCH = "BATCH"     # ZIP + manifest di portal
+    API = "API"         # REST API integrasi
+    SFTP = "SFTP"       # ZIP + manifest di folder SFTP
+    FHIR = "FHIR"       # Bundle FHIR R4
+
+
+class BenefitPlan(Base):
+    """Produk/plan rawat inap: hak kelas kamar, limit, masa tunggu, pengecualian diagnosis."""
+
+    __tablename__ = "benefit_plans"
+    __table_args__ = (UniqueConstraint("insurer_id", "code", name="uq_benefit_plan_code"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    insurer_id: Mapped[str] = mapped_column(ForeignKey("insurers.id"), index=True)
+    code: Mapped[str] = mapped_column(String(32))
+    name: Mapped[str] = mapped_column(String(200))
+    room_class: Mapped[str | None] = mapped_column(String(50), nullable=True)      # mis. "Kelas 1"
+    room_rate_limit: Mapped[int | None] = mapped_column(BigInteger, nullable=True)  # rupiah per hari
+    annual_limit: Mapped[int | None] = mapped_column(BigInteger, nullable=True)     # rupiah per tahun polis
+    waiting_period_days: Mapped[int] = mapped_column(Integer, default=0)
+    excluded_icd10: Mapped[list] = mapped_column(JSON, default=list)               # awalan kode, mis. ["O", "Z30"]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class Policy(Base):
+    """Polis satu peserta (dari sistem inti asuransi: impor file atau API)."""
+
+    __tablename__ = "policies"
+    __table_args__ = (UniqueConstraint("insurer_id", "policy_number", "member_id", name="uq_policy_member"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    insurer_id: Mapped[str] = mapped_column(ForeignKey("insurers.id"), index=True)
+    policy_number: Mapped[str] = mapped_column(String(64), index=True)
+    member_id: Mapped[str] = mapped_column(String(64), index=True)
+    member_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    plan_id: Mapped[str] = mapped_column(ForeignKey("benefit_plans.id"))
+    start_date: Mapped[date] = mapped_column(Date)
+    end_date: Mapped[date] = mapped_column(Date)
+    status: Mapped[str] = mapped_column(String(16), default="ACTIVE")  # ACTIVE / LAPSED / TERMINATED
+    limit_used: Mapped[int] = mapped_column(BigInteger, default=0)     # limit tahunan yang sudah terpakai
+    source: Mapped[str] = mapped_column(String(16), default="IMPORT")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    plan: Mapped[BenefitPlan] = relationship()
+
+
+class IntegrationJob(Base):
+    """Riwayat data masuk lewat integrasi (API, SFTP, FHIR, impor polis)."""
+
+    __tablename__ = "integration_jobs"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    insurer_id: Mapped[str] = mapped_column(ForeignKey("insurers.id"), index=True)
+    channel: Mapped[str] = mapped_column(String(16))          # API / SFTP / FHIR / POLICY_IMPORT / BATCH
+    reference: Mapped[str | None] = mapped_column(String(255), nullable=True)  # nama file / id bundle / nomor klaim
+    status: Mapped[str] = mapped_column(String(16))           # SUCCESS / PARTIAL / FAILED
+    summary: Mapped[dict] = mapped_column(JSON, default=dict)
+    user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    api_client_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class WebhookDelivery(Base):
+    """Satu pengiriman webhook ke sistem asuransi, beserta hasil percobaan terakhir."""
+
+    __tablename__ = "webhook_deliveries"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    insurer_id: Mapped[str] = mapped_column(ForeignKey("insurers.id"), index=True)
+    event: Mapped[str] = mapped_column(String(64))
+    claim_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    url: Mapped[str] = mapped_column(String(500))
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(16), default="PENDING", index=True)  # PENDING / DELIVERED / FAILED
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    last_status_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class Claim(Base):
     __tablename__ = "claims"
     __table_args__ = (UniqueConstraint("insurer_id", "claim_number", name="uq_claim_number_per_insurer"),)
@@ -187,11 +271,16 @@ class Claim(Base):
     primary_icd10: Mapped[str | None] = mapped_column(String(16), nullable=True)
     status: Mapped[str] = mapped_column(String(32), default=ClaimStatus.RECEIVED.value, index=True)
     processing_error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    # pembuat: pengguna portal, atau kosong bila dari integrasi (lihat source / api_client_id)
+    created_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    source: Mapped[str] = mapped_column(String(16), default=ClaimSource.PORTAL.value)
+    api_client_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    policy_id: Mapped[str | None] = mapped_column(ForeignKey("policies.id"), nullable=True)
     assigned_doctor_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
+    policy: Mapped[Policy | None] = relationship()
     documents: Mapped[list[Document]] = relationship(back_populates="claim", order_by="Document.created_at")
     recommendations: Mapped[list[Recommendation]] = relationship(back_populates="claim", order_by="Recommendation.version")
     decisions: Mapped[list[InsurerDecision]] = relationship(back_populates="claim", order_by="InsurerDecision.decided_at")
@@ -208,7 +297,7 @@ class Document(Base):
     storage_key: Mapped[str] = mapped_column(String(500))
     doc_type: Mapped[str] = mapped_column(String(50), default="unknown")
     page_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    uploaded_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    uploaded_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     claim: Mapped[Claim] = relationship(back_populates="documents")
@@ -250,6 +339,7 @@ class Recommendation(Base):
     model_version: Mapped[str] = mapped_column(String(50))
     prompt_version: Mapped[str] = mapped_column(String(50))
     ruleset_version: Mapped[str] = mapped_column(String(50))
+    benefit_ruleset_version: Mapped[str | None] = mapped_column(String(50), nullable=True)  # U2
     signed_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     signed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

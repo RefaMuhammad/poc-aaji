@@ -15,23 +15,31 @@ from mab_api.api_schemas import (
     ApiClientCreate,
     ApiClientCreated,
     ApiClientOut,
+    ApiScopeOut,
+    IntegrationJobOut,
+    WebhookDeliveryOut,
     BrandingOut,
     TenantCreate,
     TenantOut,
     TenantSettingsIn,
 )
 from mab_api.db import get_db
-from mab_api.deps import get_current_user, require_perm
-from mab_api.models import ApiClient, Claim, Insurer, TenantSettings, User
+from mab_api.deps import get_current_user, get_queue, require_perm
+from mab_api.models import ApiClient, Claim, Insurer, IntegrationJob, Policy, TenantSettings, User, WebhookDelivery
 from mab_api.rbac import Perm
-from mab_api.ruleset import active_ruleset
+from mab_api.ruleset import active_benefit_ruleset, active_ruleset
 from mab_api.security import generate_api_key
 from mab_api.tenancy import all_rule_ids, apply_tenant, tenant_config
+from mab_api.webhooks import dispatch
 from mab_pipeline.schemas import TriageStatus
 
 router = APIRouter(prefix="/tenants", tags=["tenant"])
 
-API_SCOPES = {"claims:read": "Baca status klaim dan rekomendasi yang sudah dirilis ke asuransi"}
+API_SCOPES = {
+    "claims:read": "Baca status klaim, rekomendasi yang sudah dirilis, dan ClaimResponse FHIR",
+    "claims:write": "Kirim klaim + dokumen (multipart) atau Bundle FHIR R4",
+    "policies:write": "Kirim atau perbarui data polis peserta",
+}
 
 tenant_admin = require_perm(Perm.TENANT_ADMIN)
 
@@ -57,6 +65,9 @@ def _tenant_out(db: Session, insurer: Insurer) -> TenantOut:
         default_yellow_min_score=_default_threshold(TriageStatus.YELLOW),
         effective_ruleset_version=apply_tenant(active_ruleset(), cfg).version,
         claim_count=db.scalar(select(func.count()).select_from(Claim).where(Claim.insurer_id == insurer.id)) or 0,
+        webhook_url=cfg.webhook_url,
+        webhook_secret_set=bool(cfg.webhook_secret),
+        policy_count=db.scalar(select(func.count()).select_from(Policy).where(Policy.insurer_id == insurer.id)) or 0,
     )
 
 
@@ -120,6 +131,8 @@ def _settings_snapshot(row: TenantSettings | None) -> dict:
         "sla_gp_hours": row.sla_gp_hours,
         "sla_specialist_hours": row.sla_specialist_hours,
         "auto_assign": row.auto_assign,
+        "webhook_url": row.webhook_url,
+        "webhook_secret_set": bool(row.webhook_secret),
         "version": row.version,
     }
 
@@ -129,7 +142,7 @@ def update_settings(insurer_id: str, body: TenantSettingsIn, request: Request, d
                     user: User = Depends(tenant_admin)) -> TenantOut:
     """Simpan pengaturan tenant. Berlaku untuk klaim yang diproses SETELAH disimpan; versi naik satu."""
     insurer = _get_insurer(db, insurer_id)
-    unknown = sorted(set(body.disabled_rules) - all_rule_ids(active_ruleset()))
+    unknown = sorted(set(body.disabled_rules) - all_rule_ids(active_ruleset(), active_benefit_ruleset()))
     if unknown:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Aturan tidak dikenal: {', '.join(unknown)}")
     red = body.triage_red_min_score if body.triage_red_min_score is not None else _default_threshold(TriageStatus.RED)
@@ -143,8 +156,10 @@ def update_settings(insurer_id: str, body: TenantSettingsIn, request: Request, d
     if row is None:
         row = TenantSettings(insurer_id=insurer.id, version=0)
         db.add(row)
-    for key, value in body.model_dump().items():
+    for key, value in body.model_dump(exclude={"webhook_secret"}).items():
         setattr(row, key, value)
+    if body.webhook_secret is not None:  # None = rahasia lama dipertahankan, "" = dihapus
+        row.webhook_secret = body.webhook_secret or None
     row.version = (row.version or 0) + 1
     row.updated_by_id = user.id
     row.updated_at = datetime.now(timezone.utc)
@@ -156,6 +171,11 @@ def update_settings(insurer_id: str, body: TenantSettingsIn, request: Request, d
 
 
 # ----------------------------------------------------------------------------- akun layanan
+
+
+@router.get("/api-scopes", response_model=list[ApiScopeOut])
+def api_scopes(_: User = Depends(require_perm(Perm.TENANT_VIEW))) -> list[ApiScopeOut]:
+    return [ApiScopeOut(scope=k, description=v) for k, v in API_SCOPES.items()]
 
 
 @router.get("/{insurer_id}/api-clients", response_model=list[ApiClientOut])
@@ -198,3 +218,52 @@ def revoke_api_client(insurer_id: str, client_id: str, request: Request, db: Ses
                      detail={"api_client_id": client.id, "insurer_id": insurer_id, "key_prefix": client.key_prefix})
         db.commit()
     return client
+
+
+# ----------------------------------------------------------------------------- riwayat integrasi & webhook
+
+
+def _viewable_tenant(db: Session, user: User, insurer_id: str) -> Insurer:
+    insurer = _get_insurer(db, insurer_id)
+    allowed = tenant_ids(db, user)
+    if allowed is not None and insurer_id not in allowed:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Tenant tidak ditemukan")
+    return insurer
+
+
+@router.get("/{insurer_id}/integration-jobs", response_model=list[IntegrationJobOut])
+def integration_jobs(insurer_id: str, limit: int = 50, db: Session = Depends(get_db),
+                     user: User = Depends(require_perm(Perm.TENANT_VIEW))) -> list[IntegrationJob]:
+    """Riwayat data masuk: API, FHIR, SFTP, impor polis."""
+    _viewable_tenant(db, user, insurer_id)
+    q = select(IntegrationJob).where(IntegrationJob.insurer_id == insurer_id)
+    return list(db.scalars(q.order_by(IntegrationJob.created_at.desc()).limit(min(max(limit, 1), 200))))
+
+
+@router.get("/{insurer_id}/webhook-deliveries", response_model=list[WebhookDeliveryOut])
+def webhook_deliveries(insurer_id: str, limit: int = 50, db: Session = Depends(get_db),
+                       user: User = Depends(require_perm(Perm.TENANT_VIEW))) -> list[WebhookDelivery]:
+    _viewable_tenant(db, user, insurer_id)
+    q = select(WebhookDelivery).where(WebhookDelivery.insurer_id == insurer_id)
+    return list(db.scalars(q.order_by(WebhookDelivery.created_at.desc()).limit(min(max(limit, 1), 200))))
+
+
+@router.post("/{insurer_id}/webhook-deliveries/{delivery_id}/resend", response_model=WebhookDeliveryOut)
+def resend_webhook(insurer_id: str, delivery_id: str, request: Request, db: Session = Depends(get_db),
+                   user: User = Depends(tenant_admin), queue=Depends(get_queue)) -> WebhookDelivery:
+    """Kirim ulang webhook (mis. setelah sistem asuransi pulih). Isi payload sama; URL memakai pengaturan terbaru."""
+    delivery = db.get(WebhookDelivery, delivery_id)
+    if delivery is None or delivery.insurer_id != insurer_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Pengiriman tidak ditemukan")
+    cfg = tenant_config(db, insurer_id)
+    if not cfg.webhook_url:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Tenant belum punya URL webhook")
+    delivery.url = cfg.webhook_url
+    delivery.status, delivery.attempts, delivery.last_error, delivery.last_status_code = "PENDING", 0, None, None
+    delivery.delivered_at = None
+    audit.record(db, "WEBHOOK_RESEND", user_id=user.id, user_role=user.role, request=request, claim_id=delivery.claim_id,
+                 detail={"delivery_id": delivery.id, "event": delivery.event, "insurer_id": insurer_id})
+    db.commit()
+    dispatch(queue, [delivery])
+    db.refresh(delivery)
+    return delivery

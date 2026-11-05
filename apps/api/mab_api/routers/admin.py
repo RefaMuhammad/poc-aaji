@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from mab_api.access import get_visible_claim
-from mab_api.api_schemas import AssignmentOut, AssignRequest, RulesetDiagnosis, RulesetOut, RulesetRule
+from mab_api.api_schemas import AssignmentOut, AssignRequest, BenefitRulesetOut, RulesetDiagnosis, RulesetOut, RulesetRule
 from mab_api.assignment import (
     GP,
     assign,
@@ -19,7 +19,7 @@ from mab_api.db import get_db
 from mab_api.deps import require_perm
 from mab_api.models import AssignmentStatus, ClaimStatus, RecommendationState, Role, User
 from mab_api.rbac import Perm
-from mab_api.ruleset import active_ruleset
+from mab_api.ruleset import active_benefit_ruleset, active_ruleset
 from mab_api.tenancy import tenant_config
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -33,6 +33,7 @@ def _rule(r) -> RulesetRule:
 @router.get("/ruleset", response_model=RulesetOut)
 def ruleset(_: User = Depends(require_perm(Perm.RULESET_VIEW))) -> RulesetOut:
     rs = active_ruleset()
+    ben = active_benefit_ruleset()
     return RulesetOut(
         version=rs.version,
         status=rs.raw.get("status") if rs.raw else None,
@@ -47,6 +48,8 @@ def ruleset(_: User = Depends(require_perm(Perm.RULESET_VIEW))) -> RulesetOut:
             for s in rs.triage.status_rules
         ],
         reason_codes=rs.reason_codes,
+        benefit=BenefitRulesetOut(version=ben.version, path=get_settings().resolved_benefit_rules_path(),
+                                  rules=[_rule(r.rule) for r in ben.rules]),
     )
 
 

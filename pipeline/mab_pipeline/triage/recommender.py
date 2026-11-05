@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 from mab_pipeline.extraction.facts import BillingFacts
 from mab_pipeline.rules.loader import RuleSet
@@ -125,7 +125,9 @@ def build_recommendation(
     billing: BillingFacts | None = None,
     ai_items: dict[str, list[str]] | None = None,
     quality: list[str] | None = None,
+    extra_adjustments: Callable[[int], list[dict]] | None = None,
 ) -> RecommendationDraft:
+    """`extra_adjustments(total_koreksi_klinis)` menambah usulan koreksi lain (U2: benefit polis)."""
     rules = {r.id: r for r in ruleset.general_rules}
     for dx in ruleset.diagnoses:
         rules.update({r.id: r for r in dx.rules})
@@ -154,6 +156,8 @@ def build_recommendation(
         rec = InitialRecommendation.PEND if "DOC_UNREADABLE" in flags else InitialRecommendation.DOCTOR_REVIEW
 
     adjustments = _adjustments(drafts, claim, billing, ai_items or {})
+    if extra_adjustments is not None:
+        adjustments += extra_adjustments(sum(a["amount"] for a in adjustments))
     total_adjust = sum(a["amount"] for a in adjustments)
     if rec == InitialRecommendation.PAY_FULL:
         recommended = billed_amount

@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from mab_api.audit import AuditMiddleware
 from mab_api.config import get_settings
-from mab_api.routers import admin, auth, claims, dashboard, documents, integrations, review, tenants, users
+from mab_api.routers import admin, auth, claims, dashboard, documents, integrations, policies, review, tenants, users
 
 
 def create_app(*, session_factory=None, storage=None, job_queue=None) -> FastAPI:
@@ -12,7 +12,7 @@ def create_app(*, session_factory=None, storage=None, job_queue=None) -> FastAPI
     app = FastAPI(
         title=settings.app_name,
         description="Data rekaan untuk demonstrasi. Tahap 0 POC Platform MAB Indonesia.",
-        version="0.4.0",
+        version="0.5.0",
     )
 
     if session_factory is None:
@@ -54,6 +54,8 @@ def create_app(*, session_factory=None, storage=None, job_queue=None) -> FastAPI
     app.include_router(dashboard.router)
     app.include_router(tenants.router)
     app.include_router(integrations.router)
+    app.include_router(integrations.demo_router)
+    app.include_router(policies.router)
     return app
 
 

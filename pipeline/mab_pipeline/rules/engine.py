@@ -62,35 +62,38 @@ class CompiledExpression:
     fields: tuple[str, ...] = field(default_factory=tuple)
 
 
-def compile_expression(source: str) -> CompiledExpression:
-    """Parse dan validasi ekspresi. Melempar ExpressionError bila tidak aman."""
+def compile_expression(source: str, groups: tuple[str, ...] = GROUPS) -> CompiledExpression:
+    """Parse dan validasi ekspresi. Melempar ExpressionError bila tidak aman.
+
+    `groups`: nama kelompok field yang boleh dipakai (aturan benefit memakai kelompok policy/benefit).
+    """
     normalized = " ".join(str(source).split())
     try:
         tree = ast.parse(normalized, mode="eval")
     except SyntaxError as exc:
         raise ExpressionError(f"sintaks tidak valid: {normalized!r} ({exc.msg})") from exc
     fields: list[str] = []
-    _validate(tree.body, fields)
+    _validate(tree.body, fields, groups)
     return CompiledExpression(normalized, tree, tuple(dict.fromkeys(fields)))
 
 
-def _validate(node: ast.AST, fields: list[str]) -> None:
+def _validate(node: ast.AST, fields: list[str], groups: tuple[str, ...] = GROUPS) -> None:
     if isinstance(node, ast.BoolOp):
         for value in node.values:
-            _validate(value, fields)
+            _validate(value, fields, groups)
     elif isinstance(node, ast.UnaryOp):
         if not isinstance(node.op, (ast.Not, ast.USub)):
             raise ExpressionError(f"operator tidak diizinkan: {type(node.op).__name__}")
-        _validate(node.operand, fields)
+        _validate(node.operand, fields, groups)
     elif isinstance(node, ast.Compare):
         for op in node.ops:
             if type(op) not in _COMPARE_OPS:
                 raise ExpressionError(f"perbandingan tidak diizinkan: {type(op).__name__}")
-        _validate(node.left, fields)
+        _validate(node.left, fields, groups)
         for comparator in node.comparators:
-            _validate(comparator, fields)
+            _validate(comparator, fields, groups)
     elif isinstance(node, ast.Attribute):
-        if not (isinstance(node.value, ast.Name) and node.value.id in GROUPS):
+        if not (isinstance(node.value, ast.Name) and node.value.id in groups):
             raise ExpressionError("akses atribut hanya boleh berbentuk kelompok.field")
         if node.attr.startswith("_"):
             raise ExpressionError(f"nama field tidak valid: {node.attr}")
@@ -100,7 +103,7 @@ def _validate(node: ast.AST, fields: list[str]) -> None:
             raise ExpressionError("hanya fungsi len() yang diizinkan")
         if len(node.args) != 1 or node.keywords:
             raise ExpressionError("len() menerima tepat satu argumen")
-        _validate(node.args[0], fields)
+        _validate(node.args[0], fields, groups)
     elif isinstance(node, (ast.Tuple, ast.List)):
         for elt in node.elts:
             if not isinstance(elt, ast.Constant):

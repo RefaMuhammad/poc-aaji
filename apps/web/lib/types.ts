@@ -53,7 +53,11 @@ export interface ClaimListItem {
   decision: string | null;
   insurer_id: string;
   insurer_name: string | null;
+  source: ClaimSource;
+  policy_id: string | null;
 }
+
+export type ClaimSource = "PORTAL" | "BATCH" | "API" | "SFTP" | "FHIR";
 
 export interface DocumentInfo {
   id: string;
@@ -70,6 +74,7 @@ export interface ClaimDetail extends Omit<ClaimListItem, "risk_score" | "recomme
   missing_documents: string[];
   recommendation_available: boolean;
   awaiting_doctor: boolean;
+  policy: Policy | null;
 }
 
 export interface Evidence {
@@ -79,6 +84,7 @@ export interface Evidence {
   bbox: number[] | null;
   field: string | null;
   claim_id: string | null;
+  policy_number?: string | null;
 }
 
 export interface FindingView {
@@ -120,6 +126,7 @@ export interface Recommendation {
   model_version: string;
   prompt_version: string;
   ruleset_version: string;
+  benefit_ruleset_version: string | null;
   insurer_decision: { decision: "AGREE" | "DIFFER"; reason: string | null; decided_by: string; decided_at: string } | null;
   label: string;
 }
@@ -236,6 +243,7 @@ export interface RulesetInfo {
   diagnoses: { id: string; name: string; icd10: string[]; specialty: string | null; rules: RulesetRule[] }[];
   triage: { jika: string; status: Triage; rekomendasi_awal: string }[];
   reason_codes: Record<string, string>;
+  benefit: { version: string; path: string; rules: RulesetRule[] } | null;
 }
 
 // --- Dashboard (M8) ---
@@ -287,6 +295,8 @@ export interface TenantSettingsInput {
   sla_gp_hours: number;
   sla_specialist_hours: number;
   auto_assign: boolean;
+  webhook_url: string | null;
+  webhook_secret?: string | null;   // hanya dikirim; kosong = tidak diubah
 }
 
 export interface Tenant extends Branding, TenantSettingsInput {
@@ -296,6 +306,8 @@ export interface Tenant extends Branding, TenantSettingsInput {
   default_yellow_min_score: number | null;
   effective_ruleset_version: string;
   claim_count: number;
+  webhook_secret_set: boolean;
+  policy_count: number;
 }
 
 export interface ApiClient {
@@ -309,4 +321,79 @@ export interface ApiClient {
   last_used_at: string | null;
   revoked_at: string | null;
   api_key?: string;
+}
+
+// --- U2: polis, benefit, integrasi -------------------------------------------------------
+
+export interface BenefitPlan {
+  id: string;
+  insurer_id: string;
+  code: string;
+  name: string;
+  room_class: string | null;
+  room_rate_limit: number | null;
+  annual_limit: number | null;
+  waiting_period_days: number;
+  excluded_icd10: string[];
+  policy_count: number;
+}
+
+export interface Policy {
+  id: string;
+  insurer_id: string;
+  policy_number: string;
+  member_id: string;
+  member_name: string | null;
+  plan_code: string;
+  plan_name: string;
+  room_class: string | null;
+  room_rate_limit: number | null;
+  annual_limit: number | null;
+  waiting_period_days: number;
+  excluded_icd10: string[];
+  start_date: string;
+  end_date: string;
+  status: "ACTIVE" | "LAPSED" | "TERMINATED";
+  limit_used: number;
+  limit_remaining: number | null;
+  source: string;
+  updated_at: string;
+}
+
+export interface PolicyImportResult {
+  job_id: string;
+  status: "SUCCESS" | "PARTIAL" | "FAILED";
+  created: number;
+  updated: number;
+  errors: string[];
+}
+
+export interface IntegrationJob {
+  id: string;
+  insurer_id: string;
+  channel: string;
+  reference: string | null;
+  status: "SUCCESS" | "PARTIAL" | "FAILED";
+  summary: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface WebhookDelivery {
+  id: string;
+  insurer_id: string;
+  event: string;
+  claim_id: string | null;
+  url: string;
+  status: "PENDING" | "DELIVERED" | "FAILED";
+  attempts: number;
+  last_status_code: number | null;
+  last_error: string | null;
+  created_at: string;
+  delivered_at: string | null;
+  payload: Record<string, unknown>;
+}
+
+export interface ApiScope {
+  scope: string;
+  description: string;
 }

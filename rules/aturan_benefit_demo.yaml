@@ -1,0 +1,102 @@
+# =============================================================================
+# ATURAN BENEFIT DEMO - PLATFORM MAB INDONESIA
+# =============================================================================
+# Versi      : benefit-2026.11-demo
+# Status     : DRAF UNTUK DEMO. Data polis dan plan seluruhnya rekaan.
+#
+# Aturan benefit memeriksa klaim terhadap POLIS peserta, bukan terhadap
+# kewajaran klinis: polis aktif, masa tunggu, pengecualian diagnosis, sisa
+# limit tahunan, dan hak kelas kamar. Data polis berasal dari sistem inti
+# asuransi (impor CSV/XLSX atau API), bukan dari dokumen rumah sakit.
+#
+# - Format sama dengan aturan klinis: kondisi, kode_alasan, keparahan, pesan.
+# - Kelompok field yang boleh dipakai di kondisi: policy.* dan benefit.*
+# - Temuan benefit ikut menentukan skor triase dan wajib ditelaah dokter /
+#   asuransi. Mesin aturan TIDAK PERNAH menolak klaim.
+# - Aturan benefit hanya dijalankan bila tenant sudah punya data polis.
+# - "penyesuaian" (opsional) membuat usulan koreksi tagihan:
+#     kelebihan_kamar = (tarif kamar ditagih - batas tarif plan) x jumlah hari
+#     kelebihan_limit = bagian tagihan yang melebihi sisa limit tahunan
+# =============================================================================
+
+version: benefit-2026.11-demo
+status: draft_demo_data_rekaan
+
+kamus_data:
+  policy.found:               {tipe: ya_tidak, sumber: polis, ket: "Polis peserta ditemukan di data polis tenant"}
+  policy.number:              {tipe: teks, sumber: polis, ket: "Nomor polis"}
+  policy.plan_name:           {tipe: teks, sumber: polis, ket: "Nama plan benefit"}
+  policy.status:              {tipe: teks, sumber: polis, ket: "Status polis: ACTIVE / LAPSED / TERMINATED"}
+  policy.start_date:          {tipe: teks, sumber: polis, ket: "Tanggal mulai polis"}
+  policy.end_date:            {tipe: teks, sumber: polis, ket: "Tanggal akhir polis"}
+  policy.admission_date:      {tipe: teks, sumber: dokumen, ket: "Tanggal masuk rawat inap"}
+  policy.active_on_admission: {tipe: ya_tidak, sumber: hitung, ket: "Polis berstatus aktif dan tanggal masuk dalam masa berlaku"}
+  policy.days_since_start:    {tipe: angka, sumber: hitung, ket: "Hari sejak polis mulai sampai tanggal masuk"}
+  policy.waiting_period_days: {tipe: angka, sumber: polis, ket: "Masa tunggu plan (hari)"}
+  policy.excluded_dx:         {tipe: daftar, sumber: hitung, ket: "Diagnosis klaim yang termasuk pengecualian plan"}
+  benefit.billed_amount:      {tipe: angka, sumber: dokumen, ket: "Total tagihan klaim (rupiah)"}
+  benefit.limit_remaining:    {tipe: angka, sumber: hitung, ket: "Sisa limit tahunan = limit plan - limit terpakai"}
+  benefit.room_rate_billed:   {tipe: angka, sumber: dokumen, ket: "Tarif kamar per hari tertinggi di rincian tagihan"}
+  benefit.room_days_billed:   {tipe: angka, sumber: dokumen, ket: "Jumlah hari kamar di rincian tagihan"}
+  benefit.room_class_billed:  {tipe: teks, sumber: dokumen, ket: "Kelas kamar yang ditagihkan"}
+  benefit.room_rate_limit:    {tipe: angka, sumber: polis, ket: "Batas tarif kamar per hari sesuai plan"}
+  benefit.room_class_entitled: {tipe: teks, sumber: polis, ket: "Hak kelas kamar sesuai plan"}
+
+kode_alasan:
+  POLICY_NOT_FOUND:     "Polis peserta tidak ditemukan"
+  POLICY_INACTIVE:      "Polis tidak aktif pada tanggal rawat"
+  WAITING_PERIOD:       "Masih dalam masa tunggu polis"
+  EXCLUDED_CONDITION:   "Diagnosis termasuk pengecualian polis"
+  LIMIT_EXCEEDED:       "Tagihan melebihi sisa limit tahunan"
+  ROOM_CLASS_EXCEEDED:  "Kelas/tarif kamar melebihi hak polis"
+
+aturan:
+  - id: BEN-00
+    nama: "Polis tidak ditemukan"
+    kondisi: "policy.found == False"
+    kode_alasan: POLICY_NOT_FOUND
+    keparahan: MEDIUM
+    butuh_ai: false
+    pesan: "Nomor peserta klaim tidak ditemukan di data polis asuransi. Pastikan data polis sudah diimpor atau nomor peserta benar."
+
+  - id: BEN-01
+    nama: "Polis tidak aktif pada tanggal rawat"
+    kondisi: "policy.active_on_admission == False"
+    kode_alasan: POLICY_INACTIVE
+    keparahan: HIGH
+    butuh_ai: false
+    pesan: "Polis {policy.number} berstatus {policy.status}, berlaku {policy.start_date} s.d. {policy.end_date}, sedangkan pasien masuk {policy.admission_date}."
+
+  - id: BEN-02
+    nama: "Masih dalam masa tunggu"
+    kondisi: "policy.days_since_start < policy.waiting_period_days"
+    kode_alasan: WAITING_PERIOD
+    keparahan: MEDIUM
+    butuh_ai: false
+    pesan: "Pasien masuk {policy.days_since_start} hari setelah polis mulai, sedangkan masa tunggu plan {policy.plan_name} adalah {policy.waiting_period_days} hari."
+
+  - id: BEN-03
+    nama: "Diagnosis dikecualikan polis"
+    kondisi: "len(policy.excluded_dx) > 0"
+    kode_alasan: EXCLUDED_CONDITION
+    keparahan: HIGH
+    butuh_ai: false
+    pesan: "Diagnosis {policy.excluded_dx} termasuk daftar pengecualian plan {policy.plan_name}."
+
+  - id: BEN-04
+    nama: "Tagihan melebihi sisa limit"
+    kondisi: "benefit.billed_amount > benefit.limit_remaining"
+    kode_alasan: LIMIT_EXCEEDED
+    keparahan: MEDIUM
+    butuh_ai: false
+    penyesuaian: kelebihan_limit
+    pesan: "Tagihan Rp{benefit.billed_amount} melebihi sisa limit tahunan Rp{benefit.limit_remaining}."
+
+  - id: BEN-05
+    nama: "Kelas kamar melebihi hak"
+    kondisi: "benefit.room_rate_billed > benefit.room_rate_limit"
+    kode_alasan: ROOM_CLASS_EXCEEDED
+    keparahan: LOW
+    butuh_ai: false
+    penyesuaian: kelebihan_kamar
+    pesan: "Kamar ditagihkan {benefit.room_class_billed} Rp{benefit.room_rate_billed}/hari, sedangkan hak plan {benefit.room_class_entitled} maksimal Rp{benefit.room_rate_limit}/hari."

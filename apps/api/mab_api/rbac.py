@@ -24,10 +24,12 @@ class Perm(str, Enum):
     TENANT_ADMIN = "tenant.admin"          # ubah pengaturan tenant, kelola API key
     USER_ADMIN = "user.admin"
     ASSIGN_ADMIN = "assignment.admin"      # pindahkan penugasan dokter
+    POLICY_VIEW = "policy.view"            # U2: lihat polis & plan benefit tenant
+    POLICY_MANAGE = "policy.manage"        # U2: impor polis, ubah plan benefit
 
 
 _OPERATOR = {Perm.CLAIM_LIST, Perm.CLAIM_DETAIL, Perm.CLAIM_SUBMIT, Perm.CLAIM_DECIDE, Perm.CLAIM_EXPORT,
-             Perm.DASHBOARD, Perm.TENANT_VIEW}
+             Perm.DASHBOARD, Perm.TENANT_VIEW, Perm.POLICY_VIEW, Perm.POLICY_MANAGE}
 _DOCTOR = {Perm.CLAIM_LIST, Perm.CLAIM_DETAIL, Perm.REVIEW, Perm.RULESET_VIEW}
 
 ROLE_PERMS: dict[Role, frozenset[Perm]] = {
@@ -37,14 +39,15 @@ ROLE_PERMS: dict[Role, frozenset[Perm]] = {
     Role.DOCTOR_GP: frozenset(_DOCTOR),
     Role.DOCTOR_SPECIALIST: frozenset(_DOCTOR),
     Role.AUDITOR: frozenset({Perm.CLAIM_LIST, Perm.CLAIM_DETAIL, Perm.CLAIM_EXPORT, Perm.DASHBOARD,
-                             Perm.RULESET_VIEW, Perm.TENANT_VIEW}),
+                             Perm.RULESET_VIEW, Perm.TENANT_VIEW, Perm.POLICY_VIEW}),
     # Portal faskes & peserta (U4): untuk sekarang hanya daftar dan status klaimnya sendiri.
     Role.FACILITY_OFFICER: frozenset({Perm.CLAIM_LIST}),
     Role.MEMBER: frozenset({Perm.CLAIM_LIST}),
     # Modul underwriting menyusul di U7; underwriter belum punya akses data klaim.
     Role.UNDERWRITER: frozenset(),
     Role.ADMIN: frozenset({Perm.CLAIM_LIST, Perm.CLAIM_DETAIL, Perm.DASHBOARD, Perm.RULESET_VIEW,
-                           Perm.TENANT_VIEW, Perm.TENANT_ADMIN, Perm.USER_ADMIN, Perm.ASSIGN_ADMIN}),
+                           Perm.TENANT_VIEW, Perm.TENANT_ADMIN, Perm.USER_ADMIN, Perm.ASSIGN_ADMIN,
+                           Perm.POLICY_VIEW, Perm.POLICY_MANAGE}),
 }
 
 # Peran yang boleh melihat draf AI sebelum ditandatangani dokter. Selain ini hanya melihat

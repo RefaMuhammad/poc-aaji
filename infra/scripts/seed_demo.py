@@ -9,6 +9,10 @@ Langkah:
 5. Sebagian klaim diputuskan asuransi (setuju massal klaim hijau, satu "berbeda"), sebagian dibiarkan.
 6. Tenant kedua (Asuransi Pelita, ambang merah 20): 6 klaim yang sama diunggah supaya terlihat
    perbedaan triase antar tenant. Termasuk SYN-DEN-09 (kuning di DEMO, merah di PELITA).
+7. (U2) Plan benefit + polis rekaan untuk semua peserta sintetis di kedua tenant, webhook ke penerima
+   demo, API key Pelita, lalu satu klaim per kanal integrasi ke Pelita: SYN-DEN-01 lewat FHIR Bundle,
+   SYN-GEA-01 lewat API multipart, SYN-TIF-01 dan SYN-TIF-02 lewat folder SFTP (butuh layanan sftp-watcher).
+   Di Pelita, SYN-DEN-02 memakai plan kelas 2 (kamar melebihi hak) dan SYN-GEA-02 hampir habis limitnya.
 
 Butuh: `make up` dan `make synthetic` sudah dijalankan. Jalankan di container api:
     docker compose exec api python infra/scripts/seed_demo.py
@@ -16,10 +20,12 @@ Jalankan pada database kosong (`make reset`); bila klaim SYN-* sudah ada, skrip 
 """
 from __future__ import annotations
 
+import io
 import json
 import os
 import sys
 import time
+import zipfile
 from pathlib import Path
 
 import httpx
@@ -27,6 +33,7 @@ import httpx
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "apps" / "api"))
 sys.path.insert(0, "/app")
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from seed_users import link_portal_accounts  # noqa: E402
 from seed_users import seed as seed_users  # noqa: E402
 
@@ -42,6 +49,28 @@ SECOND_TENANT_STAFF = "staf@pelita.test"
 SECOND_TENANT_CLAIMS = ["SYN-DEN-02", "SYN-GEA-02", "SYN-DEN-08", "SYN-DEN-09", "SYN-GEA-07", "SYN-TIF-07"]
 FACILITY_FROM = "SYN-TIF-10"   # akun faskes = RS klaim ini (skenario dokumen tidak lengkap)
 MEMBER_FROM = LIVE_DEMO_CLAIM  # akun peserta = peserta klaim yang diunggah langsung saat demo
+
+# --- U2: polis, webhook, kanal integrasi ---
+ADMIN = "admin@mab.test"
+WEBHOOK_BASE = os.environ.get("SEED_WEBHOOK_BASE", "http://api:8000")   # alamat API dari sisi worker
+SFTP_ROOT = Path(os.environ.get("SFTP_ROOT", DATA.parent / "sftp"))
+OUT_DIR = DATA.parent / "demo_upload"
+POLICY_START, POLICY_END = "2025-07-01", "2026-12-31"
+PLANS = {
+    "DEMO": [
+        {"code": "SEHAT-K1", "name": "Sehat Rawat Inap Kelas 1", "room_class": "Kelas 1", "room_rate_limit": 500_000,
+         "annual_limit": 150_000_000, "waiting_period_days": 30, "excluded_icd10": ["O", "Z30"]},
+    ],
+    "PELITA": [
+        {"code": "PELITA-K1", "name": "Pelita Prima Kelas 1", "room_class": "Kelas 1", "room_rate_limit": 500_000,
+         "annual_limit": 50_000_000, "waiting_period_days": 30, "excluded_icd10": ["O"]},
+        {"code": "PELITA-K2", "name": "Pelita Hemat Kelas 2", "room_class": "Kelas 2", "room_rate_limit": 300_000,
+         "annual_limit": 50_000_000, "waiting_period_days": 30, "excluded_icd10": ["O"]},
+    ],
+}
+PELITA_PLAN_K2 = {"SYN-DEN-02"}                    # kamar kelas 1 ditagihkan, hak kelas 2
+PELITA_LIMIT_USED = {"SYN-GEA-02": 48_000_000}      # sisa limit Rp2 jt < tagihan
+CHANNEL_FHIR, CHANNEL_API, CHANNEL_SFTP = "SYN-DEN-01", "SYN-GEA-01", ["SYN-TIF-01", "SYN-TIF-02"]
 
 
 class Api:
@@ -110,6 +139,117 @@ def upload_claims(staf: Api) -> list[str]:
 def upload_second_tenant() -> tuple[Api, list[str]]:
     staf = Api(SECOND_TENANT_STAFF)
     return staf, [_upload_one(staf, DATA / name) for name in SECOND_TENANT_CLAIMS if (DATA / name).is_dir()]
+
+
+# ----------------------------------------------------------------------------- U2
+
+
+def _cases() -> list[dict]:
+    return [json.loads((p / "case.json").read_text(encoding="utf-8"))
+            for p in sorted(DATA.iterdir()) if p.is_dir() and (p / "case.json").exists()]
+
+
+def setup_policies_and_webhooks() -> dict[str, str]:
+    """Plan + polis rekaan untuk semua peserta sintetis, dan webhook ke penerima demo. Kembalikan kode -> insurer_id."""
+    admin = Api(ADMIN)
+    tenants = {t["code"]: t for t in admin.get("/tenants")}
+    cases = _cases()
+    for code, plans in PLANS.items():
+        t = tenants[code]
+        for plan in plans:
+            r = admin.http.put("/policies/plans", json={"insurer_id": t["insurer_id"], **plan})
+            r.raise_for_status()
+        lines = ["nomor_polis,id_peserta,nama_peserta,kode_plan,tanggal_mulai,tanggal_akhir,status,limit_terpakai"]
+        for c in cases:
+            p = c["patient"]
+            plan = plans[0]["code"]
+            used = 0
+            if code == "PELITA":
+                plan = "PELITA-K2" if c["claim_id"] in PELITA_PLAN_K2 else "PELITA-K1"
+                used = PELITA_LIMIT_USED.get(c["claim_id"], 0)
+            lines.append(f"{p['policy_no']},{p['member_id']},{p['name']},{plan},{POLICY_START},{POLICY_END},ACTIVE,{used}")
+        res = admin.post("/policies/import", data={"insurer_id": t["insurer_id"]},
+                         files={"file": (f"polis_{code}.csv", "\n".join(lines).encode(), "text/csv")})
+        print(f"  {code}: {len(plans)} plan, {res['created']} polis baru, {res['updated']} diperbarui")
+
+        keys = ("display_name", "logo_data_url", "primary_color", "triage_red_min_score", "triage_yellow_min_score",
+                "disabled_rules", "sla_gp_hours", "sla_specialist_hours", "auto_assign")
+        body = {k: t[k] for k in keys} | {"webhook_url": f"{WEBHOOK_BASE}/integrations/demo-sink/{code}",
+                                          "webhook_secret": f"rahasia-webhook-demo-{code.lower()}"}
+        r = admin.http.put(f"/tenants/{t['insurer_id']}/settings", json=body)
+        r.raise_for_status()
+        print(f"  {code}: webhook -> {body['webhook_url']}")
+    return {code: t["insurer_id"] for code, t in tenants.items()}
+
+
+def _sftp_zip(claims: list[str]) -> bytes:
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["folder", "nomor_klaim", "nomor_polis", "id_peserta", "nama_peserta", "nama_rs", "tanggal_masuk",
+               "tanggal_keluar", "nilai_tagihan"])
+    zbuf = io.BytesIO()
+    with zipfile.ZipFile(zbuf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name in claims:
+            body = claim_body(json.loads((DATA / name / "case.json").read_text(encoding="utf-8")))
+            ws.append([name, body["claim_number"], body["policy_number"], body["member_id"], body["patient_name"],
+                       body["hospital_name"], body["admission_date"], body["discharge_date"], body["billed_amount"]])
+            for doc in DOC_ORDER:
+                pdf = DATA / name / f"{doc}.pdf"
+                if pdf.exists():
+                    zf.write(pdf, f"{name}/{pdf.name}")
+        xbuf = io.BytesIO()
+        wb.save(xbuf)
+        zf.writestr("manifest.xlsx", xbuf.getvalue())
+    return zbuf.getvalue()
+
+
+def channel_demos(tenant_ids: dict[str, str], staf_pelita: Api) -> list[str]:
+    """API key Pelita, lalu satu klaim per kanal: FHIR, API multipart, SFTP."""
+    from make_fhir_bundle import build_bundle
+
+    admin = Api(ADMIN)
+    created = admin.post(f"/tenants/{tenant_ids['PELITA']}/api-clients",
+                         json={"name": "Sistem inti Pelita (demo)", "scopes": ["claims:read", "claims:write", "policies:write"]})
+    key = created["api_key"]
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    (OUT_DIR / "api_key_PELITA.txt").write_text(key + "\n", encoding="utf-8")
+    print(f"  API key Pelita disimpan di {OUT_DIR / 'api_key_PELITA.txt'} (hanya untuk demo, data rekaan)")
+    integ = httpx.Client(base_url=API, timeout=120, headers={"X-API-Key": key})
+    ids: list[str] = []
+
+    r = integ.post("/integrations/v1/fhir", json=build_bundle(DATA / CHANNEL_FHIR))
+    r.raise_for_status()
+    ids.append(r.json()["claim_id"])
+    print(f"  FHIR Bundle: {CHANNEL_FHIR} diterima ({r.json()['documents']} dokumen)")
+
+    case = json.loads((DATA / CHANNEL_API / "case.json").read_text(encoding="utf-8"))
+    files = [("files", (f"{d}.pdf", (DATA / CHANNEL_API / f"{d}.pdf").read_bytes(), "application/pdf"))
+             for d in DOC_ORDER if (DATA / CHANNEL_API / f"{d}.pdf").exists()]
+    r = integ.post("/integrations/v1/claims", data={"metadata": json.dumps(claim_body(case))}, files=files)
+    r.raise_for_status()
+    ids.append(r.json()["claim_id"])
+    print(f"  API multipart: {CHANNEL_API} diterima ({len(files)} dokumen)")
+
+    inbox = SFTP_ROOT / "PELITA" / "masuk"
+    inbox.mkdir(parents=True, exist_ok=True)
+    tmp = inbox / "kiriman_demo.zip.part"
+    tmp.write_bytes(_sftp_zip(CHANNEL_SFTP))
+    tmp.rename(inbox / "kiriman_demo.zip")
+    print(f"  SFTP: {inbox / 'kiriman_demo.zip'} ditaruh, menunggu sftp-watcher…")
+    deadline = time.monotonic() + int(os.environ.get("SEED_SFTP_TIMEOUT", "90"))
+    while time.monotonic() < deadline:
+        found = {c["claim_number"]: c["id"] for c in staf_pelita.get("/claims", params={"limit": 500})
+                 if c["claim_number"] in CHANNEL_SFTP}
+        if len(found) == len(CHANNEL_SFTP):
+            ids += list(found.values())
+            print(f"  SFTP: {', '.join(CHANNEL_SFTP)} diterima")
+            break
+        time.sleep(3)
+    else:
+        print("  PERINGATAN: ZIP SFTP belum diproses. Pastikan layanan sftp-watcher jalan (`docker compose up -d sftp-watcher`).")
+    return ids
 
 
 def link_accounts() -> None:
@@ -203,17 +343,22 @@ def main() -> None:
     if existing:
         sys.exit("Klaim demo sudah ada. Jalankan `make reset` untuk mengosongkan data lalu seed ulang.")
 
-    print("2. Unggah klaim sintetis")
+    print("2. Polis, plan benefit, dan webhook (U2)")
+    tenant_ids = setup_policies_and_webhooks()
+
+    print("3. Unggah klaim sintetis")
     ids = upload_claims(staf)
     print("   Tenant kedua (Asuransi Pelita)")
     staf_pelita, pelita_ids = upload_second_tenant()
+    print("   Kanal integrasi ke Asuransi Pelita (FHIR, API, SFTP)")
+    pelita_ids += channel_demos(tenant_ids, staf_pelita)
     link_accounts()
-    print("3. Menunggu worker memproses")
+    print("4. Menunggu worker memproses")
     wait_processing(staf, ids)
     wait_processing(staf_pelita, pelita_ids)
-    print("4. Telaah dokter")
+    print("5. Telaah dokter")
     doctor_reviews()
-    print("5. Keputusan asuransi")
+    print("6. Keputusan asuransi")
     insurer_decisions(staf)
     print(f"\nSelesai. Buka http://localhost:3000 (staf@demo.test / {PASSWORD}).")
     print(f"Klaim {LIVE_DEMO_CLAIM} sengaja belum diunggah ke tenant DEMO untuk diunggah langsung saat demo.")

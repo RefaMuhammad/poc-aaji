@@ -115,6 +115,8 @@ Pembagian tanggung jawab:
 | `worker` | `infra/docker/worker.Dockerfile` | - | kode, `rules/`, `data/`, `evaluation/` | PaddleOCR + modelnya diunduh saat build |
 | `web` | `infra/docker/web.Dockerfile` (node:20-alpine, build `standalone`) | 3000 | - | `API_INTERNAL_URL=http://api:8000` |
 | `synthetic` | `infra/docker/synthetic.Dockerfile` | - | `synthetic/`, `data/` | profil `tools`, hanya dijalankan manual |
+| `sftp` (U2) | `atmoz/sftp:alpine` | 2222 | `data/sftp/DEMO`, `data/sftp/PELITA` | login `demo`/`pelita`, password `demo12345` |
+| `sftp-watcher` (U2) | `infra/docker/api.Dockerfile` | - | kode, `rules/`, `data/` | `python -m mab_pipeline.sftp_watcher`, memproses `data/sftp/<KODE>/masuk` |
 
 Semua konfigurasi backend dibaca dari `.env` (template `.env.example`): koneksi database, Redis, MinIO, `JWT_SECRET`, `RULES_PATH`, `LLM_PROVIDER`/`LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL`, `OCR_ENGINE`/`OCR_LANG`. `.env` diabaikan git.
 
@@ -229,6 +231,8 @@ Setiap aturan: `id`, `nama`, `kondisi`, `kode_alasan`, `keparahan`, `pesan` (bol
 
 **Evaluator ekspresi aman** (`rules/engine.py`): `kondisi` di-parse dengan `ast` dan hanya node yang diizinkan yang boleh dipakai: akses `kelompok.field`, konstanta dan daftar, `and/or/not`, perbandingan (`== != < <= > >=`, `in`, `not in`, `is None`), dan `len()`. Tidak ada `eval`, pemanggilan fungsi lain, atau akses atribut bebas. Saat file dimuat (`rules/loader.py`), semua kesalahan dikumpulkan sekaligus: kunci wajib, id unik, field ada di kamus data, kode alasan dan keparahan dikenal, tabel triase diakhiri baris default. Aturan yang field-nya bernilai null dilewati dan dicatat (`RULE_SKIPPED`), bukan dianggap lolos.
 
+**Aturan benefit polis (U2):** `rules/aturan_benefit_demo.yaml` memakai format dan evaluator yang sama, tetapi field-nya `policy.*` dan `benefit.*` (dihitung `mab_pipeline/benefit/` dari polis peserta + rincian tagihan). Dijalankan hanya bila tenant punya data polis; temuannya digabung dengan temuan klinis sebelum triase, dan koreksinya (selisih kamar, kelebihan limit) ditambahkan setelah koreksi klinis. Versi aturan benefit dicatat di `recommendations.benefit_ruleset_version`. Detail: [u2-integrasi-benefit.md](u2-integrasi-benefit.md).
+
 **Penyesuaian per tenant (U1):** tenant tidak menulis aturan, hanya menyesuaikan: ambang skor merah/kuning (mengganti `skor_min` baris merah/kuning) dan mematikan aturan tertentu. `mab_api/tenancy.py` membuat salinan RuleSet dengan penyesuaian itu tepat sebelum pipeline menilai klaim, dan versinya diberi akhiran tenant (`+KODE.vN`).
 
 Uji aturan dari baris perintah:
@@ -269,7 +273,10 @@ Kode di `apps/api/mab_api/`. Dokumentasi interaktif otomatis di http://localhost
 | `admin` | `GET /admin/ruleset`, `POST /admin/claims/{id}/assign` | lihat aturan: admin, dokter, auditor; pindah penugasan: admin |
 | `users` | `GET /users` | admin |
 | `tenants` (U1) | `GET /tenants/current` (logo/nama untuk header), `GET /tenants`, `POST /tenants`, `PUT /tenants/{id}/settings`, `GET/POST /tenants/{id}/api-clients`, `POST /tenants/{id}/api-clients/{cid}/revoke` | lihat: peran tenant; ubah: admin |
-| `integrations` (U1) | `GET /integrations/v1/whoami`, `GET /integrations/v1/claims`, `GET /integrations/v1/claims/{nomor}` | akun layanan, header `X-API-Key`, cakupan `claims:read` |
+| `integrations` (U1, U2) | `GET /integrations/v1/whoami`, `GET /integrations/v1/claims`, `GET /integrations/v1/claims/{nomor}`, `GET /integrations/v1/fhir/ClaimResponse/{nomor}` (`claims:read`); `POST /integrations/v1/claims` (multipart), `POST /integrations/v1/fhir` (Bundle R4) (`claims:write`); `PUT /integrations/v1/policies` (`policies:write`) | akun layanan, header `X-API-Key` |
+| `integrations` demo (U2) | `POST /integrations/demo-sink/{KODE}` (penerima webhook rekaan, cek HMAC), `GET /integrations/demo-sink` | hanya `DEMO_MODE`; daftar: peran tenant |
+| `policies` (U2) | `GET /policies`, `GET/PUT /policies/plans`, `POST /policies/import` (CSV/XLSX), `GET /policies/template.csv` | lihat: operator, auditor, admin; ubah: operator, admin |
+| `tenants` (U2) | `GET /tenants/api-scopes`, `GET /tenants/{id}/integration-jobs`, `GET /tenants/{id}/webhook-deliveries`, `POST /tenants/{id}/webhook-deliveries/{did}/resend` | lihat: peran tenant; kirim ulang: admin |
 
 Hak akses per peran ada di satu tempat, `rbac.py` (matriks izin, `require_perm`); cakupan data di `access.py`. Matriks lengkap di [u1-fondasi-platform.md](u1-fondasi-platform.md#3-matriks-hak-akses).
 
@@ -296,6 +303,12 @@ Tabel utama (`apps/api/mab_api/models.py`, migrasi `apps/api/alembic/versions/`)
 | `tenant_settings` (U1) | `display_name`, `logo_data_url`, `primary_color`, `triage_red_min_score`, `triage_yellow_min_score`, `disabled_rules[]`, `sla_gp_hours`, `sla_specialist_hours`, `auto_assign`, `version` | Pengaturan per asuransi |
 | `api_clients` (U1) | `insurer_id`, `name`, `key_prefix`, `key_hash` (SHA-256), `scopes[]`, `is_active`, `last_used_at`, `revoked_at` | Akun layanan integrasi |
 | `assignments` (U1) | `claim_id`, `recommendation_id`, `doctor_id`, `level`, `specialty`, `method`, `status`, `assigned_at`, `due_at`, `closed_at` | Penugasan kasus ke dokter dan batas SLA |
+| `benefit_plans` (U2) | `insurer_id`, `code`, `name`, `room_class`, `room_rate_limit`, `annual_limit`, `waiting_period_days`, `excluded_icd10[]` | Plan benefit rawat inap |
+| `policies` (U2) | `insurer_id`, `policy_number`, `member_id`, `member_name`, `plan_id`, `start_date`, `end_date`, `status`, `limit_used`, `source` | Polis peserta dari sistem inti asuransi |
+| `integration_jobs` (U2) | `insurer_id`, `channel` (API/FHIR/SFTP/POLICY_IMPORT/POLICY_API), `reference`, `status`, `summary` | Riwayat data masuk lewat integrasi |
+| `webhook_deliveries` (U2) | `insurer_id`, `event`, `claim_id`, `url`, `payload`, `status`, `attempts`, `last_status_code`, `last_error` | Webhook keluar dan hasil pengirimannya |
+
+Kolom U2 lain: `claims.source` (PORTAL/BATCH/API/SFTP/FHIR), `claims.api_client_id`, `claims.policy_id`, `tenant_settings.webhook_url/webhook_secret`, `recommendations.benefit_ruleset_version`. Klaim dan dokumen dari integrasi tidak punya `created_by_id`/`uploaded_by_id`.
 | `claims` | `claim_number`, `policy_number`, `member_id`, `hospital_name`, tanggal rawat, `billed_amount`, `primary_icd10`, `status`, `processing_error`, `assigned_doctor_id` | Satu klaim rawat inap |
 | `documents` | `filename`, `content_type`, `size_bytes`, `sha256`, `storage_key`, `doc_type`, `page_count` | Metadata file; isi file di MinIO |
 | `extracted_fields` | `field_path`, `value`, `source`, `confidence`, `status`, `evidence[]`, `corrected_value/by/at` | Satu baris per field kamus data |
@@ -359,6 +372,7 @@ Komponen utama di `components/`: `DocumentViewer` (`DocumentPane` inline + modal
 - **Ganti peran (demo):** akun demo (`mab_api/demo.py`) bisa berpindah ke akun demo lain tanpa password lewat `POST /auth/demo-switch`, untuk menjalankan seluruh alur dari satu jendela. Bukan peran super: token baru membawa peran akun tujuan, jadi semua batasan peran tetap berlaku, dan perpindahan dicatat sebagai `DEMO_SWITCH` di log audit. Hanya aktif bila `DEMO_MODE=true`; wajib dimatikan sebelum memakai data sungguhan.
 - **Isolasi tenant:** staf/manajer/auditor tenant hanya melihat klaim `insurer_id` miliknya; operator TPA hanya tenant di `user_tenants`; petugas faskes hanya klaim RS-nya; peserta hanya klaim atas nomor pesertanya. Peran tanpa aturan cakupan tidak melihat klaim apa pun. Klaim di luar akses menjawab **404**, bukan 403, supaya keberadaannya tidak bocor.
 - **Draf AI:** hanya dokter dan admin yang melihat draf sebelum ditandatangani; peran lain hanya rekomendasi yang sudah dirilis.
+- **Webhook (U2):** setiap pengiriman ditandatangani HMAC-SHA256 dengan rahasia per tenant (`X-MAB-Signature`), hanya berisi rekomendasi yang sudah dirilis, dan tercatat di `webhook_deliveries`. Rahasia tidak pernah dikembalikan API (hanya `webhook_secret_set`).
 - **Akun layanan (U1):** kunci API acak 256-bit, hanya hash SHA-256 yang disimpan, ditampilkan sekali, bisa dicabut; terikat ke satu tenant dan cakupan izin. Setiap panggilan tercatat `INTEGRATION_ACCESS`.
 - **Akses dokter:** klaim yang ditugaskan kepadanya, atau yang menunggu dokter dan belum dikunci dokter lain; antrean memfilter level dan spesialisasi.
 - **Pemisahan peran:** hanya asuransi/TPA yang bisa membuat klaim dan memutuskan; hanya dokter yang bisa menelaah dan menandatangani; hanya dokter umum yang bisa mengeskalasi; auditor, faskes, dan peserta hanya-baca; admin mengatur tenant dan penugasan tetapi tidak memutuskan klaim.
@@ -393,6 +407,7 @@ Setiap rekomendasi menyimpan `model_version` (mis. `mock-llm-1` atau nama model)
 | `tests/test_dashboard.py` | Dashboard hanya menghitung rekomendasi yang boleh dilihat |
 | `tests/test_rbac.py` | (U1) Matriks peran × endpoint, isolasi antar tenant dan antar peran, draf tersembunyi, TPA multi-tenant |
 | `tests/test_tenants.py` | (U1) Ambang triase & aturan per tenant, versi aturan bertenant, audit pengaturan, API key, penugasan otomatis, SLA |
+| `tests/test_u2_integrasi.py` | (U2) Aturan benefit, impor polis dan cakupannya, API klaim masuk, webhook bertanda tangan + percobaan ulang, FHIR Bundle → ClaimResponse, folder SFTP, penerima webhook demo |
 
 Frontend dicek dengan `npm run build` (TypeScript strict) dan uji alur di browser (Playwright) selama pengembangan.
 

@@ -53,6 +53,9 @@ export function FindingCard({
                 </button>
               ) : (
                 <div className="rounded border bg-slate-50 px-3 py-2 text-sm">
+                  {e.policy_number && (
+                    <span className="mb-0.5 block text-xs font-medium text-slate-500">Data polis {e.policy_number}</span>
+                  )}
                   {e.quote ?? "Bukti dari riwayat klaim"}
                   {e.claim_id && (
                     <Link href={`/klaim/${e.claim_id}`} className="block text-xs text-sky-800 hover:underline">

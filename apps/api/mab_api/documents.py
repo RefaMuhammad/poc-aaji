@@ -73,7 +73,8 @@ def validate_file(filename: str, data: bytes) -> ValidFile:
     return ValidFile(safe_filename(filename), data, ctype)
 
 
-def store_document(db: Session, storage, claim: Claim, user: User, f: ValidFile) -> Document:
+def store_document(db: Session, storage, claim: Claim, user: User | None, f: ValidFile) -> Document:
+    """Simpan file dokumen. `user` kosong untuk dokumen dari integrasi (API, SFTP, FHIR)."""
     doc = Document(
         claim_id=claim.id,
         filename=f.filename,
@@ -82,7 +83,7 @@ def store_document(db: Session, storage, claim: Claim, user: User, f: ValidFile)
         sha256=hashlib.sha256(f.data).hexdigest(),
         storage_key="",
         doc_type=guess_doc_type(f.filename),
-        uploaded_by_id=user.id,
+        uploaded_by_id=user.id if user else None,
     )
     db.add(doc)
     db.flush()  # dapatkan id

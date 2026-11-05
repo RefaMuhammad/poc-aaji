@@ -43,7 +43,35 @@ export const REASON_LABEL: Record<string, string> = {
   DRUG_NOT_INDICATED: "Obat tanpa indikasi",
   COMPLICATION_UNSUPPORTED: "Komplikasi tidak didukung bukti",
   BILLED_NOT_DOCUMENTED: "Ditagihkan tanpa catatan klinis",
+  // U2: aturan benefit polis
+  POLICY_NOT_FOUND: "Polis peserta tidak ditemukan",
+  POLICY_INACTIVE: "Polis tidak aktif saat rawat",
+  WAITING_PERIOD: "Masih dalam masa tunggu",
+  EXCLUDED_CONDITION: "Diagnosis dikecualikan polis",
+  LIMIT_EXCEEDED: "Melebihi sisa limit tahunan",
+  ROOM_CLASS_EXCEEDED: "Kelas kamar melebihi hak",
 };
+
+export const SOURCE_LABEL: Record<string, string> = {
+  PORTAL: "Portal",
+  BATCH: "Unggah massal",
+  API: "API",
+  SFTP: "SFTP",
+  FHIR: "FHIR",
+};
+
+export const POLICY_STATUS_LABEL: Record<string, string> = { ACTIVE: "Aktif", LAPSED: "Lewat masa", TERMINATED: "Berakhir" };
+
+export const CHANNEL_LABEL: Record<string, string> = {
+  API: "API klaim",
+  FHIR: "FHIR Bundle",
+  SFTP: "SFTP batch",
+  POLICY_IMPORT: "Impor polis (file)",
+  POLICY_API: "Polis lewat API",
+};
+
+export const JOB_STATUS_LABEL: Record<string, string> = { SUCCESS: "Berhasil", PARTIAL: "Sebagian", FAILED: "Gagal" };
+export const DELIVERY_STATUS_LABEL: Record<string, string> = { PENDING: "Menunggu", DELIVERED: "Terkirim", FAILED: "Gagal" };
 
 export const SEVERITY_LABEL: Record<string, string> = { HIGH: "Tinggi", MEDIUM: "Sedang", LOW: "Rendah", INFO: "Info" };
 
