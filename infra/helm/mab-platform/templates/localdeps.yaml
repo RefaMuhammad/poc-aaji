@@ -1,0 +1,56 @@
+{{- if .Values.localDeps.enabled }}
+# HANYA UNTUK UJI LOKAL. Di cloud pakai layanan terkelola yang terenkripsi dan ter-backup.
+{{- range $name, $spec := dict "postgres" (dict "image" "postgres:16-alpine" "port" 5432) "redis" (dict "image" "redis:7-alpine" "port" 6379) "minio" (dict "image" "bitnamilegacy/minio:2025.7.23-debian-12-r5" "port" 9000) }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $name }}
+  labels: {{- include "mab.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: dep-{{ $name }}
+spec:
+  serviceName: {{ $name }}
+  replicas: 1
+  selector:
+    matchLabels: {{- include "mab.selector" (dict "root" $ "component" (printf "dep-%s" $name)) | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "mab.selector" (dict "root" $ "component" (printf "dep-%s" $name)) | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ $name }}
+          image: {{ $spec.image }}
+          ports:
+            - containerPort: {{ $spec.port }}
+          {{- if eq $name "postgres" }}
+          env:
+            - {name: POSTGRES_USER, value: mab}
+            - {name: POSTGRES_DB, value: mab}
+            - {name: POSTGRES_PASSWORD, valueFrom: {secretKeyRef: {name: {{ include "mab.secretName" $ }}, key: POSTGRES_PASSWORD}}}
+            - {name: PGDATA, value: /data/pgdata}
+          {{- else if eq $name "minio" }}
+          env:
+            - {name: MINIO_ROOT_USER, valueFrom: {secretKeyRef: {name: {{ include "mab.secretName" $ }}, key: MINIO_ROOT_USER}}}
+            - {name: MINIO_ROOT_PASSWORD, valueFrom: {secretKeyRef: {name: {{ include "mab.secretName" $ }}, key: MINIO_ROOT_PASSWORD}}}
+            - {name: MINIO_KMS_SECRET_KEY, valueFrom: {secretKeyRef: {name: {{ include "mab.secretName" $ }}, key: MINIO_KMS_SECRET_KEY}}}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ if eq $name "minio" }}/bitnami/minio/data{{ else }}/data{{ end }}
+  volumeClaimTemplates:
+    - metadata: {name: data}
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources: {requests: {storage: 5Gi}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels: {{- include "mab.labels" $ | nindent 4 }}
+spec:
+  selector: {{- include "mab.selector" (dict "root" $ "component" (printf "dep-%s" $name)) | nindent 4 }}
+  ports:
+    - port: {{ $spec.port }}
+---
+{{- end }}
+{{- end }}

@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
+// Render per permintaan supaya setiap halaman mendapat nonce CSP baru (middleware.ts).
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "MAB Indonesia POC",
   description: "Platform telaah medis klaim rawat inap (Tahap 0, data rekaan)",

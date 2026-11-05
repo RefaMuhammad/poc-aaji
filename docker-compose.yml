@@ -38,6 +38,8 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      # U8: kunci KMS bawaan MinIO untuk enkripsi at rest (SSE-S3). Di cloud diganti KMS penyedia.
+      MINIO_KMS_SECRET_KEY: ${MINIO_KMS_SECRET_KEY:-mab-dev-key:Zm9yLWRldi1vbmx5LWRvLW5vdC11c2UtaW4tY2xvdWQ=}
     volumes:
       - miniodata:/bitnami/minio/data
     ports:
@@ -53,6 +55,8 @@ services:
     build:
       context: .
       dockerfile: infra/docker/api.Dockerfile
+    # Image berjalan non-root; di dev pakai root karena folder kode dan data di-mount dari laptop.
+    user: root
     command: sh -c "alembic upgrade head && uvicorn mab_api.main:app --host 0.0.0.0 --port 8000 --reload"
     volumes:
       - ./apps/api/mab_api:/app/mab_api
@@ -78,6 +82,7 @@ services:
     build:
       context: .
       dockerfile: infra/docker/worker.Dockerfile
+    user: root
     command: python -m mab_pipeline.worker
     environment:
       LLM_MOCK_FIXTURES_DIR: /app/data/synthetic_output
@@ -109,8 +114,11 @@ services:
       context: .
       dockerfile: infra/docker/api.Dockerfile
     command: python -m mab_pipeline.sftp_watcher
+    user: root
     environment:
       SFTP_ROOT: /app/data/sftp
+      # Dev: pengguna container SFTP (uid 1001/1002) berbeda dari watcher, jadi folder dibuka untuk semua.
+      SFTP_DIR_MODE: "0777"
     volumes:
       - ./apps/api/mab_api:/app/mab_api
       - ./pipeline/mab_pipeline:/app/mab_pipeline
@@ -136,6 +144,18 @@ services:
     depends_on:
       postgres: {condition: service_healthy}
       api: {condition: service_started}
+
+  # U8: backup dan pemulihan (database + dokumen) ke bucket mab-backups.
+  # docker compose run --rm ops backup | list | restore latest --target-database-url ...
+  ops:
+    <<: *backend-env
+    profiles: ["ops"]
+    build:
+      context: .
+      dockerfile: infra/docker/ops.Dockerfile
+    depends_on:
+      postgres: {condition: service_healthy}
+      minio: {condition: service_healthy}
 
   web:
     build:

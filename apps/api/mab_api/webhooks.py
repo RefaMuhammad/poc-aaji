@@ -95,7 +95,8 @@ def queue_event(db: Session, claim: Claim, event: str) -> WebhookDelivery | None
     """Catat satu pengiriman (PENDING) bila tenant punya URL webhook. Kirim setelah commit lewat `dispatch`."""
     from mab_api.tenancy import tenant_config
 
-    assert event in EVENTS, event
+    if event not in EVENTS:
+        raise ValueError(f"Event webhook tidak dikenal: {event}")
     cfg = tenant_config(db, claim.insurer_id)
     if not cfg.webhook_url:
         return None

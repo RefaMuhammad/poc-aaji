@@ -146,7 +146,7 @@ def submit_claim(
     try:
         body = ClaimCreate.model_validate_json(metadata)
     except ValidationError as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
                             "metadata tidak valid: " + "; ".join(f"{'.'.join(map(str, e['loc']))}: {e['msg']}" for e in exc.errors()))
     if body.insurer_id and body.insurer_id != client.insurer_id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Kunci API hanya untuk tenant pemiliknya")
@@ -154,7 +154,7 @@ def submit_claim(
     try:
         valid = [validate_file(f.filename or "dokumen", f.file.read(max_bytes + 1)) for f in files]
     except InvalidFile as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc))
     return _submit(db, storage, queue, client, body, valid, ClaimSource.API, body.claim_number)
 
 
@@ -172,7 +172,7 @@ def submit_fhir_bundle(
     except FhirError as exc:
         _job(db, client, "FHIR", str(bundle.get("id") or "")[:255] if isinstance(bundle, dict) else None, "FAILED", {"error": str(exc)})
         db.commit()
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc))
     return _submit(db, storage, queue, client, mapped.claim, mapped.files, ClaimSource.FHIR,
                    mapped.bundle_id or mapped.claim.claim_number, {"resources": mapped.counts}, mapped.primary_icd10)
 

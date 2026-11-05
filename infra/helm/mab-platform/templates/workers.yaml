@@ -1,0 +1,121 @@
+{{- range .Values.workers }}
+{{- $c := dict "root" $ "component" (printf "worker-%s" .name) }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "mab.fullname" $ }}-worker-{{ .name }}
+  labels: {{- include "mab.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: worker-{{ .name }}
+spec:
+  replicas: {{ .replicas }}
+  selector:
+    matchLabels: {{- include "mab.selector" $c | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "mab.selector" $c | nindent 8 }}
+        mab/role: worker
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/config.yaml") $ | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "mab.serviceAccountName" $ }}
+      {{- with $.Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext: {{- include "mab.podSecurity" $ | nindent 8 }}
+      # Job OCR/LLM bisa berjalan beberapa menit; beri waktu menyelesaikan job sebelum pod dihentikan.
+      terminationGracePeriodSeconds: 600
+      containers:
+        - name: worker
+          image: {{ include "mab.image" (dict "root" $ "name" "worker") }}
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          envFrom: {{- include "mab.envFrom" $ | nindent 12 }}
+          env:
+            - {name: RQ_QUEUES, value: {{ .queues | quote }}}
+          securityContext:
+            allowPrivilegeEscalation: false
+            # PaddleOCR menulis cache di home pengguna; root filesystem tetap writable untuk worker.
+            readOnlyRootFilesystem: false
+            capabilities: {drop: [ALL]}
+          resources: {{- toYaml .resources | nindent 12 }}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            {{- include "mab.syntheticMount" $ | nindent 12 }}
+      volumes:
+        - name: tmp
+          emptyDir: {sizeLimit: 4Gi}
+        {{- include "mab.syntheticVolume" $ | nindent 8 }}
+---
+{{- end }}
+{{- if .Values.reportScheduler.enabled }}
+{{- $c := dict "root" . "component" "report-scheduler" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "mab.fullname" . }}-report-scheduler
+  labels: {{- include "mab.labels" . | nindent 4 }}
+    app.kubernetes.io/component: report-scheduler
+spec:
+  replicas: 1          # satu saja: penjadwal laporan bulanan tidak boleh jalan ganda
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {{- include "mab.selector" $c | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "mab.selector" $c | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "mab.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext: {{- include "mab.podSecurity" . | nindent 8 }}
+      containers:
+        - name: scheduler
+          image: {{ include "mab.image" (dict "root" . "name" "api") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["python", "-m", "mab_api.report_scheduler"]
+          envFrom: {{- include "mab.envFrom" . | nindent 12 }}
+          securityContext: {{- include "mab.containerSecurity" . | nindent 12 }}
+          resources: {{- toYaml .Values.reportScheduler.resources | nindent 12 }}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+{{- end }}
+{{- if .Values.sftpWatcher.enabled }}
+{{- $c := dict "root" . "component" "sftp-watcher" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "mab.fullname" . }}-sftp-watcher
+  labels: {{- include "mab.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sftp-watcher
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {{- include "mab.selector" $c | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "mab.selector" $c | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "mab.serviceAccountName" . }}
+      securityContext: {{- include "mab.podSecurity" . | nindent 8 }}
+      containers:
+        - name: watcher
+          image: {{ include "mab.image" (dict "root" . "name" "api") }}
+          command: ["python", "-m", "mab_pipeline.sftp_watcher"]
+          envFrom: {{- include "mab.envFrom" . | nindent 12 }}
+          env:
+            - {name: SFTP_ROOT, value: /data/sftp}
+          securityContext: {{- include "mab.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            - {name: sftp, mountPath: /data/sftp}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: sftp
+          persistentVolumeClaim: {claimName: {{ required "sftpWatcher.pvcName wajib diisi" .Values.sftpWatcher.pvcName }}}
+        - name: tmp
+          emptyDir: {}
+{{- end }}

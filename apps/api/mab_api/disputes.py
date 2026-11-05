@@ -100,13 +100,13 @@ def file_dispute(db: Session, storage, claim: Claim, user: User, *, category: st
     if blocked:
         raise HTTPException(status.HTTP_409_CONFLICT, blocked)
     if category not in CATEGORY_LABEL:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Kategori banding tidak dikenal")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Kategori banding tidak dikenal")
     reason = (reason or "").strip()
     if len(reason) < 10:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Tuliskan alasan banding (minimal 10 karakter)")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Tuliskan alasan banding (minimal 10 karakter)")
     declared = list(doc_types or [])
     if declared and len(declared) != len(files):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Jumlah jenis dokumen harus sama dengan jumlah file")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Jumlah jenis dokumen harus sama dengan jumlah file")
 
     old, dec = _current(claim), current_decision(claim)
     docs = []
@@ -115,7 +115,7 @@ def file_dispute(db: Session, storage, claim: Claim, user: User, *, category: st
         kind = (declared[i] if declared else "").strip()
         if kind:
             if kind not in KNOWN_DOC_TYPES:
-                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Jenis dokumen tidak dikenal: {kind}")
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Jenis dokumen tidak dikenal: {kind}")
             doc.doc_type = kind
         docs.append(doc)
 

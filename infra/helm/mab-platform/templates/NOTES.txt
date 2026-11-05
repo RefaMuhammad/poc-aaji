@@ -1,0 +1,17 @@
+Platform MAB {{ .Chart.AppVersion }} terpasang di namespace {{ .Release.Namespace }} (environment: {{ .Values.environment }}).
+
+Portal: https://{{ .Values.ingress.host }}
+{{- if .Values.ingress.apiHost }}
+API integrasi: https://{{ .Values.ingress.apiHost }}/integrations/v1
+{{- end }}
+
+Cek:
+  kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "mab.fullname" . }}-api -c migrate
+  kubectl -n {{ .Release.Namespace }} create job --from=cronjob/{{ include "mab.fullname" . }}-backup backup-manual
+
+{{- if eq .Values.config.REAL_DATA_ENABLED "true" }}
+PERHATIAN: REAL_DATA_ENABLED=true. Pastikan checklist UU PDP (docs/u8-checklist-uu-pdp.md) sudah disetujui.
+{{- else }}
+Data: hanya data rekaan. Data sungguhan baru boleh masuk setelah checklist UU PDP disetujui.
+{{- end }}

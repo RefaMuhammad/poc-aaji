@@ -43,7 +43,7 @@ def file_dispute(
     try:
         valid = [validate_file(f.filename or "dokumen", f.file.read(max_bytes + 1)) for f in uploads]
     except InvalidFile as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc))
     d = disputes.file_dispute(db, storage, claim, user, category=category, reason=reason, files=valid,
                               doc_types=[t for t in (doc_types or []) if t] or None, request=request)
     hook = queue_event(db, claim, "claim.dispute_filed")

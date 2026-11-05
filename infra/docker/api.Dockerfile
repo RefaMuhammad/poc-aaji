@@ -9,6 +9,9 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
+# Jalan sebagai pengguna non-root (U8). UID tetap supaya cocok dengan securityContext di Helm chart.
+RUN useradd --uid 10001 --create-home --shell /usr/sbin/nologin app
+
 WORKDIR /app
 
 COPY apps/api/requirements.txt /tmp/requirements.txt
@@ -24,5 +27,8 @@ COPY synthetic /app/synthetic
 COPY tests /app/tests
 COPY evaluation /app/evaluation
 
+USER 10001
 EXPOSE 8000
-CMD ["sh", "-c", "alembic upgrade head && uvicorn mab_api.main:app --host 0.0.0.0 --port 8000"]
+# Migrasi dijalankan terpisah (docker compose: perintah service api; Kubernetes: Job hook Helm).
+# --proxy-headers: alamat klien diambil dari X-Forwarded-For yang dipasang ingress/web.
+CMD ["uvicorn", "mab_api.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]

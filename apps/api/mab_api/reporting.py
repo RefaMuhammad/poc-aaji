@@ -62,7 +62,7 @@ REVIEW_ACTION_LABEL = {"APPROVE": "menyetujui draf", "MODIFY": "mengubah draf", 
 # ----------------------------------------------------------------------------- label aksi audit
 
 ACTION_LABEL = {
-    "LOGIN": "Masuk", "LOGIN_FAILED": "Gagal masuk", "DEMO_SWITCH": "Ganti peran (mode demo)",
+    "LOGIN": "Masuk", "LOGIN_FAILED": "Gagal masuk", "LOGIN_LOCKED": "Login dikunci sementara (terlalu banyak gagal)", "DEMO_SWITCH": "Ganti peran (mode demo)",
     "DOCUMENT_ACCESS": "Membuka dokumen",
     "PIPELINE_COMPLETED": "Sistem selesai membaca dan menilai dokumen",
     "PIPELINE_FAILED": "Sistem gagal memproses klaim",

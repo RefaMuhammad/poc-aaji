@@ -85,4 +85,4 @@ def resolve_target_tenant(db: Session, user: User, requested: str | None) -> str
         return user.insurer_id
     if len(allowed) == 1:
         return next(iter(allowed))
-    raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Pilih asuransi (insurer_id) untuk klaim ini")
+    raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Pilih asuransi (insurer_id) untuk klaim ini")

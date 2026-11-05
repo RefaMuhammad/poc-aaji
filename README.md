@@ -88,7 +88,7 @@ Password semua akun: `demo12345`. PIN tanda tangan dokter: `123456`.
 | Peserta | `peserta@demo.test` | Portal peserta: status dan penjelasan klaimnya (U4) |
 | Underwriter | `underwriter@demo.test` | Underwriting medis: ajukan calon peserta, putuskan (U7) |
 
-Peran baru dan dua tenant demo dijelaskan di [docs/u1-fondasi-platform.md](docs/u1-fondasi-platform.md). Polis, aturan benefit, API klaim masuk, FHIR, SFTP (port 2222, login `demo`/`pelita` + `demo12345`), dan webhook dijelaskan di [docs/u2-integrasi-benefit.md](docs/u2-integrasi-benefit.md). Fraud analytics dan Fraud Monitor dijelaskan di [docs/u3-fraud-analytics.md](docs/u3-fraud-analytics.md). Portal faskes, portal peserta, Ringkasan TPA, kotak masuk, dan alur "tunda: minta dokumen" dijelaskan di [docs/u4-portal-faskes-peserta.md](docs/u4-portal-faskes-peserta.md). Banding atas keputusan dan telaah ulang oleh dokter lain dijelaskan di [docs/u5-manajemen-sengketa.md](docs/u5-manajemen-sengketa.md). Halaman Laporan & Audit (jejak keputusan, log audit, laporan bulanan, penjadwal) dijelaskan di [docs/u6-audit-pelaporan.md](docs/u6-audit-pelaporan.md). Underwriting medis calon peserta (aturan YAML, tanda tangan dokter, evaluasi 35 kasus) dijelaskan di [docs/u7-medical-underwriting.md](docs/u7-medical-underwriting.md).
+Peran baru dan dua tenant demo dijelaskan di [docs/u1-fondasi-platform.md](docs/u1-fondasi-platform.md). Polis, aturan benefit, API klaim masuk, FHIR, SFTP (port 2222, login `demo`/`pelita` + `demo12345`), dan webhook dijelaskan di [docs/u2-integrasi-benefit.md](docs/u2-integrasi-benefit.md). Fraud analytics dan Fraud Monitor dijelaskan di [docs/u3-fraud-analytics.md](docs/u3-fraud-analytics.md). Portal faskes, portal peserta, Ringkasan TPA, kotak masuk, dan alur "tunda: minta dokumen" dijelaskan di [docs/u4-portal-faskes-peserta.md](docs/u4-portal-faskes-peserta.md). Banding atas keputusan dan telaah ulang oleh dokter lain dijelaskan di [docs/u5-manajemen-sengketa.md](docs/u5-manajemen-sengketa.md). Halaman Laporan & Audit (jejak keputusan, log audit, laporan bulanan, penjadwal) dijelaskan di [docs/u6-audit-pelaporan.md](docs/u6-audit-pelaporan.md). Underwriting medis calon peserta (aturan YAML, tanda tangan dokter, evaluasi 35 kasus) dijelaskan di [docs/u7-medical-underwriting.md](docs/u7-medical-underwriting.md). Deploy ke cloud (Helm), backup dan pemulihan, monitoring, hasil uji keamanan, dan checklist sebelum data sungguhan dijelaskan di [docs/u8-infrastruktur-cloud.md](docs/u8-infrastruktur-cloud.md) dan [docs/runbook-operasi.md](docs/runbook-operasi.md).
 
 **Ganti peran (demo).** Setelah login dengan akun demo mana saja, pemilih kuning **Ganti peran (demo)** di kanan atas memindahkan Anda ke akun demo lain tanpa logout. Dengan begitu seluruh alur, dari unggah, telaah dokter, keputusan, sampai dashboard, bisa dijalankan dari satu jendela browser. Setiap aksi tetap tercatat atas nama peran yang benar, jadi aturan "hanya dokter yang menandatangani" tetap berlaku. Matikan dengan `DEMO_MODE=false` di `.env`. Penjelasan lengkap ada di [docs/skenario-unggah.md](docs/skenario-unggah.md).
 
@@ -133,6 +133,8 @@ Naskah lengkap 10 menit, dengan kalimat yang bisa diucapkan dan nilai yang perlu
 | Isi data demo | `make seed` | `docker compose exec api python infra/scripts/seed_demo.py` |
 | **Reset demo** (hapus semua data, isi ulang) | `make reset` | lihat di bawah |
 | Evaluasi lengkap | `make eval` | `docker compose run --rm --no-deps worker python -m evaluation.run_eval` |
+| Backup database + dokumen (U8) | `make backup` | `docker compose run --rm ops backup` |
+| Daftar backup | `make backups` | `docker compose run --rm ops list` |
 
 **Reset demo** menghapus database dan file dokumen lokal lalu mengisi ulang data demo. Dengan Git Bash: `bash infra/scripts/reset_demo.sh` (minta konfirmasi). Di PowerShell:
 
@@ -195,18 +197,21 @@ Catatan: di mode sungguhan nomor klaim bebas (tidak harus `SYN-...`). Sebelum me
 - Tanda tangan digital sederhana (login + PIN), belum tanda tangan elektronik tersertifikasi.
 - Tidak ada integrasi ke sistem klaim asuransi; pertukaran data lewat unggah manual dan ekspor CSV.
 - Modul red flag (`pipeline/mab_pipeline/redflags/`) belum diisi; pola penipuan baru sebatas aturan umum (klaim tumpang tindih, item ganda, item tanpa catatan klinis).
-- Rahasia di `.env.example` hanya untuk lokal. Ganti `JWT_SECRET` dan password bila dipasang di server mana pun.
+- Rahasia di `.env.example` hanya untuk lokal. Di staging/produksi (`ENVIRONMENT` bukan `development`) API menolak start bila rahasia bawaan masih dipakai.
+- Data sungguhan baru boleh dipakai setelah [checklist UU PDP](docs/u8-checklist-uu-pdp.md) disetujui, termasuk [keputusan residensi data LLM](docs/u8-residensi-llm.md) dan uji penetrasi pihak ketiga.
 
 ## 10. Struktur repo
 
 ```
-apps/web/                Next.js 14: portal asuransi, ruang kerja dokter, admin, dashboard
+apps/web/                Next.js 15: portal asuransi, ruang kerja dokter, admin, dashboard
 apps/api/                FastAPI: auth, klaim, dokumen, telaah, keputusan, dashboard, audit; migrasi Alembic
 pipeline/mab_pipeline/   ingest, ocr, extraction, reasoning, rules, triage, llm, worker RQ
 rules/                   aturan_klinis_demo.yaml (konfigurasi aturan) + CHANGELOG.md
 synthetic/               generator 30 klaim sintetis (PDF digital + pindaian)
 evaluation/              skrip evaluasi + laporan (evaluation/reports/)
-infra/docker/            Dockerfile api, worker, web, synthetic
+infra/docker/            Dockerfile api, worker, web, synthetic, ops (backup)
+infra/helm/mab-platform/ Helm chart Kubernetes (U8): values.yaml, values-staging.yaml, values-local.yaml
+infra/ops/               mab_backup.py: backup, pemulihan, verifikasi
 infra/scripts/           seed_users.py, seed_demo.py, reset_demo.sh
 docs/                    ARSITEKTUR.md, demo-script.md, kamus-data.md
 tests/                   tes otomatis (pytest)
@@ -234,4 +239,4 @@ data/                    (diabaikan git) output data sintetis
 - [x] U5 Manajemen sengketa: banding, telaah ulang dokter lain, putusan ulang ([docs/u5-manajemen-sengketa.md](docs/u5-manajemen-sengketa.md))
 - [x] U6 Audit dan pelaporan: penampil log audit, jejak keputusan, laporan bulanan POJK 36/2025 ([docs/u6-audit-pelaporan.md](docs/u6-audit-pelaporan.md))
 - [x] U7 Medical underwriting: SPAJ, kuesioner, MCU, lab, surat dokter; aturan YAML; tanda tangan dokter ([docs/u7-medical-underwriting.md](docs/u7-medical-underwriting.md))
-- [ ] U8 Infrastruktur cloud dan kesiapan data sungguhan
+- [x] U8 Infrastruktur cloud dan kesiapan data sungguhan: Helm chart, enkripsi, backup + uji pemulihan, monitoring, uji keamanan, checklist UU PDP ([docs/u8-infrastruktur-cloud.md](docs/u8-infrastruktur-cloud.md)). Deploy staging di cloud menunggu pilihan penyedia dari klien

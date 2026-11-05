@@ -9,6 +9,7 @@ from mab_api.demo import DEMO_ACCOUNTS, DEMO_EMAILS
 from mab_api.db import get_db
 from mab_api.deps import get_current_user
 from mab_api.models import User
+from mab_api.observability import AUTH_LOCKOUTS
 from mab_api.security import create_access_token, verify_secret
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -16,11 +17,26 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/login", response_model=TokenResponse)
 def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)) -> TokenResponse:
-    user = db.scalar(select(User).where(User.email == body.email.strip().lower()))
+    email = body.email.strip().lower()
+    limiter = request.app.state.limiter
+    # Batas per akun (menebak password satu akun) dan per alamat IP (menebak banyak akun dari satu sumber).
+    ip = request.client.host if request.client else "?"
+    keys = [f"login:{email}", f"login-ip:{ip}"]
+    for key, limit in zip(keys, (None, get_settings().auth_ip_max_failures)):
+        if limiter.blocked(key, limit):
+            AUTH_LOCKOUTS.labels("login").inc()
+            audit.record(db, "LOGIN_LOCKED", detail={"email": email}, request=request, status_code=429)
+            db.commit()
+            raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Terlalu banyak percobaan login gagal. Coba lagi nanti.",
+                                headers={"Retry-After": str(limiter.retry_after(key))})
+    user = db.scalar(select(User).where(User.email == email))
     if user is None or not user.is_active or not verify_secret(body.password, user.password_hash):
-        audit.record(db, "LOGIN_FAILED", detail={"email": body.email.strip().lower()}, request=request, status_code=401)
+        for key in keys:
+            limiter.fail(key)
+        audit.record(db, "LOGIN_FAILED", detail={"email": email}, request=request, status_code=401)
         db.commit()
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Email atau password salah")
+    limiter.reset(keys[0])
     audit.record(db, "LOGIN", user_id=user.id, user_role=user.role, request=request, status_code=200)
     db.commit()
     token = create_access_token(user.id, user.role, user.insurer_id)

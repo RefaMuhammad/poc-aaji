@@ -16,7 +16,7 @@ from mab_api.deps import get_queue, get_storage, require_perm
 from mab_api.documents import InvalidFile, validate_file
 from mab_api.models import UwApplication, UwDecision, UwReview, UwStatus, User
 from mab_api.rbac import Perm, has_perm
-from mab_api.security import verify_secret
+from mab_api.ratelimit import guard_pin
 from mab_api.underwriting import (LABEL, NON_STANDARD, current_review, current_terms, final_premium,
                                   get_visible_application, latest_assessment, next_application_number,
                                   recommendation_pdf, store_uw_document, uw_ruleset, visible_applications_query)
@@ -90,7 +90,7 @@ def submit_application(request: Request, files: list[UploadFile] = File(...), in
     try:
         valid = [validate_file(f.filename or "dokumen", f.file.read(max_bytes + 1)) for f in files]
     except InvalidFile as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc))
     app = UwApplication(application_number=next_application_number(db), insurer_id=target, submitted_by_id=user.id,
                         status=UwStatus.QUEUED.value)
     db.add(app)
@@ -176,26 +176,20 @@ def sign(application_id: str, body: SignIn, request: Request, db: Session = Depe
     a = latest_assessment(app)
     if app.status != UwStatus.AWAITING_DOCTOR.value or a is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Pengajuan ini tidak sedang menunggu telaah dokter")
-    if not user.pin_hash:
-        raise HTTPException(status.HTTP_409_CONFLICT, "PIN tanda tangan Anda belum diatur. Hubungi admin.")
-    if not verify_secret(body.pin, user.pin_hash):
-        audit.record(db, "UW_SIGN_PIN_FAILED", user_id=user.id, user_role=user.role, request=request,
-                     detail={"application_id": app.id})
-        db.commit()
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "PIN salah")
+    guard_pin(request, db, user, body.pin, "UW_SIGN_PIN_FAILED", detail={"application_id": app.id})
     notes = (body.notes or "").strip() or None
     if body.action == "AGREE":
         rec, cls, loading = a.recommendation, a.risk_class, a.loading_pct
         exclusions = [e["text"] for e in a.exclusions or []]
         if a.missing_docs or a.missing_fields:
             if not notes:
-                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
                                     "Data wajib belum lengkap. Tuliskan pertimbangan Anda di catatan.")
     else:
         if not notes:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Tuliskan alasan perubahan di catatan")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Tuliskan alasan perubahan di catatan")
         if body.recommendation is None:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Pilih rekomendasi")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Pilih rekomendasi")
         rec = body.recommendation
         exclusions = [e.strip() for e in body.exclusions or [] if e.strip()]
         loading = body.loading_pct or 0
@@ -207,9 +201,9 @@ def sign(application_id: str, body: SignIn, request: Request, db: Session = Depe
         else:
             cls = body.risk_class or ""
             if cls not in class_codes:
-                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Kelas risiko tidak dikenal")
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Kelas risiko tidak dikenal")
             if not loading and not exclusions:
-                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
                                     "Terima dengan syarat butuh loading premi atau pengecualian")
     rev = UwReview(application_id=app.id, assessment_id=a.id, doctor_id=user.id, action=body.action,
                    recommendation=rec, risk_class=cls, loading_pct=loading, exclusions=exclusions, notes=notes)
@@ -246,7 +240,7 @@ def decide(application_id: str, body: DecideIn, request: Request, db: Session = 
         cls, loading, exclusions = rev.risk_class, rev.loading_pct, list(rev.exclusions or [])
     else:
         if terms["recommendation"] != "ACCEPT_STANDARD" and not notes:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
                                 "Rekomendasi dokter bukan terima standar. Tuliskan alasan menerima standar di catatan.")
         cls, loading, exclusions = "STANDARD", 0, []
     d = UwDecision(application_id=app.id, review_id=rev.id if rev else None, decision=body.decision, risk_class=cls,

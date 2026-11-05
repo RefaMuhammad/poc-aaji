@@ -168,9 +168,9 @@ def review_signal(signal_id: str, body: FraudReviewIn, request: Request, db: Ses
     """Catat hasil telaah investigator. Tidak mengubah klaim apa pun."""
     s = _visible_signal(db, user, signal_id)
     if body.status not in REVIEW_STATUSES:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Status telaah tidak dikenal")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Status telaah tidak dikenal")
     if body.status == "DISMISSED" and not (body.notes or "").strip():
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Tulis alasan bila sinyal dinilai wajar")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Tulis alasan bila sinyal dinilai wajar")
     review = db.scalar(select(FraudReview).where(FraudReview.insurer_id == s.insurer_id, FraudReview.rule_id == s.rule_id,
                                                  FraudReview.entity_key == s.entity_key))
     before = {"status": review.status, "notes": review.notes} if review else None
@@ -242,14 +242,14 @@ async def import_records(
     tenant = target_tenant(db, user, insurer_id)
     name = file.filename or "riwayat.csv"
     if not name.lower().endswith((".csv", ".xlsx", ".xlsm")):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "File harus CSV atau XLSX")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "File harus CSV atau XLSX")
     data = await file.read()
     if len(data) > MAX_IMPORT_BYTES:
         raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "File maksimal 10 MB")
     try:
         rows = read_rows(name, data)
     except Exception as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"File tidak bisa dibaca: {type(exc).__name__}")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"File tidak bisa dibaca: {type(exc).__name__}")
     result = import_history(db, tenant, rows)
     job = IntegrationJob(insurer_id=tenant, channel="FRAUD_HISTORY", reference=name[:255], status=result.status,
                          summary=result.summary(), user_id=user.id)

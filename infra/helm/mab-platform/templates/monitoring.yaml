@@ -1,0 +1,66 @@
+{{- if .Values.monitoring.serviceMonitor }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "mab.fullname" . }}-api
+  labels: {{- include "mab.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: api
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      {{- if .Values.monitoring.metricsTokenKey }}
+      bearerTokenSecret: {name: {{ include "mab.secretName" . }}, key: {{ .Values.monitoring.metricsTokenKey }}}
+      {{- end }}
+{{- end }}
+{{- if .Values.monitoring.prometheusRule }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "mab.fullname" . }}-alerts
+  labels: {{- include "mab.labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: mab-platform
+      rules:
+        - alert: MabApiTidakTerjangkau
+          expr: absent(up{job=~".*{{ include "mab.fullname" . }}-api.*"} == 1)
+          for: 5m
+          labels: {severity: critical}
+          annotations: {summary: "API MAB tidak bisa diambil metriknya selama 5 menit"}
+        - alert: MabErrorTinggi
+          expr: |
+            sum(rate(mab_http_requests_total{status=~"5.."}[10m])) / clamp_min(sum(rate(mab_http_requests_total[10m])), 0.001) > 0.05
+          for: 10m
+          labels: {severity: warning}
+          annotations: {summary: "Lebih dari 5% permintaan API gagal (5xx)"}
+        - alert: MabLatensiTinggi
+          expr: |
+            histogram_quantile(0.95, sum by (le) (rate(mab_http_request_duration_seconds_bucket[10m]))) > 2
+          for: 15m
+          labels: {severity: warning}
+          annotations: {summary: "p95 latensi API di atas 2 detik"}
+        - alert: MabAntreanMenumpuk
+          expr: max by (queue) (mab_queue_depth) > 50
+          for: 15m
+          labels: {severity: warning}
+          annotations: {summary: "Antrean {{ "{{" }} $labels.queue {{ "}}" }} menumpuk lebih dari 50 job selama 15 menit"}
+        - alert: MabJobGagalBertambah
+          expr: increase(mab_queue_failed[1h]) > 5
+          labels: {severity: warning}
+          annotations: {summary: "Lebih dari 5 job gagal dalam 1 jam di antrean {{ "{{" }} $labels.queue {{ "}}" }}"}
+        - alert: MabLoginDikunciBanyak
+          expr: increase(mab_auth_lockouts_total[15m]) > 20
+          labels: {severity: warning}
+          annotations: {summary: "Banyak percobaan login/PIN ditolak; kemungkinan serangan tebak password"}
+        - alert: MabBackupTerlambat
+          # Butuh kube-state-metrics
+          expr: time() - kube_cronjob_status_last_successful_time{cronjob="{{ include "mab.fullname" . }}-backup"} > 26 * 3600
+          labels: {severity: critical}
+          annotations: {summary: "Backup harian belum berhasil dalam 26 jam terakhir"}
+{{- end }}

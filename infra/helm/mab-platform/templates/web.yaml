@@ -1,0 +1,61 @@
+{{- $c := dict "root" . "component" "web" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "mab.fullname" . }}-web
+  labels: {{- include "mab.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+spec:
+  {{- if not .Values.web.autoscaling.enabled }}
+  replicas: {{ .Values.web.replicas }}
+  {{- end }}
+  selector:
+    matchLabels: {{- include "mab.selector" $c | nindent 6 }}
+  strategy:
+    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
+  template:
+    metadata:
+      labels: {{- include "mab.selector" $c | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "mab.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "mab.podSecurity" . | nindent 8 }}
+      containers:
+        - name: web
+          image: {{ include "mab.image" (dict "root" . "name" "web") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - {name: API_INTERNAL_URL, value: "http://{{ include "mab.fullname" . }}-api:8000"}
+          ports:
+            - {name: http, containerPort: 3000}
+          securityContext: {{- include "mab.containerSecurity" . | nindent 12 }}
+          readinessProbe:
+            httpGet: {path: /login, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /login, port: http}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources: {{- toYaml .Values.web.resources | nindent 12 }}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: next-cache, mountPath: /app/.next/cache}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: next-cache
+          emptyDir: {sizeLimit: 512Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mab.fullname" . }}-web
+  labels: {{- include "mab.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+spec:
+  selector: {{- include "mab.selector" $c | nindent 4 }}
+  ports:
+    - {name: http, port: 3000, targetPort: http}

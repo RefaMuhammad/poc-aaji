@@ -23,7 +23,7 @@ def _default_storage():
     from mab_api.storage import S3Storage
 
     s = get_settings()
-    return S3Storage(s.s3_endpoint_url, s.s3_bucket, s.minio_root_user, s.minio_root_password)
+    return S3Storage.from_settings(s)
 
 
 def _default_ruleset():
@@ -38,7 +38,7 @@ def _default_job_queue():
     from mab_api.job_queue import RQJobQueue
 
     s = get_settings()
-    return RQJobQueue(s.redis_url, s.rq_queue)
+    return RQJobQueue.from_settings(s)
 
 
 def deliver_webhook(delivery_id: str, session_factory=None, post=None) -> str:
