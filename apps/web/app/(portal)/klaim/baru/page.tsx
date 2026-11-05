@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ApiError, apiFetch, apiJson } from "@/lib/api";
-import type { BatchResult } from "@/lib/types";
+import { useAuth } from "@/lib/auth";
+import type { BatchResult, Tenant } from "@/lib/types";
 
 const EMPTY = {
   claim_number: "",
@@ -26,7 +27,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function SingleClaimForm() {
+function SingleClaimForm({ insurerId }: { insurerId: string | null }) {
   const router = useRouter();
   const [form, setForm] = useState(EMPTY);
   const [files, setFiles] = useState<File[]>([]);
@@ -52,6 +53,7 @@ function SingleClaimForm() {
           body: JSON.stringify({
             ...form,
             patient_name: form.patient_name || null,
+            insurer_id: insurerId,
             billed_amount: Number(form.billed_amount.replace(/\D/g, "")),
           }),
         });
@@ -100,7 +102,7 @@ function SingleClaimForm() {
   );
 }
 
-function BatchUpload() {
+function BatchUpload({ insurerId }: { insurerId: string | null }) {
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<BatchResult | null>(null);
@@ -115,7 +117,8 @@ function BatchUpload() {
     try {
       const body = new FormData();
       body.append("file", file);
-      setResult(await apiJson<BatchResult>("/claims/batch", { method: "POST", body }));
+      const qs = insurerId ? `?insurer_id=${encodeURIComponent(insurerId)}` : "";
+      setResult(await apiJson<BatchResult>(`/claims/batch${qs}`, { method: "POST", body }));
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -170,14 +173,44 @@ function BatchUpload() {
   );
 }
 
+/** Operator TPA melayani beberapa asuransi: pilih asuransi pemilik klaim sebelum mengunggah. */
+function useTargetTenant() {
+  const { user } = useAuth();
+  const isTpa = user?.role === "tpa_operator";
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [insurerId, setInsurerId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isTpa) return;
+    apiJson<Tenant[]>("/tenants")
+      .then((t) => {
+        setTenants(t);
+        setInsurerId(t[0]?.insurer_id ?? null);
+      })
+      .catch(() => setTenants([]));
+  }, [isTpa]);
+  return { isTpa, tenants, insurerId, setInsurerId };
+}
+
 export default function NewClaimPage() {
+  const { isTpa, tenants, insurerId, setInsurerId } = useTargetTenant();
   return (
     <div className="space-y-4">
       <h1 className="text-lg font-semibold">Unggah klaim</h1>
       <p className="text-sm text-slate-600">Gunakan hanya data rekaan. Jangan unggah data pasien sungguhan.</p>
+      {isTpa && (
+        <label className="card flex flex-wrap items-center gap-3 text-sm">
+          <span className="font-medium">Asuransi pemilik klaim</span>
+          <select className="input w-auto" value={insurerId ?? ""} onChange={(e) => setInsurerId(e.target.value)}>
+            {tenants.map((t) => (
+              <option key={t.insurer_id} value={t.insurer_id}>{t.display_name ?? t.name}</option>
+            ))}
+          </select>
+          <span className="text-slate-500">Ambang triase dan SLA mengikuti pengaturan asuransi yang dipilih.</span>
+        </label>
+      )}
       <div className="grid gap-4 lg:grid-cols-2">
-        <SingleClaimForm />
-        <BatchUpload />
+        <SingleClaimForm insurerId={isTpa ? insurerId : null} />
+        <BatchUpload insurerId={isTpa ? insurerId : null} />
       </div>
     </div>
   );

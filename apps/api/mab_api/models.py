@@ -26,10 +26,18 @@ class Role(str, Enum):
     DOCTOR_GP = "doctor_gp"
     DOCTOR_SPECIALIST = "doctor_specialist"
     ADMIN = "admin"
+    # U1: peran baru
+    TPA_OPERATOR = "tpa_operator"          # operator TPA, bekerja untuk beberapa asuransi (tenant)
+    AUDITOR = "auditor"                    # auditor internal/OJK, hanya-baca
+    FACILITY_OFFICER = "facility_officer"  # petugas faskes/RS (portal faskes menyusul di U4)
+    MEMBER = "member"                      # peserta asuransi (portal peserta menyusul di U4)
+    UNDERWRITER = "underwriter"            # underwriter (modul underwriting menyusul di U7)
 
 
 INSURER_ROLES = {Role.INSURER_STAFF, Role.INSURER_MANAGER}
 DOCTOR_ROLES = {Role.DOCTOR_GP, Role.DOCTOR_SPECIALIST}
+# Peran yang bertindak atas nama asuransi (unggah, keputusan). TPA bisa untuk beberapa tenant.
+CLAIM_OPERATOR_ROLES = INSURER_ROLES | {Role.TPA_OPERATOR}
 
 
 class ClaimStatus(str, Enum):
@@ -78,10 +86,89 @@ class User(Base):
     insurer_id: Mapped[str | None] = mapped_column(ForeignKey("insurers.id"), nullable=True)
     specialty: Mapped[str | None] = mapped_column(String(100), nullable=True)
     pin_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)  # tanda tangan (M7)
+    facility_name: Mapped[str | None] = mapped_column(String(200), nullable=True)  # petugas faskes: nama RS
+    member_ref: Mapped[str | None] = mapped_column(String(64), nullable=True)  # peserta: id peserta
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     insurer: Mapped[Insurer | None] = relationship()
+
+
+class UserTenant(Base):
+    """Tenant tambahan yang boleh dilayani pengguna (operator TPA)."""
+
+    __tablename__ = "user_tenants"
+    __table_args__ = (UniqueConstraint("user_id", "insurer_id", name="uq_user_tenant"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    insurer_id: Mapped[str] = mapped_column(ForeignKey("insurers.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class TenantSettings(Base):
+    """Pengaturan per tenant (asuransi): tampilan, ambang triase, aturan aktif, SLA.
+
+    Nilai None berarti memakai nilai dari file aturan YAML. Setiap simpan menaikkan `version`,
+    dan versi ini ikut tercatat di versi aturan rekomendasi bila ada penyesuaian.
+    """
+
+    __tablename__ = "tenant_settings"
+    insurer_id: Mapped[str] = mapped_column(ForeignKey("insurers.id"), primary_key=True)
+    display_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    logo_data_url: Mapped[str | None] = mapped_column(Text, nullable=True)  # data:image/...;base64 (maks. ~200 KB)
+    primary_color: Mapped[str | None] = mapped_column(String(7), nullable=True)  # #RRGGBB
+    triage_red_min_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    triage_yellow_min_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    disabled_rules: Mapped[list] = mapped_column(JSON, default=list)
+    sla_gp_hours: Mapped[int] = mapped_column(Integer, default=24)
+    sla_specialist_hours: Mapped[int] = mapped_column(Integer, default=48)
+    auto_assign: Mapped[bool] = mapped_column(Boolean, default=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    updated_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class ApiClient(Base):
+    """Akun layanan untuk integrasi sistem asuransi/TPA. Kunci API hanya disimpan sebagai hash."""
+
+    __tablename__ = "api_clients"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    insurer_id: Mapped[str] = mapped_column(ForeignKey("insurers.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    key_prefix: Mapped[str] = mapped_column(String(16), unique=True, index=True)
+    key_hash: Mapped[str] = mapped_column(String(64))
+    scopes: Mapped[list] = mapped_column(JSON, default=list)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AssignmentStatus(str, Enum):
+    ACTIVE = "ACTIVE"          # sedang dipegang dokter
+    COMPLETED = "COMPLETED"    # rekomendasi ditandatangani
+    RELEASED = "RELEASED"      # dilepas dokter, kembali ke antrean
+    ESCALATED = "ESCALATED"    # diteruskan ke spesialis
+    CANCELLED = "CANCELLED"    # klaim diproses ulang / dipindah admin
+
+
+class Assignment(Base):
+    """Penugasan kasus ke dokter beserta batas waktu SLA antreannya."""
+
+    __tablename__ = "assignments"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    claim_id: Mapped[str] = mapped_column(ForeignKey("claims.id"), index=True)
+    recommendation_id: Mapped[str] = mapped_column(ForeignKey("recommendations.id"))
+    doctor_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    level: Mapped[str] = mapped_column(String(16))          # GP / SPECIALIST
+    specialty: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    method: Mapped[str] = mapped_column(String(16))         # AUTO / CLAIMED / MANUAL
+    status: Mapped[str] = mapped_column(String(16), default=AssignmentStatus.ACTIVE.value, index=True)
+    assigned_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    assigned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class Claim(Base):

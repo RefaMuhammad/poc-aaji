@@ -24,6 +24,8 @@ function isBulkCandidate(c: ClaimListItem) {
 export default function ClaimListPage() {
   const { user } = useAuth();
   const isInsurer = !!user && INSURER_ROLES.includes(user.role);
+  const canExport = isInsurer || user?.role === "auditor";
+  const statusOnly = user?.role === "facility_officer" || user?.role === "member";
   const [claims, setClaims] = useState<ClaimListItem[] | null>(null);
   const [status, setStatus] = useState<"" | ClaimStatus>("");
   const [triage, setTriage] = useState<"" | Triage>("");
@@ -57,6 +59,7 @@ export default function ClaimListPage() {
   }, [anyBusy, load]);
 
   const candidates = useMemo(() => (claims ?? []).filter(isBulkCandidate), [claims]);
+  const multiTenant = useMemo(() => new Set((claims ?? []).map((c) => c.insurer_id)).size > 1, [claims]);
   const toggle = (id: string) =>
     setSelected((s) => {
       const n = new Set(s);
@@ -87,16 +90,23 @@ export default function ClaimListPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold">Daftar klaim</h1>
-        <div className="flex flex-wrap gap-2">
-          {isInsurer && (
-            <>
-              <button className="btn-secondary" onClick={() => downloadFile("/claims/export.csv", "ekspor_klaim.csv").catch((e) => setError(e.message))}>
-                Ekspor CSV
-              </button>
-              <Link href="/klaim/baru" className="btn-primary">Unggah klaim</Link>
-            </>
+        <div>
+          <h1 className="text-lg font-semibold">Daftar klaim</h1>
+          {statusOnly && (
+            <p className="text-sm text-slate-500">
+              {user?.role === "member" ? "Klaim atas nomor peserta Anda." : `Klaim dari ${user?.facility_name ?? "rumah sakit Anda"}.`}{" "}
+              Untuk sementara hanya status; rincian dan unggah dokumen susulan hadir di portal {user?.role === "member" ? "peserta" : "faskes"} (U4).
+            </p>
           )}
+          {user?.role === "auditor" && <p className="text-sm text-slate-500">Akses hanya-baca.</p>}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {canExport && (
+            <button className="btn-secondary" onClick={() => downloadFile("/claims/export.csv", "ekspor_klaim.csv").catch((e) => setError(e.message))}>
+              Ekspor CSV
+            </button>
+          )}
+          {isInsurer && <Link href="/klaim/baru" className="btn-primary">Unggah klaim</Link>}
         </div>
       </div>
 
@@ -107,11 +117,13 @@ export default function ClaimListPage() {
             <option key={s} value={s}>{STATUS_LABEL[s]}</option>
           ))}
         </select>
-        <select className="input w-auto" value={triage} onChange={(e) => setTriage(e.target.value as "" | Triage)}>
-          {TRIAGE_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
+        {!statusOnly && (
+          <select className="input w-auto" value={triage} onChange={(e) => setTriage(e.target.value as "" | Triage)}>
+            {TRIAGE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        )}
         {isInsurer && candidates.length > 0 && (
           <div className="ml-auto flex items-center gap-2 text-sm">
             <button
@@ -165,7 +177,10 @@ export default function ClaimListPage() {
                   <Link href={`/klaim/${c.id}`} className="font-medium text-sky-800 hover:underline">{c.claim_number}</Link>
                   {c.patient_name && <div className="text-xs text-slate-500">{c.patient_name}</div>}
                 </td>
-                <td className="px-3 py-2">{c.hospital_name}</td>
+                <td className="px-3 py-2">
+                  {c.hospital_name}
+                  {multiTenant && c.insurer_name && <div className="text-xs text-slate-500">{c.insurer_name}</div>}
+                </td>
                 <td className="whitespace-nowrap px-3 py-2">{tanggal(c.admission_date)} – {tanggal(c.discharge_date)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{rupiah(c.billed_amount)}</td>
                 <td className="px-3 py-2"><StatusBadge status={c.status} /></td>

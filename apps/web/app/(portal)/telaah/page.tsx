@@ -6,7 +6,7 @@ import { apiJson } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { QueueItem } from "@/lib/types";
 import { LEVEL_LABEL, rupiah, waktu } from "@/lib/format";
-import { TriageBadge } from "@/components/Badges";
+import { SlaBadge, TriageBadge } from "@/components/Badges";
 
 const DX_FILTERS = [
   { value: "", label: "Semua diagnosis" },
@@ -50,7 +50,7 @@ export default function QueuePage() {
             {user?.role === "doctor_gp"
               ? "Kasus kuning untuk dokter umum. Kasus bisa dieskalasi ke spesialis."
               : `Kasus merah dan hasil eskalasi${user?.specialty ? ` untuk spesialis ${user.specialty}` : ""}.`}{" "}
-            Urut dari skor risiko tertinggi.
+            Urut: lewat SLA lebih dulu, lalu skor risiko tertinggi. Kasus ditugaskan otomatis sesuai beban dokter.
           </p>
         </div>
         <div className="flex gap-2">
@@ -86,19 +86,20 @@ export default function QueuePage() {
               <th className="px-3 py-2">Penelaah</th>
               <th className="px-3 py-2 text-right">Tagihan</th>
               <th className="px-3 py-2">{tab === "queue" ? "Menunggu sejak" : "Ditandatangani"}</th>
+              <th className="px-3 py-2">SLA</th>
               <th className="px-3 py-2" />
             </tr>
           </thead>
           <tbody>
-            {items === null && <tr><td colSpan={8} className="px-3 py-6 text-center text-slate-500">Memuat…</td></tr>}
+            {items === null && <tr><td colSpan={9} className="px-3 py-6 text-center text-slate-500">Memuat…</td></tr>}
             {items?.length === 0 && (
-              <tr><td colSpan={8} className="px-3 py-6 text-center text-slate-500">{tab === "queue" ? "Tidak ada kasus menunggu." : "Belum ada."}</td></tr>
+              <tr><td colSpan={9} className="px-3 py-6 text-center text-slate-500">{tab === "queue" ? "Tidak ada kasus menunggu." : "Belum ada."}</td></tr>
             )}
             {items?.map((i) => (
               <tr key={i.id} className="border-b last:border-0 hover:bg-slate-50">
                 <td className="px-3 py-2">
                   <Link href={`/telaah/${i.id}`} className="font-medium text-sky-800 hover:underline">{i.claim_number}</Link>
-                  <div className="text-xs text-slate-500">{i.hospital_name}</div>
+                  <div className="text-xs text-slate-500">{i.hospital_name}{i.insurer_name ? ` · ${i.insurer_name}` : ""}</div>
                 </td>
                 <td className="px-3 py-2">
                   <span className="font-mono text-xs">{i.primary_icd10 ?? "-"}</span>{" "}
@@ -115,8 +116,9 @@ export default function QueuePage() {
                 <td className="whitespace-nowrap px-3 py-2 text-slate-600">
                   {tab === "queue" ? waktu(i.waiting_since) : waktu(i.signed_at)}
                 </td>
+                <td className="whitespace-nowrap px-3 py-2"><SlaBadge item={i} /></td>
                 <td className="px-3 py-2 text-right">
-                  {tab === "queue" && i.assigned_to_me && <span className="rounded bg-sky-100 px-2 py-0.5 text-xs text-sky-800">sedang Anda telaah</span>}
+                  {tab === "queue" && i.assigned_to_me && <span className="whitespace-nowrap rounded bg-sky-100 px-2 py-0.5 text-xs text-sky-800">ditugaskan ke Anda</span>}
                 </td>
               </tr>
             ))}

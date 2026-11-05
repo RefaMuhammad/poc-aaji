@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 
 from mab_api.access import get_visible_claim
 from mab_api.db import get_db
-from mab_api.deps import get_current_user, get_storage
+from mab_api.deps import get_storage, require_perm
+from mab_api.rbac import Perm
 from mab_api.models import Document, User
 from mab_api.rendering import PageNotFound, render_page_png
 
@@ -26,7 +27,7 @@ def page_image(
     page: int,
     dpi: int = Query(default=110, ge=50, le=200),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_perm(Perm.CLAIM_DETAIL)),
     storage=Depends(get_storage),
 ) -> Response:
     """Gambar satu halaman dokumen untuk pratinjau bukti (bbox bukti dalam proporsi halaman)."""
@@ -42,7 +43,7 @@ def page_image(
 def download_document(
     document_id: str,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_perm(Perm.CLAIM_DETAIL)),
     storage=Depends(get_storage),
 ) -> Response:
     doc = _visible_document(db, user, document_id)

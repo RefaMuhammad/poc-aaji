@@ -1,6 +1,7 @@
 """Skema request/response API."""
 from __future__ import annotations
 
+import re
 from datetime import date, datetime
 from typing import Any
 
@@ -37,6 +38,8 @@ class UserOut(BaseModel):
     role: str
     insurer_id: str | None
     specialty: str | None
+    facility_name: str | None = None
+    member_ref: str | None = None
 
 
 class ClaimCreate(BaseModel):
@@ -48,6 +51,7 @@ class ClaimCreate(BaseModel):
     admission_date: date
     discharge_date: date
     billed_amount: int = Field(ge=0)
+    insurer_id: str | None = Field(default=None, description="Hanya untuk operator TPA: asuransi pemilik klaim")
 
     @model_validator(mode="after")
     def check_dates(self) -> "ClaimCreate":
@@ -93,6 +97,7 @@ class ClaimListItem(ClaimOut):
     risk_score: int | None = None
     recommendation: str | None = None
     decision: str | None = None
+    insurer_name: str | None = None
 
 
 class ClaimDetail(ClaimOut):
@@ -253,6 +258,11 @@ class QueueItem(BaseModel):
     waiting_since: datetime
     signed_by: str | None = None
     signed_at: datetime | None = None
+    insurer_name: str | None = None
+    sla_hours: int | None = None
+    sla_due_at: datetime | None = None
+    sla_state: str | None = None     # ON_TRACK / AT_RISK / OVERDUE (kasus yang masih di antrean)
+    sla_met: bool | None = None      # untuk kasus selesai: ditandatangani sebelum batas SLA?
 
 
 class ReviewFieldOut(BaseModel):
@@ -398,3 +408,130 @@ class DashboardOut(BaseModel):
     doctor_reviews: int
     doctor_agreement_pct: float | None    # persentase telaah yang setuju dengan draf AI
     avg_review_seconds: float | None
+
+
+# --- Tenant, akun layanan, penugasan (U1) ---------------------------------------------
+
+_LOGO_PREFIXES = ("data:image/png;base64,", "data:image/jpeg;base64,", "data:image/webp;base64,", "data:image/svg+xml;base64,")
+MAX_LOGO_CHARS = 300_000  # kira-kira 220 KB gambar
+
+
+class BrandingOut(BaseModel):
+    """Tampilan tenant untuk header portal."""
+
+    insurer_id: str
+    code: str
+    name: str
+    display_name: str | None = None
+    logo_data_url: str | None = None
+    primary_color: str | None = None
+
+
+class TenantOut(BrandingOut):
+    triage_red_min_score: int | None = None
+    triage_yellow_min_score: int | None = None
+    disabled_rules: list[str] = []
+    sla_gp_hours: int
+    sla_specialist_hours: int
+    auto_assign: bool
+    version: int
+    updated_at: datetime | None = None
+    default_red_min_score: int | None = None     # dari file aturan YAML
+    default_yellow_min_score: int | None = None
+    effective_ruleset_version: str
+    claim_count: int = 0
+
+
+class TenantCreate(BaseModel):
+    code: str = Field(min_length=2, max_length=32, pattern=r"^[A-Z0-9_-]+$")
+    name: str = Field(min_length=3, max_length=200)
+
+
+class TenantSettingsIn(BaseModel):
+    display_name: str | None = Field(default=None, max_length=200)
+    logo_data_url: str | None = None
+    primary_color: str | None = None
+    triage_red_min_score: int | None = Field(default=None, ge=1, le=100)
+    triage_yellow_min_score: int | None = Field(default=None, ge=1, le=100)
+    disabled_rules: list[str] = []
+    sla_gp_hours: int = Field(default=24, ge=1, le=720)
+    sla_specialist_hours: int = Field(default=48, ge=1, le=720)
+    auto_assign: bool = True
+
+    @model_validator(mode="after")
+    def check(self) -> "TenantSettingsIn":
+        if self.logo_data_url:
+            if not self.logo_data_url.startswith(_LOGO_PREFIXES):
+                raise ValueError("Logo harus gambar PNG, JPEG, WEBP, atau SVG")
+            if len(self.logo_data_url) > MAX_LOGO_CHARS:
+                raise ValueError("Logo terlalu besar (maksimal sekitar 200 KB)")
+        if self.primary_color and not re.fullmatch(r"#[0-9a-fA-F]{6}", self.primary_color):
+            raise ValueError("Warna harus format #RRGGBB")
+        self.display_name = (self.display_name or "").strip() or None
+        self.disabled_rules = sorted(set(self.disabled_rules))
+        return self
+
+
+class ApiClientCreate(BaseModel):
+    name: str = Field(min_length=3, max_length=200)
+    scopes: list[str] = ["claims:read"]
+
+
+class ApiClientOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    insurer_id: str
+    name: str
+    key_prefix: str
+    scopes: list[str]
+    is_active: bool
+    created_at: datetime
+    last_used_at: datetime | None
+    revoked_at: datetime | None
+
+
+class ApiClientCreated(ApiClientOut):
+    api_key: str  # hanya ditampilkan sekali
+
+
+class AssignRequest(BaseModel):
+    doctor_id: str
+
+
+class AssignmentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    claim_id: str
+    doctor_id: str
+    level: str
+    specialty: str | None
+    method: str
+    status: str
+    assigned_at: datetime
+    due_at: datetime
+    closed_at: datetime | None
+
+
+class IntegrationWhoAmI(BaseModel):
+    client: str
+    tenant_code: str
+    scopes: list[str]
+    label: str = "Data rekaan untuk demonstrasi"
+
+
+class IntegrationClaimOut(BaseModel):
+    """Status klaim untuk sistem asuransi. Rekomendasi hanya terisi bila sudah dirilis ke asuransi."""
+
+    claim_number: str
+    status: str
+    triage_status: str | None = None
+    recommendation: str | None = None
+    billed_amount: int
+    recommended_amount: int | None = None
+    reason_codes: list[str] = []
+    signed_by: str | None = None
+    signed_at: datetime | None = None
+    ruleset_version: str | None = None
+    model_version: str | None = None
+    decision: str | None = None
+    updated_at: datetime

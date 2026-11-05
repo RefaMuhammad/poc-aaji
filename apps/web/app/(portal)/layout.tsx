@@ -2,44 +2,63 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { INSURER_ROLES, RequireAuth, useAuth } from "@/lib/auth";
-import { homeFor } from "@/lib/format";
+import { useEffect, useState } from "react";
+import { apiJson } from "@/lib/api";
+import { CLAIM_LIST_ROLES, DASHBOARD_ROLES, DOCTOR_ROLES, INSURER_ROLES, RequireAuth, useAuth } from "@/lib/auth";
+import { ROLE_LABEL, homeFor } from "@/lib/format";
+import type { Branding } from "@/lib/types";
 import DemoSwitcher from "@/components/DemoSwitcher";
 
-const ROLE_LABEL: Record<string, string> = {
-  insurer_staff: "Staf klaim",
-  insurer_manager: "Manajer klaim",
-  doctor_gp: "Dokter umum",
-  doctor_specialist: "Dokter spesialis",
-  admin: "Admin",
-};
+/** Logo dan nama tenant (asuransi) pengguna; kosong untuk pengguna platform MAB. */
+function TenantBrand({ brand }: { brand: Branding | null }) {
+  if (!brand) return null;
+  return (
+    <span className="flex items-center gap-2 border-l pl-3 text-sm text-slate-700">
+      {brand.logo_data_url && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={brand.logo_data_url} alt="" className="h-7 w-7 rounded object-contain" />
+      )}
+      <span className="font-medium" style={brand.primary_color ? { color: brand.primary_color } : undefined}>
+        {brand.display_name ?? brand.name}
+      </span>
+    </span>
+  );
+}
 
 function Shell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const path = usePathname();
-  const isInsurer = !!user && INSURER_ROLES.includes(user.role);
-  const isDoctor = user?.role === "doctor_gp" || user?.role === "doctor_specialist";
-  const isAdmin = user?.role === "admin";
+  const role = user?.role ?? "";
+  const isInsurer = INSURER_ROLES.includes(role);
+  const isDoctor = DOCTOR_ROLES.includes(role);
+  const isAdmin = role === "admin";
+  const [brand, setBrand] = useState<Branding | null>(null);
+  useEffect(() => {
+    if (user?.insurer_id) apiJson<Branding | null>("/tenants/current").then(setBrand).catch(() => setBrand(null));
+  }, [user?.insurer_id]);
   const nav = (href: string, label: string) => (
     <Link
       href={href}
-      className={`rounded px-2 py-1 text-sm ${path === href || (href !== "/klaim" && path.startsWith(href + "/")) ? "bg-slate-100 font-medium text-slate-900" : "text-slate-600 hover:text-slate-900"}`}
+      className={`rounded px-2 py-1 text-sm ${path === href || (!["/klaim", "/admin"].includes(href) && path.startsWith(href + "/")) ? "bg-slate-100 font-medium text-slate-900" : "text-slate-600 hover:text-slate-900"}`}
     >
       {label}
     </Link>
   );
   return (
     <div>
-      <header className="border-b bg-white">
+      <header className="border-b border-t-4 bg-white" style={{ borderTopColor: brand?.primary_color ?? "#334155" }}>
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-3">
           <div className="flex items-center gap-4">
             <Link href={homeFor(user?.role)} className="font-semibold">MAB Indonesia</Link>
-            <nav className="flex gap-1">
+            <TenantBrand brand={brand} />
+            <nav className="flex flex-wrap gap-1">
               {isDoctor && nav("/telaah", "Antrean telaah")}
               {isAdmin && nav("/admin", "Aturan & pengguna")}
-              {nav("/klaim", "Daftar klaim")}
+              {isAdmin && nav("/admin/tenant", "Tenant & API key")}
+              {CLAIM_LIST_ROLES.includes(role) && nav("/klaim", "Daftar klaim")}
               {isInsurer && nav("/klaim/baru", "Unggah klaim")}
-              {(isInsurer || isAdmin) && nav("/dashboard", "Dashboard")}
+              {DASHBOARD_ROLES.includes(role) && nav("/dashboard", "Dashboard")}
+              {role === "underwriter" && nav("/underwriting", "Underwriting")}
             </nav>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-sm">

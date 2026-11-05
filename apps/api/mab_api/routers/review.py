@@ -16,6 +16,16 @@ from sqlalchemy.orm import Session
 
 from mab_api import audit
 from mab_api.access import get_visible_claim, visible_claims_query
+from mab_api.assignment import (
+    auto_assign,
+    claim_reviews,
+    close_active,
+    active_assignment,
+    assign,
+    routing,
+    sla_due,
+    sla_state,
+)
 from mab_api.api_schemas import (
     ClaimDetail,
     ClaimOut,
@@ -35,8 +45,10 @@ from mab_api.db import get_db
 from mab_api.deps import require_roles
 from mab_api.documents import missing_documents
 from mab_api.models import (
+    AssignmentStatus,
     AuditLog,
     Claim,
+    Insurer,
     ClaimStatus,
     ExtractedField,
     Finding,
@@ -50,6 +62,7 @@ from mab_api.models import (
 from mab_api.routers.claims import _current_recommendation, _latest_decision, build_recommendation_view
 from mab_api.ruleset import active_ruleset
 from mab_api.security import verify_secret
+from mab_api.tenancy import tenant_config
 
 router = APIRouter(prefix="/review", tags=["dokter"])
 
@@ -82,26 +95,15 @@ def _aware(dt: datetime | None) -> datetime | None:
 
 
 def _reviews(db: Session, claim: Claim) -> list[Review]:
-    return list(db.scalars(select(Review).where(Review.claim_id == claim.id).order_by(Review.started_at)))
+    return claim_reviews(db, claim)
 
 
 def _open_review(reviews: list[Review], doctor: User) -> Review | None:
     return next((r for r in reviews if r.doctor_id == doctor.id and r.finished_at is None), None)
 
 
-def _escalation(reviews: list[Review], rec: Recommendation | None) -> Review | None:
-    if rec is None:
-        return None
-    return next((r for r in reversed(reviews) if r.action == ESCALATE and r.recommendation_id == rec.id), None)
-
-
 def _routing(claim: Claim, rec: Recommendation | None, reviews: list[Review]) -> tuple[str, str | None, bool, str | None]:
-    """(level, spesialisasi, sudah_dieskalasi, nama_diagnosis) untuk antrean dokter."""
-    dx = active_ruleset().match_diagnosis(claim.primary_icd10)
-    esc = _escalation(reviews, rec)
-    specialty = (esc.escalated_specialty if esc and esc.escalated_specialty else None) or (dx.specialty if dx else None)
-    level = SPECIALIST if (rec is not None and rec.triage_status == "RED") or esc else GP
-    return level, specialty, esc is not None, dx.name if dx else None
+    return routing(claim, rec, reviews)
 
 
 def _blocked_reason(user: User, claim: Claim, rec: Recommendation | None, level: str, specialty: str | None) -> str | None:
@@ -197,8 +199,8 @@ def queue(
     db: Session = Depends(get_db),
     user: User = Depends(doctor_only),
 ) -> list[QueueItem]:
-    """Antrean kasus untuk dokter ini, urut skor risiko tertinggi lalu yang paling lama menunggu."""
-    q = visible_claims_query(user)
+    """Antrean kasus untuk dokter ini: yang lewat SLA dulu, lalu skor risiko tertinggi, lalu yang paling lama menunggu."""
+    q = visible_claims_query(user, db)
     if done:
         q = q.where(Claim.status != ClaimStatus.AWAITING_DOCTOR.value)
     else:
@@ -207,6 +209,9 @@ def queue(
         q = q.where(Claim.primary_icd10.startswith(icd.strip().upper()))
     claims = list(db.scalars(q))
     assigned = _users(db, {c.assigned_doctor_id for c in claims})
+    insurers = {i.id: i for i in db.scalars(select(Insurer))}
+    configs: dict[str, object] = {}
+    now = _now()
     items: list[QueueItem] = []
     for c in claims:
         rec = _current_recommendation(c)
@@ -219,6 +224,10 @@ def queue(
         if not done and _blocked_reason(user, c, rec, level, specialty) is not None:
             continue
         doctor = assigned.get(c.assigned_doctor_id or "")
+        cfg = configs.setdefault(c.insurer_id, tenant_config(db, c.insurer_id))
+        due = sla_due(rec, reviews, level, cfg)
+        signed_at = _aware(rec.signed_at)
+        insurer = insurers.get(c.insurer_id)
         items.append(QueueItem(
             id=c.id, claim_number=c.claim_number, hospital_name=c.hospital_name, admission_date=c.admission_date,
             discharge_date=c.discharge_date, billed_amount=c.billed_amount, primary_icd10=c.primary_icd10,
@@ -226,12 +235,17 @@ def queue(
             findings=len(rec.findings), level=level, specialty=specialty, escalated=escalated,
             assigned_to=doctor.full_name if doctor else None, assigned_to_me=c.assigned_doctor_id == user.id,
             waiting_since=_aware(rec.created_at),
-            signed_by=rec.signed_by.full_name if rec.signed_by else None, signed_at=_aware(rec.signed_at),
+            signed_by=rec.signed_by.full_name if rec.signed_by else None, signed_at=signed_at,
+            insurer_name=(cfg.display_name or (insurer.name if insurer else None)),
+            sla_hours=cfg.sla_hours(level), sla_due_at=due,
+            sla_state=None if done else sla_state(due, level, cfg, now),
+            sla_met=(signed_at <= due) if done and signed_at else None,
         ))
     if done:
         items.sort(key=lambda i: i.signed_at or i.waiting_since, reverse=True)
     else:
-        items.sort(key=lambda i: (-(i.risk_score or 0), i.waiting_since))
+        # yang sudah lewat SLA paling atas, lalu skor risiko tertinggi, lalu yang paling lama menunggu
+        items.sort(key=lambda i: (i.sla_state != "OVERDUE", -(i.risk_score or 0), i.waiting_since))
     return items
 
 
@@ -318,6 +332,14 @@ def start_review(claim_id: str, request: Request, db: Session = Depends(get_db),
         raise HTTPException(code, blocked)
     review = Review(claim_id=claim.id, recommendation_id=rec.id, doctor_id=user.id, started_at=_now())
     db.add(review)
+    current = active_assignment(db, claim)
+    if current is None or current.doctor_id != user.id:
+        # kasus diambil dari antrean bersama (tanpa penugasan otomatis)
+        if current is not None:
+            close_active(db, claim, AssignmentStatus.CANCELLED)
+        assign(db, claim, rec, user, level=level, specialty=specialty,
+               due=sla_due(rec, reviews, level, tenant_config(db, claim.insurer_id)), method="CLAIMED",
+               actor=user, request=request)
     claim.assigned_doctor_id = user.id
     db.flush()
     audit.record(db, "REVIEW_STARTED", user_id=user.id, user_role=user.role, claim_id=claim.id,
@@ -334,8 +356,11 @@ def release_review(claim_id: str, request: Request, db: Session = Depends(get_db
     review.finished_at = _now()
     review.action = "RELEASED"
     claim.assigned_doctor_id = None
+    close_active(db, claim, AssignmentStatus.RELEASED)
     audit.record(db, "REVIEW_RELEASED", user_id=user.id, user_role=user.role, claim_id=claim.id,
                  detail={"review_id": review.id}, request=request)
+    db.flush()
+    auto_assign(db, claim, exclude={user.id}, request=request)  # ke dokter lain bila ada; bila tidak, antrean bersama
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -380,8 +405,11 @@ def escalate(claim_id: str, body: EscalateRequest, request: Request, db: Session
     review.notes = body.notes.strip()
     review.finished_at = _now()
     claim.assigned_doctor_id = None
+    close_active(db, claim, AssignmentStatus.ESCALATED)
     audit.record(db, "REVIEW_ESCALATED", user_id=user.id, user_role=user.role, claim_id=claim.id,
                  detail={"review_id": review.id, "specialty": review.escalated_specialty}, request=request)
+    db.flush()
+    auto_assign(db, claim, request=request)
     db.commit()
     return _review_out(review, {user.id: user})
 
@@ -473,6 +501,7 @@ def sign(claim_id: str, body: SignRequest, request: Request, db: Session = Depen
     review.notes = (body.notes or "").strip() or None
     review.finished_at = now
     claim.status = ClaimStatus.AWAITING_DECISION.value
+    close_active(db, claim, AssignmentStatus.COMPLETED, now)
     started = _aware(review.started_at)
     audit.record(db, "RECOMMENDATION_SIGNED", user_id=user.id, user_role=user.role, claim_id=claim.id, request=request,
                  detail={"recommendation_id": signed.id, "version": signed.version, "recommendation": code,

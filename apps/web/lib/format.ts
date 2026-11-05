@@ -93,5 +93,37 @@ export function nilai(v: unknown): string {
 export function homeFor(role: string | undefined): string {
   if (role === "doctor_gp" || role === "doctor_specialist") return "/telaah";
   if (role === "admin") return "/admin";
+  if (role === "underwriter") return "/underwriting";
   return "/klaim";
+}
+
+export const ROLE_LABEL: Record<string, string> = {
+  insurer_staff: "Staf klaim",
+  insurer_manager: "Manajer klaim",
+  tpa_operator: "Operator TPA",
+  doctor_gp: "Dokter umum",
+  doctor_specialist: "Dokter spesialis",
+  auditor: "Auditor",
+  facility_officer: "Petugas faskes",
+  member: "Peserta",
+  underwriter: "Underwriter",
+  admin: "Admin",
+};
+
+export const SLA_LABEL: Record<string, string> = {
+  ON_TRACK: "Sesuai SLA",
+  AT_RISK: "Hampir lewat",
+  OVERDUE: "Lewat SLA",
+};
+
+/** Sisa waktu (atau keterlambatan) sampai batas SLA, mis. "sisa 5 j 20 m" / "lewat 2 j". */
+export function slaRemaining(due: string | null | undefined, now: number = Date.now()): string {
+  if (!due) return "-";
+  const diff = new Date(due).getTime() - now;
+  const mins = Math.round(Math.abs(diff) / 60000);
+  const d = Math.floor(mins / 1440);
+  const h = Math.floor((mins % 1440) / 60);
+  const m = mins % 60;
+  const text = d > 0 ? `${d} hr ${h} j` : h > 0 ? `${h} j ${m} m` : `${m} m`;
+  return diff >= 0 ? `sisa ${text}` : `lewat ${text}`;
 }

@@ -11,8 +11,9 @@ from sqlalchemy.orm import Session
 from mab_api.access import visible_claims_query
 from mab_api.api_schemas import CountItem, DashboardOut
 from mab_api.db import get_db
-from mab_api.deps import require_roles
-from mab_api.models import INSURER_ROLES, ClaimStatus, Recommendation, Review, Role, User
+from mab_api.deps import require_perm
+from mab_api.models import ClaimStatus, Review, User
+from mab_api.rbac import Perm, can_see_draft
 from mab_api.routers.claims import _current_recommendation, _latest_decision, _released_to_insurer
 from mab_api.ruleset import active_ruleset
 
@@ -28,10 +29,10 @@ def _utc(dt):
 
 @router.get("", response_model=DashboardOut)
 def dashboard(db: Session = Depends(get_db),
-              user: User = Depends(require_roles(Role.INSURER_STAFF, Role.INSURER_MANAGER, Role.ADMIN))) -> DashboardOut:
-    """Asuransi hanya melihat klaimnya sendiri dan rekomendasi yang sudah dirilis ke asuransi."""
-    is_insurer = Role(user.role) in INSURER_ROLES
-    claims = list(db.scalars(visible_claims_query(user)))
+              user: User = Depends(require_perm(Perm.DASHBOARD))) -> DashboardOut:
+    """Asuransi/TPA/auditor hanya melihat klaim dalam cakupannya dan rekomendasi yang sudah dirilis."""
+    is_insurer = not can_see_draft(user.role)
+    claims = list(db.scalars(visible_claims_query(user, db)))
     reason_labels = active_ruleset().reason_codes
 
     by_status, by_triage, by_rec, decisions = Counter(), Counter(), Counter(), Counter()

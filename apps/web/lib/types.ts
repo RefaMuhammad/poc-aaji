@@ -1,4 +1,14 @@
-export type Role = "insurer_staff" | "insurer_manager" | "doctor_gp" | "doctor_specialist" | "admin";
+export type Role =
+  | "insurer_staff"
+  | "insurer_manager"
+  | "doctor_gp"
+  | "doctor_specialist"
+  | "admin"
+  | "tpa_operator"
+  | "auditor"
+  | "facility_officer"
+  | "member"
+  | "underwriter";
 
 export interface User {
   id: string;
@@ -7,6 +17,8 @@ export interface User {
   role: Role;
   insurer_id: string | null;
   specialty: string | null;
+  facility_name?: string | null;
+  member_ref?: string | null;
 }
 
 export type ClaimStatus =
@@ -39,6 +51,8 @@ export interface ClaimListItem {
   risk_score: number | null;
   recommendation: string | null;
   decision: string | null;
+  insurer_id: string;
+  insurer_name: string | null;
 }
 
 export interface DocumentInfo {
@@ -141,6 +155,11 @@ export interface QueueItem {
   waiting_since: string;
   signed_by: string | null;
   signed_at: string | null;
+  insurer_name: string | null;
+  sla_hours: number | null;
+  sla_due_at: string | null;
+  sla_state: "ON_TRACK" | "AT_RISK" | "OVERDUE" | null;
+  sla_met: boolean | null;
 }
 
 export interface ReviewField {
@@ -245,4 +264,49 @@ export interface Dashboard {
   doctor_reviews: number;
   doctor_agreement_pct: number | null;
   avg_review_seconds: number | null;
+}
+
+// --- Tenant & akun layanan (U1) ---------------------------------------------------------
+
+export interface Branding {
+  insurer_id: string;
+  code: string;
+  name: string;
+  display_name: string | null;
+  logo_data_url: string | null;
+  primary_color: string | null;
+}
+
+export interface TenantSettingsInput {
+  display_name: string | null;
+  logo_data_url: string | null;
+  primary_color: string | null;
+  triage_red_min_score: number | null;
+  triage_yellow_min_score: number | null;
+  disabled_rules: string[];
+  sla_gp_hours: number;
+  sla_specialist_hours: number;
+  auto_assign: boolean;
+}
+
+export interface Tenant extends Branding, TenantSettingsInput {
+  version: number;
+  updated_at: string | null;
+  default_red_min_score: number | null;
+  default_yellow_min_score: number | null;
+  effective_ruleset_version: string;
+  claim_count: number;
+}
+
+export interface ApiClient {
+  id: string;
+  insurer_id: string;
+  name: string;
+  key_prefix: string;
+  scopes: string[];
+  is_active: boolean;
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+  api_key?: string;
 }

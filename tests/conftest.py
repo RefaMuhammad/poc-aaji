@@ -16,7 +16,7 @@ from sqlalchemy.pool import StaticPool
 from mab_api.db import Base, make_session_factory
 from mab_api.job_queue import RQJobQueue
 from mab_api.main import create_app
-from mab_api.models import Insurer, Role, User
+from mab_api.models import Insurer, Role, User, UserTenant
 from mab_api.security import hash_secret
 from mab_api.storage import MemoryStorage
 
@@ -43,7 +43,7 @@ def job_queue():
 
 @pytest.fixture
 def users(session_factory):
-    """Dua asuransi; satu akun per peran di asuransi A, plus staf asuransi B."""
+    """Dua asuransi; satu akun per peran di asuransi A, plus staf asuransi B dan peran U1."""
     with session_factory() as db:
         a = Insurer(code="A", name="Asuransi A (rekaan)")
         b = Insurer(code="B", name="Asuransi B (rekaan)")
@@ -56,8 +56,16 @@ def users(session_factory):
             ("spesialis", Role.DOCTOR_SPECIALIST, None, "Penyakit Dalam"),
             ("admin", Role.ADMIN, None, None),
             ("staf_b", Role.INSURER_STAFF, b.id, None),
+            # U1
+            ("tpa", Role.TPA_OPERATOR, None, None),
+            ("auditor", Role.AUDITOR, a.id, None),
+            ("auditor_ojk", Role.AUDITOR, None, None),
+            ("faskes", Role.FACILITY_OFFICER, None, None),
+            ("peserta", Role.MEMBER, a.id, None),
+            ("underwriter", Role.UNDERWRITER, a.id, None),
         ]
-        out = {}
+        extra = {"faskes": {"facility_name": "RS rekaan"}, "peserta": {"member_ref": "PST-REKAAN-1"}}
+        out = {"insurer_a": a.id, "insurer_b": b.id}
         for key, role, insurer_id, specialty in spec:
             u = User(
                 email=f"{key}@uji.test",
@@ -66,10 +74,13 @@ def users(session_factory):
                 insurer_id=insurer_id,
                 specialty=specialty,
                 password_hash=hash_secret(PASSWORD),
+                **extra.get(key, {}),
             )
             db.add(u)
             db.flush()
             out[key] = u.id
+        # operator TPA melayani asuransi A dan B
+        db.add_all([UserTenant(user_id=out["tpa"], insurer_id=a.id), UserTenant(user_id=out["tpa"], insurer_id=b.id)])
         db.commit()
         return out
 

@@ -7,6 +7,8 @@ Langkah:
    SYN-DEN-09 sengaja tidak diunggah: klaim ini diunggah langsung saat demo (lihat docs/demo-script.md).
 4. Sebagian kasus ditelaah dokter (setujui draf, satu diubah, satu dieskalasi), sebagian dibiarkan di antrean.
 5. Sebagian klaim diputuskan asuransi (setuju massal klaim hijau, satu "berbeda"), sebagian dibiarkan.
+6. Tenant kedua (Asuransi Pelita, ambang merah 20): 6 klaim yang sama diunggah supaya terlihat
+   perbedaan triase antar tenant. Termasuk SYN-DEN-09 (kuning di DEMO, merah di PELITA).
 
 Butuh: `make up` dan `make synthetic` sudah dijalankan. Jalankan di container api:
     docker compose exec api python infra/scripts/seed_demo.py
@@ -25,6 +27,7 @@ import httpx
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "apps" / "api"))
 sys.path.insert(0, "/app")
 
+from seed_users import link_portal_accounts  # noqa: E402
 from seed_users import seed as seed_users  # noqa: E402
 
 API = os.environ.get("SEED_API_URL", "http://localhost:8000")
@@ -35,6 +38,10 @@ LIVE_DEMO_CLAIM = os.environ.get("SEED_SKIP", "SYN-DEN-09")
 TIMEOUT = int(os.environ.get("SEED_TIMEOUT", "1800"))
 DOC_ORDER = ["resume_medis", "hasil_laboratorium", "cppt", "rincian_tagihan"]
 HISTORY_FOR = "SYN-GEA-10"
+SECOND_TENANT_STAFF = "staf@pelita.test"
+SECOND_TENANT_CLAIMS = ["SYN-DEN-02", "SYN-GEA-02", "SYN-DEN-08", "SYN-DEN-09", "SYN-GEA-07", "SYN-TIF-07"]
+FACILITY_FROM = "SYN-TIF-10"   # akun faskes = RS klaim ini (skenario dokumen tidak lengkap)
+MEMBER_FROM = LIVE_DEMO_CLAIM  # akun peserta = peserta klaim yang diunggah langsung saat demo
 
 
 class Api:
@@ -71,6 +78,19 @@ def claim_body(case: dict, number: str | None = None) -> dict:
     }
 
 
+def _upload_one(staf: Api, folder: Path) -> str:
+    case = json.loads((folder / "case.json").read_text(encoding="utf-8"))
+    claim = staf.post("/claims", json=claim_body(case))
+    files = []
+    for name in DOC_ORDER:
+        pdf = folder / f"{name}.pdf"
+        if pdf.exists():
+            files.append(("files", (pdf.name, pdf.read_bytes(), "application/pdf")))
+    staf.post(f"/claims/{claim['id']}/documents", files=files)
+    print(f"  {folder.name}: {len(files)} dokumen diunggah")
+    return claim["id"]
+
+
 def upload_claims(staf: Api) -> list[str]:
     folders = sorted(p for p in DATA.iterdir() if p.is_dir() and p.name.startswith("SYN-"))
     if not folders:
@@ -84,21 +104,19 @@ def upload_claims(staf: Api) -> list[str]:
         staf.post("/claims", json=body)
         print(f"  klaim riwayat {number} dibuat")
 
-    ids = []
-    for folder in folders:
-        if folder.name == LIVE_DEMO_CLAIM:
-            continue
-        case = json.loads((folder / "case.json").read_text(encoding="utf-8"))
-        claim = staf.post("/claims", json=claim_body(case))
-        files = []
-        for name in DOC_ORDER:
-            pdf = folder / f"{name}.pdf"
-            if pdf.exists():
-                files.append(("files", (pdf.name, pdf.read_bytes(), "application/pdf")))
-        staf.post(f"/claims/{claim['id']}/documents", files=files)
-        ids.append(claim["id"])
-        print(f"  {folder.name}: {len(files)} dokumen diunggah")
-    return ids
+    return [_upload_one(staf, folder) for folder in folders if folder.name != LIVE_DEMO_CLAIM]
+
+
+def upload_second_tenant() -> tuple[Api, list[str]]:
+    staf = Api(SECOND_TENANT_STAFF)
+    return staf, [_upload_one(staf, DATA / name) for name in SECOND_TENANT_CLAIMS if (DATA / name).is_dir()]
+
+
+def link_accounts() -> None:
+    facility = json.loads((DATA / FACILITY_FROM / "case.json").read_text(encoding="utf-8"))["hospital"]["name"]
+    member = json.loads((DATA / MEMBER_FROM / "case.json").read_text(encoding="utf-8"))["patient"]["member_id"]
+    link_portal_accounts(facility, member)
+    print(f"  akun faskes -> {facility}; akun peserta -> {member} (klaim {MEMBER_FROM})")
 
 
 def wait_processing(staf: Api, ids: list[str]) -> None:
@@ -128,8 +146,9 @@ def doctor_reviews() -> None:
     gp = Api("dokter.umum@mab.test")
     sp = Api("dokter.spesialis@mab.test")
 
+    # Hanya klaim tenant DEMO yang ditelaah; klaim PELITA dibiarkan di antrean untuk demo SLA.
     # Dokter umum: eskalasi satu kasus, setujui draf sisanya kecuali dua kasus terakhir (tetap di antrean).
-    gp_queue = gp.get("/review/queue")
+    gp_queue = [i for i in gp.get("/review/queue") if i["insurer_name"] == "Asuransi Sehat Demo"]
     for i, item in enumerate(gp_queue[:-2] if len(gp_queue) > 2 else []):
         if i == 0:
             gp.post(f"/review/{item['id']}/start")
@@ -141,7 +160,7 @@ def doctor_reviews() -> None:
         print(f"  dokter umum menyetujui draf {item['claim_number']}")
 
     # Spesialis: kasus merah selain eskalasi; satu diubah, dua terakhir dibiarkan di antrean.
-    sp_queue = [i for i in sp.get("/review/queue") if not i["escalated"]]
+    sp_queue = [i for i in sp.get("/review/queue") if not i["escalated"] and i["insurer_name"] == "Asuransi Sehat Demo"]
     for i, item in enumerate(sp_queue[:-2] if len(sp_queue) > 2 else []):
         ws = sp.get(f"/review/{item['id']}")
         sugg = dict(ws["suggestion"])
@@ -186,14 +205,19 @@ def main() -> None:
 
     print("2. Unggah klaim sintetis")
     ids = upload_claims(staf)
+    print("   Tenant kedua (Asuransi Pelita)")
+    staf_pelita, pelita_ids = upload_second_tenant()
+    link_accounts()
     print("3. Menunggu worker memproses")
     wait_processing(staf, ids)
+    wait_processing(staf_pelita, pelita_ids)
     print("4. Telaah dokter")
     doctor_reviews()
     print("5. Keputusan asuransi")
     insurer_decisions(staf)
     print(f"\nSelesai. Buka http://localhost:3000 (staf@demo.test / {PASSWORD}).")
-    print(f"Klaim {LIVE_DEMO_CLAIM} sengaja belum diunggah untuk diunggah langsung saat demo.")
+    print(f"Klaim {LIVE_DEMO_CLAIM} sengaja belum diunggah ke tenant DEMO untuk diunggah langsung saat demo.")
+    print(f"Tenant kedua: {SECOND_TENANT_STAFF} melihat {len(pelita_ids)} klaim Asuransi Pelita (ambang merah 20).")
 
 
 if __name__ == "__main__":
