@@ -140,7 +140,7 @@ export function RecommendationView({
       )}
 
       <div className="text-xs text-slate-400">
-        Versi model {rec.model_version} · prompt {rec.prompt_version} · aturan {rec.ruleset_version}
+        Versi model {rec.model_version} · prompt {rec.prompt_version} · aturan {rec.ruleset_version}{rec.benefit_ruleset_version ? ` · benefit ${rec.benefit_ruleset_version}` : ""}
       </div>
 
       {viewer && <DocumentViewer target={viewer} documents={documents} onClose={() => setViewer(null)} />}

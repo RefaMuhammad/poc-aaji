@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from mab_api.models import Insurer, TenantSettings
+from mab_pipeline.benefit import BenefitRuleSet
 from mab_pipeline.rules.loader import RuleSet
 from mab_pipeline.schemas import TriageStatus
 
@@ -36,6 +37,8 @@ class TenantConfig:
     sla_specialist_hours: int = DEFAULT_SLA_SPECIALIST_HOURS
     auto_assign: bool = True
     version: int = 0
+    webhook_url: str | None = None
+    webhook_secret: str | None = None
 
     @property
     def has_rule_overrides(self) -> bool:
@@ -66,11 +69,26 @@ def tenant_config(db: Session, insurer_id: str | None) -> TenantConfig:
         sla_specialist_hours=row.sla_specialist_hours or DEFAULT_SLA_SPECIALIST_HOURS,
         auto_assign=bool(row.auto_assign),
         version=row.version or 1,
+        webhook_url=row.webhook_url,
+        webhook_secret=row.webhook_secret,
     )
 
 
-def all_rule_ids(ruleset: RuleSet) -> set[str]:
-    return {r.id for r in ruleset.general_rules} | {r.id for d in ruleset.diagnoses for r in d.rules}
+def all_rule_ids(ruleset: RuleSet, benefit: BenefitRuleSet | None = None) -> set[str]:
+    ids = {r.id for r in ruleset.general_rules} | {r.id for d in ruleset.diagnoses for r in d.rules}
+    return ids | (benefit.rule_ids if benefit else set())
+
+
+def apply_tenant_benefit(benefit: BenefitRuleSet, cfg: TenantConfig) -> BenefitRuleSet:
+    """Aturan benefit tanpa aturan yang dimatikan tenant (id BEN-xx di daftar aturan nonaktif)."""
+    disabled = set(cfg.disabled_rules) & benefit.rule_ids
+    if not disabled:
+        return benefit
+    return dataclasses.replace(
+        benefit,
+        version=f"{benefit.version}+{cfg.code or 'tenant'}.v{cfg.version}",
+        rules=tuple(r for r in benefit.rules if r.rule.id not in disabled),
+    )
 
 
 def apply_tenant(ruleset: RuleSet, cfg: TenantConfig) -> RuleSet:

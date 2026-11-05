@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiJson } from "@/lib/api";
-import type { ApiClient, RulesetInfo, RulesetRule, Tenant, TenantSettingsInput } from "@/lib/types";
+import type { ApiClient, ApiScope, RulesetInfo, RulesetRule, Tenant, TenantSettingsInput } from "@/lib/types";
 import { SEVERITY_LABEL, waktu } from "@/lib/format";
+import { IntegrationLog } from "@/components/IntegrationLog";
 
 const MAX_LOGO_BYTES = 200 * 1024;
 
@@ -18,7 +19,14 @@ function toInput(t: Tenant): TenantSettingsInput {
     sla_gp_hours: t.sla_gp_hours,
     sla_specialist_hours: t.sla_specialist_hours,
     auto_assign: t.auto_assign,
+    webhook_url: t.webhook_url,
   };
+}
+
+function randomSecret(): string {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 function numOrNull(v: string): number | null {
@@ -226,6 +234,14 @@ function SettingsForm({ tenant, ruleset, onSaved }: { tenant: Tenant; ruleset: R
             {ruleset.diagnoses.map((d) => (
               <RuleChecklist key={d.id} title={d.name} rules={d.rules} disabled={disabled} onToggle={toggleRule} />
             ))}
+            {ruleset.benefit && (
+              <RuleChecklist
+                title={`Aturan benefit polis (${ruleset.benefit.version}, hanya bila tenant punya data polis)`}
+                rules={ruleset.benefit.rules}
+                disabled={disabled}
+                onToggle={toggleRule}
+              />
+            )}
           </div>
         ) : (
           <p className="text-sm text-slate-500">Memuat aturan…</p>
@@ -263,6 +279,52 @@ function SettingsForm({ tenant, ruleset, onSaved }: { tenant: Tenant; ruleset: R
         </label>
       </Section>
 
+      <Section
+        title="Webhook ke sistem asuransi"
+        hint="Dikirim saat rekomendasi dirilis ke asuransi, saat keputusan dicatat, dan saat klaim gagal diproses. Draf yang menunggu dokter tidak pernah dikirim."
+      >
+        <label className="block text-sm">
+          <span className="text-slate-600">URL penerima</span>
+          <input
+            className="input mt-1 font-mono text-xs"
+            value={form.webhook_url ?? ""}
+            placeholder="https://sistem-inti-asuransi.example/mab/webhook (kosong = webhook mati)"
+            onChange={(e) => setForm({ ...form, webhook_url: e.target.value || null })}
+          />
+        </label>
+        <button
+          type="button"
+          className="text-xs text-sky-800 hover:underline"
+          onClick={() => setForm({ ...form, webhook_url: `http://api:8000/integrations/demo-sink/${tenant.code}` })}
+        >
+          Pakai penerima demo (sistem inti rekaan di dalam docker compose)
+        </button>
+        <div className="flex flex-wrap items-end gap-2 text-sm">
+          <label className="block min-w-[16rem] flex-1">
+            <span className="text-slate-600">Rahasia tanda tangan (HMAC-SHA256)</span>
+            <input
+              className="input mt-1 font-mono text-xs"
+              value={form.webhook_secret ?? ""}
+              placeholder={tenant.webhook_secret_set ? "tersimpan (kosongkan untuk tidak mengubah)" : "minimal 16 karakter"}
+              onChange={(e) => setForm({ ...form, webhook_secret: e.target.value || null })}
+            />
+          </label>
+          <button type="button" className="btn-secondary" onClick={() => setForm({ ...form, webhook_secret: randomSecret() })}>
+            Buat acak
+          </button>
+          {tenant.webhook_secret_set && (
+            <button type="button" className="text-xs text-rose-700 hover:underline" onClick={() => setForm({ ...form, webhook_secret: "" })}>
+              Hapus rahasia
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-slate-500">
+          Header: <code>X-MAB-Event</code>, <code>X-MAB-Delivery</code>, dan <code>X-MAB-Signature: sha256=…</code> atas body mentah.
+          {form.webhook_secret ? " Salin rahasia ini ke sistem penerima sebelum menyimpan; setelah disimpan rahasia tidak ditampilkan lagi." : ""}
+          {form.webhook_secret === "" ? " Rahasia akan dihapus saat disimpan." : ""}
+        </p>
+      </Section>
+
       {error && <p className="text-sm text-rose-700">{error}</p>}
       {message && <p className="text-sm text-emerald-700">{message}</p>}
       <button type="submit" className="btn-primary" disabled={busy}>{busy ? "Menyimpan…" : "Simpan pengaturan"}</button>
@@ -275,6 +337,11 @@ function ApiClients({ tenant }: { tenant: Tenant }) {
   const [name, setName] = useState("");
   const [created, setCreated] = useState<ApiClient | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [scopes, setScopes] = useState<ApiScope[]>([]);
+  const [chosen, setChosen] = useState<string[]>(["claims:read"]);
+  useEffect(() => {
+    apiJson<ApiScope[]>("/tenants/api-scopes").then(setScopes).catch(() => setScopes([]));
+  }, []);
 
   const load = useCallback(() => {
     apiJson<ApiClient[]>(`/tenants/${tenant.insurer_id}/api-clients`).then(setClients).catch((e) => setError(e.message));
@@ -290,7 +357,7 @@ function ApiClients({ tenant }: { tenant: Tenant }) {
     try {
       const c = await apiJson<ApiClient>(`/tenants/${tenant.insurer_id}/api-clients`, {
         method: "POST",
-        body: JSON.stringify({ name, scopes: ["claims:read"] }),
+        body: JSON.stringify({ name, scopes: chosen }),
       });
       setCreated(c);
       setName("");
@@ -315,8 +382,9 @@ function ApiClients({ tenant }: { tenant: Tenant }) {
       <div>
         <h2 className="font-semibold">Akun layanan (API key)</h2>
         <p className="text-xs text-slate-500">
-          Untuk sistem asuransi/TPA membaca status klaim lewat <code>/integrations/v1</code> dengan header <code>X-API-Key</code>.
-          Kunci hanya berlaku untuk klaim asuransi ini. Kirim klaim lewat API, webhook, SFTP, dan FHIR menyusul di U2.
+          Untuk sistem inti asuransi/TPA: kirim klaim (multipart atau FHIR R4 Bundle), kirim data polis, dan baca status klaim lewat{" "}
+          <code>/integrations/v1</code> dengan header <code>X-API-Key</code>. Kunci hanya berlaku untuk data asuransi ini. Dokumentasi
+          lengkap di <a className="text-sky-800 hover:underline" href="http://localhost:8000/docs" target="_blank" rel="noreferrer">OpenAPI (localhost:8000/docs)</a>.
         </p>
       </div>
       {created?.api_key && (
@@ -330,9 +398,24 @@ function ApiClients({ tenant }: { tenant: Tenant }) {
           </div>
         </div>
       )}
-      <form onSubmit={create} className="flex flex-wrap gap-2">
-        <input className="input w-auto flex-1" placeholder="Nama akun layanan, mis. Core claim system" value={name} onChange={(e) => setName(e.target.value)} />
-        <button type="submit" className="btn-primary" disabled={name.trim().length < 3}>Buat API key</button>
+      <form onSubmit={create} className="space-y-2">
+        <div className="flex flex-wrap gap-2">
+          <input className="input w-auto flex-1" placeholder="Nama akun layanan, mis. Core claim system" value={name} onChange={(e) => setName(e.target.value)} />
+          <button type="submit" className="btn-primary" disabled={name.trim().length < 3 || chosen.length === 0}>Buat API key</button>
+        </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+          {scopes.map((s) => (
+            <label key={s.scope} className="flex items-center gap-1.5" title={s.description}>
+              <input
+                type="checkbox"
+                checked={chosen.includes(s.scope)}
+                onChange={() => setChosen((c) => (c.includes(s.scope) ? c.filter((x) => x !== s.scope) : [...c, s.scope].sort()))}
+              />
+              <code className="text-xs">{s.scope}</code>
+              <span className="text-xs text-slate-500">{s.description}</span>
+            </label>
+          ))}
+        </div>
       </form>
       {error && <p className="text-sm text-rose-700">{error}</p>}
       <table className="w-full text-sm">
@@ -447,7 +530,7 @@ export default function TenantAdminPage() {
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium">{t.display_name ?? t.name}</div>
                 <div className="text-xs text-slate-500">
-                  {t.code} · {t.claim_count} klaim · v{t.version}
+                  {t.code} · {t.claim_count} klaim · {t.policy_count} polis · v{t.version}
                 </div>
               </div>
             </button>
@@ -462,6 +545,7 @@ export default function TenantAdminPage() {
         <div className="space-y-4">
           {selected && <SettingsForm tenant={selected} ruleset={ruleset} onSaved={replace} />}
           {selected && <ApiClients tenant={selected} />}
+          {selected && <IntegrationLog tenant={selected} canResend />}
         </div>
       </div>
     </div>

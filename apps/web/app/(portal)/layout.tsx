@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { apiJson } from "@/lib/api";
-import { CLAIM_LIST_ROLES, DASHBOARD_ROLES, DOCTOR_ROLES, INSURER_ROLES, RequireAuth, useAuth } from "@/lib/auth";
+import { CLAIM_LIST_ROLES, DASHBOARD_ROLES, DOCTOR_ROLES, INSURER_ROLES, POLICY_VIEW_ROLES, RequireAuth, useAuth } from "@/lib/auth";
 import { ROLE_LABEL, homeFor } from "@/lib/format";
 import type { Branding } from "@/lib/types";
 import DemoSwitcher from "@/components/DemoSwitcher";
@@ -57,6 +57,7 @@ function Shell({ children }: { children: React.ReactNode }) {
               {isAdmin && nav("/admin/tenant", "Tenant & API key")}
               {CLAIM_LIST_ROLES.includes(role) && nav("/klaim", "Daftar klaim")}
               {isInsurer && nav("/klaim/baru", "Unggah klaim")}
+              {POLICY_VIEW_ROLES.includes(role) && nav("/polis", "Polis")}
               {DASHBOARD_ROLES.includes(role) && nav("/dashboard", "Dashboard")}
               {role === "underwriter" && nav("/underwriting", "Underwriting")}
             </nav>

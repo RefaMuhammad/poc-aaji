@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from mab_pipeline.documents import LoadedDocument, TextLine
 from mab_pipeline.extraction.derived_fields import DEFAULT_REQUIRED_DOCS, DerivedValue, derive
@@ -15,6 +16,9 @@ from mab_pipeline.ingest.doc_classifier import classify
 from mab_pipeline.ingest.pdf_loader import load_document
 from mab_pipeline.llm.client import LLMClient
 from mab_pipeline.ocr.engine import OcrEngine
+
+if TYPE_CHECKING:  # pragma: no cover
+    from mab_pipeline.benefit import BenefitResult
 
 log = logging.getLogger(__name__)
 
@@ -107,6 +111,11 @@ class Assessment:
     model_version: str
     prompt_version: str
     ruleset_version: str
+    benefit: "BenefitResult | None" = None
+
+    @property
+    def benefit_ruleset_version(self) -> str | None:
+        return self.benefit.version if self.benefit else None
 
 
 def line_evidence(line_ids: list[str], lines: dict[str, TextLine], field_path: str) -> tuple[list[dict], float | None]:
@@ -128,8 +137,15 @@ def assess_claim(
     billed_amount: int,
     claim_number: str | None = None,
     overlapping: list[dict] | None = None,
+    benefit_ruleset=None,
+    policy=None,
+    admission_date=None,
 ) -> Assessment:
-    """Penalaran klinis -> aturan -> rekomendasi, dari hasil baca dokumen."""
+    """Penalaran klinis -> aturan -> rekomendasi, dari hasil baca dokumen.
+
+    U2: bila `benefit_ruleset` diberikan, aturan benefit dinilai terhadap `policy` (PolicyInfo atau
+    None = polis tidak ditemukan). Temuannya digabung dengan temuan klinis sebelum triase.
+    """
     from mab_pipeline.ingest.doc_classifier import title_line
     from mab_pipeline.reasoning.clinical_reasoner import PROMPT_VERSION as REASON_PROMPT
     from mab_pipeline.reasoning.clinical_reasoner import reason
@@ -165,6 +181,24 @@ def assess_claim(
     claim = ClaimData.model_validate({**nested, "claim_id": claim_number})
     triage = run_rules(ruleset, claim)
 
+    benefit = None
+    extra_adjustments = None
+    if benefit_ruleset is not None:
+        from mab_pipeline.benefit import benefit_adjustments, build_facts, run_benefit_rules
+
+        items = read.facts.billing.items if read.facts.billing is not None else []
+        billing_ev = {lid: line_evidence([lid], lines, "benefit.room_rate_billed")[0]
+                      for it in items for lid in it.source_line_ids}
+        dx_codes = [c for c in [primary, *(claim.dx.secondary or [])] if c]
+        facts = build_facts(policy, admission_date, dx_codes, billed_amount, items, billing_ev)
+        benefit = run_benefit_rules(benefit_ruleset, facts)
+        triage = triage.model_copy(update={"findings": [*triage.findings, *benefit.findings]})
+        for path, value in facts.values.items():
+            fields[path] = FieldValue(path, value, "polis", facts.evidence.get(path, []))
+
+        def extra_adjustments(prior: int) -> list[dict]:
+            return benefit_adjustments(benefit, items, billed_amount, prior)
+
     quality: list[str] = []
     unreadable = [d for d in read.documents if not d.lines]
     if unreadable or any(o.status == "failed" for o in read.outcomes) or any("tidak bisa dibaca" in w for w in read.warnings):
@@ -178,7 +212,7 @@ def assess_claim(
 
     draft = build_recommendation(
         triage, claim, ruleset, {p: fv.evidence for p, fv in fields.items()}, billed_amount,
-        billing=read.facts.billing, ai_items=ai_items, quality=quality,
+        billing=read.facts.billing, ai_items=ai_items, quality=quality, extra_adjustments=extra_adjustments,
     )
     return Assessment(
         fields=fields,
@@ -188,4 +222,5 @@ def assess_claim(
         model_version=read.model_version,
         prompt_version=f"{read.prompt_version}+{REASON_PROMPT}",
         ruleset_version=ruleset.version,
+        benefit=benefit,
     )

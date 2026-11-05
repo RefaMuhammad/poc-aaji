@@ -26,6 +26,18 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
 
     rules_path: str = "/app/rules/aturan_klinis_demo.yaml"
+    # U2: aturan benefit polis. Kosong = aturan_benefit_demo.yaml di folder yang sama dengan rules_path.
+    benefit_rules_path: str | None = None
+    # U2: SFTP batch. Folder per tenant: <sftp_root>/<KODE_TENANT>/{masuk,keluar,diproses,gagal}
+    sftp_root: str = "/data/sftp"
+    # U2: webhook keluar
+    webhook_timeout_seconds: float = 5.0
+    webhook_max_attempts: int = 3
+
+    def resolved_benefit_rules_path(self) -> str:
+        from pathlib import Path
+
+        return self.benefit_rules_path or str(Path(self.rules_path).with_name("aturan_benefit_demo.yaml"))
     llm_provider: str = "mock"
     # Tampilkan pemilih "Ganti peran (demo)" di portal. Hanya untuk data rekaan.
     demo_mode: bool = True

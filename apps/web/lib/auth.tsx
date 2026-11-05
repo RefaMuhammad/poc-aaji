@@ -17,6 +17,8 @@ export const DOCTOR_ROLES = ["doctor_gp", "doctor_specialist"];
 /** Cerminan matriks RBAC di API (apps/api/mab_api/rbac.py) untuk menampilkan menu; API tetap yang memutuskan. */
 export const DASHBOARD_ROLES = [...INSURER_ROLES, "auditor", "admin"];
 export const DETAIL_ROLES = [...INSURER_ROLES, ...DOCTOR_ROLES, "auditor", "admin"];
+export const POLICY_VIEW_ROLES = [...INSURER_ROLES, "auditor", "admin"];
+export const POLICY_MANAGE_ROLES = [...INSURER_ROLES, "admin"];
 export const CLAIM_LIST_ROLES = [...DETAIL_ROLES, "facility_officer", "member"];
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {

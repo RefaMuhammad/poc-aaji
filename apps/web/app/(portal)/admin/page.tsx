@@ -92,6 +92,17 @@ export default function AdminPage() {
               <RuleTable rules={d.rules} />
             </div>
           ))}
+
+          {rs.benefit && (
+            <div className="card overflow-x-auto">
+              <h2 className="font-medium">Aturan benefit polis</h2>
+              <p className="mb-2 text-xs text-slate-500">
+                Versi <span className="font-mono">{rs.benefit.version}</span> · <span className="font-mono">{rs.benefit.path}</span> · hanya
+                dijalankan untuk tenant yang punya data polis
+              </p>
+              <RuleTable rules={rs.benefit.rules} />
+            </div>
+          )}
         </section>
       )}
 

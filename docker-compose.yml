@@ -91,6 +91,37 @@ services:
       redis: {condition: service_healthy}
       postgres: {condition: service_healthy}
 
+  # U2: server SFTP untuk klaim batch dari sistem asuransi/TPA (data rekaan).
+  # Login: demo / demo12345 dan pelita / demo12345, port 2222. Folder kerja: /data/{masuk,keluar,...}
+  sftp:
+    image: atmoz/sftp:alpine
+    command: demo:demo12345:1001:1001 pelita:demo12345:1002:1002
+    volumes:
+      - ./data/sftp/DEMO:/home/demo/data
+      - ./data/sftp/PELITA:/home/pelita/data
+    ports:
+      - "2222:22"
+
+  # U2: memproses ZIP di data/sftp/<KODE>/masuk dan menulis hasil ke keluar/
+  sftp-watcher:
+    <<: *backend-env
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    command: python -m mab_pipeline.sftp_watcher
+    environment:
+      SFTP_ROOT: /app/data/sftp
+    volumes:
+      - ./apps/api/mab_api:/app/mab_api
+      - ./pipeline/mab_pipeline:/app/mab_pipeline
+      - ./rules:/app/rules
+      - ./data:/app/data
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      minio: {condition: service_healthy}
+      api: {condition: service_started}
+
   web:
     build:
       context: .

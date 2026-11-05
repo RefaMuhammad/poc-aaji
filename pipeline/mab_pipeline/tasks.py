@@ -33,6 +33,44 @@ def _default_ruleset():
     return load_rules(get_settings().rules_path)
 
 
+def _default_job_queue():
+    from mab_api.config import get_settings
+    from mab_api.job_queue import RQJobQueue
+
+    s = get_settings()
+    return RQJobQueue(s.redis_url, s.rq_queue)
+
+
+def deliver_webhook(delivery_id: str, session_factory=None, post=None) -> str:
+    """Job RQ: kirim satu webhook. Gagal -> exception supaya RQ mencoba lagi (lihat job_queue.py)."""
+    from mab_api.config import get_settings
+    from mab_api.db import make_session_factory
+    from mab_api.models import WebhookDelivery
+    from mab_api.webhooks import deliver
+
+    s = get_settings()
+    with (session_factory or make_session_factory())() as db:
+        delivery = db.get(WebhookDelivery, delivery_id)
+        if delivery is None:
+            return "missing"
+        deliver(db, delivery, post, timeout=s.webhook_timeout_seconds, max_attempts=s.webhook_max_attempts)
+        return delivery.status
+
+
+def _send_webhooks(job_queue, deliveries) -> None:
+    from mab_api.webhooks import dispatch
+
+    deliveries = [d for d in deliveries if d is not None]
+    if deliveries:
+        dispatch(job_queue or _default_job_queue(), deliveries)
+
+
+def _default_benefit_ruleset():
+    from mab_api.ruleset import active_benefit_ruleset
+
+    return active_benefit_ruleset()
+
+
 def _overlapping_claims(db, claim) -> list[dict]:
     from sqlalchemy import select
 
@@ -50,7 +88,8 @@ def _overlapping_claims(db, claim) -> list[dict]:
     return [{"claim_id": o.id, "quote": f"Klaim {o.claim_number}: {o.admission_date} s.d. {o.discharge_date}"} for o in others]
 
 
-def process_claim(claim_id: str, session_factory=None, storage=None, llm=None, ocr=None, ruleset=None) -> str:
+def process_claim(claim_id: str, session_factory=None, storage=None, llm=None, ocr=None, ruleset=None,
+                  benefit_ruleset=None, job_queue=None) -> str:
     from sqlalchemy import delete, select
 
     from mab_api.assignment import auto_assign, close_active
@@ -96,8 +135,22 @@ def process_claim(claim_id: str, session_factory=None, storage=None, llm=None, o
                 row.page_count = len(loaded.pages)
                 storage.put(f"{row.storage_key}.pages.json", json.dumps(loaded.to_json(), ensure_ascii=False).encode(), "application/json")
 
+            # --- U2: polis peserta untuk aturan benefit (hanya bila tenant punya data polis) ---
+            from mab_api.policies import find_policy, policy_info, tenant_has_policies
+            from mab_api.tenancy import apply_tenant_benefit
+
+            benefit_rs, policy = None, None
+            claim.policy_id = None
+            if tenant_has_policies(db, claim.insurer_id):
+                benefit_rs = apply_tenant_benefit(benefit_ruleset or _default_benefit_ruleset(), tenant_cfg)
+                found = find_policy(db, claim)
+                if found is not None:
+                    claim.policy_id = found.id
+                    policy = policy_info(found)
+
             # --- M5: penalaran klinis, aturan, rekomendasi -------------------------------
-            assessment = assess_claim(read, ruleset, llm, claim.billed_amount, claim.claim_number, _overlapping_claims(db, claim))
+            assessment = assess_claim(read, ruleset, llm, claim.billed_amount, claim.claim_number, _overlapping_claims(db, claim),
+                                      benefit_ruleset=benefit_rs, policy=policy, admission_date=claim.admission_date)
             draft = assessment.recommendation
 
             db.execute(delete(ExtractedField).where(ExtractedField.claim_id == claim.id))
@@ -128,6 +181,7 @@ def process_claim(claim_id: str, session_factory=None, storage=None, llm=None, o
                 model_version=assessment.model_version,
                 prompt_version=assessment.prompt_version,
                 ruleset_version=assessment.ruleset_version,
+                benefit_ruleset_version=assessment.benefit_ruleset_version,
             )
             db.add(rec)
             db.flush()
@@ -148,6 +202,12 @@ def process_claim(claim_id: str, session_factory=None, storage=None, llm=None, o
                 "model_version": assessment.model_version,
                 "prompt_version": assessment.prompt_version,
                 "ruleset_version": assessment.ruleset_version,
+                "benefit": {
+                    "ruleset_version": assessment.benefit_ruleset_version,
+                    "policy_number": policy.policy_number if policy else None,
+                    "findings": [f.rule_id for f in assessment.benefit.findings],
+                    "skipped_rules": assessment.benefit.skipped,
+                } if assessment.benefit else None,
                 "tenant_overrides": {
                     "settings_version": tenant_cfg.version,
                     "triage_red_min_score": tenant_cfg.triage_red_min_score,
@@ -171,7 +231,13 @@ def process_claim(claim_id: str, session_factory=None, storage=None, llm=None, o
             db.flush()
             db.refresh(claim)
             auto_assign(db, claim)
+            from mab_api.webhooks import queue_event
+
+            # bayar penuh langsung dirilis ke asuransi; selain itu webhook menunggu tanda tangan dokter
+            hook = queue_event(db, claim, "claim.recommendation_released") \
+                if claim.status == ClaimStatus.AWAITING_DECISION.value else None
             db.commit()
+            _send_webhooks(job_queue, [hook])
             log.info("Klaim %s: %s / %s", claim.claim_number, draft.triage_status, draft.recommendation)
             return claim.status
         except Exception as exc:
@@ -181,5 +247,9 @@ def process_claim(claim_id: str, session_factory=None, storage=None, llm=None, o
             claim.status = ClaimStatus.FAILED.value
             claim.processing_error = f"{type(exc).__name__}: {exc}"[:1000]
             record(db, "PIPELINE_FAILED", claim_id=claim.id, detail={"error": claim.processing_error})
+            from mab_api.webhooks import queue_event
+
+            hook = queue_event(db, claim, "claim.processing_failed")
             db.commit()
+            _send_webhooks(job_queue, [hook])
             return claim.status

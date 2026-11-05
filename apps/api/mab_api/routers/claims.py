@@ -3,12 +3,10 @@ from __future__ import annotations
 
 import csv
 import io
-import zipfile
-from datetime import date, datetime
+from datetime import date
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import Response, StreamingResponse
-from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -16,7 +14,6 @@ from sqlalchemy.orm import Session
 from mab_api.access import get_visible_claim, resolve_target_tenant, visible_claims_query
 from mab_api.api_schemas import (
     BatchResult,
-    BatchRowResult,
     BulkAgreeRequest,
     BulkAgreeResult,
     ClaimCreate,
@@ -41,6 +38,7 @@ from mab_api.rendering import recommendation_pdf
 from mab_api.documents import InvalidFile, missing_documents, store_document, validate_file
 from mab_api.models import (
     Claim,
+    ClaimSource,
     ClaimStatus,
     DecisionCode,
     ExtractedField,
@@ -53,6 +51,9 @@ from mab_api.models import (
     User,
 )
 from mab_api.rbac import Perm, can_see_draft, has_perm
+from mab_api.webhooks import dispatch, queue_event
+from mab_api.batch import BatchError, import_zip, queue_claim
+from mab_api.routers.policies import policy_out
 
 router = APIRouter(prefix="/claims", tags=["klaim"])
 
@@ -79,11 +80,7 @@ def _latest_decision(claim: Claim) -> InsurerDecision | None:
     return claim.decisions[-1] if claim.decisions else None
 
 
-def _queue_claim(claim: Claim, queue) -> str:
-    job_id = queue.enqueue_process_claim(claim.id)
-    claim.status = ClaimStatus.QUEUED.value
-    claim.processing_error = None
-    return job_id
+_queue_claim = queue_claim
 
 
 def build_recommendation_view(claim: Claim, rec: Recommendation) -> RecommendationOut:
@@ -121,6 +118,7 @@ def build_recommendation_view(claim: Claim, rec: Recommendation) -> Recommendati
         model_version=rec.model_version,
         prompt_version=rec.prompt_version,
         ruleset_version=rec.ruleset_version,
+        benefit_ruleset_version=rec.benefit_ruleset_version,
         insurer_decision=InsurerDecisionOut(
             decision=decision.decision,
             reason=decision.reason,
@@ -144,7 +142,8 @@ def _record_decision(db: Session, claim: Claim, rec: Recommendation, user: User,
 def create_claim(body: ClaimCreate, db: Session = Depends(get_db), user: User = Depends(can_submit)) -> Claim:
     """Staf asuransi membuat klaim untuk asuransinya; operator TPA memilih asuransi lewat `insurer_id`."""
     insurer_id = resolve_target_tenant(db, user, body.insurer_id)
-    claim = Claim(insurer_id=insurer_id, created_by_id=user.id, **body.model_dump(exclude={"insurer_id"}))
+    claim = Claim(insurer_id=insurer_id, created_by_id=user.id, source=ClaimSource.PORTAL.value,
+                  **body.model_dump(exclude={"insurer_id"}))
     db.add(claim)
     try:
         db.commit()
@@ -239,9 +238,10 @@ def export_csv(db: Session = Depends(get_db), user: User = Depends(can_export)) 
 
 
 @router.post("/decisions/bulk-agree", response_model=BulkAgreeResult)
-def bulk_agree_green(body: BulkAgreeRequest, db: Session = Depends(get_db), user: User = Depends(can_decide)) -> BulkAgreeResult:
+def bulk_agree_green(body: BulkAgreeRequest, db: Session = Depends(get_db), user: User = Depends(can_decide),
+                     queue=Depends(get_queue)) -> BulkAgreeResult:
     """Setujui massal klaim hijau (PAY_FULL) yang belum diputuskan."""
-    agreed, skipped = [], []
+    agreed, skipped, hooks = [], [], []
     for claim_id in dict.fromkeys(body.claim_ids):
         claim = db.scalar(visible_claims_query(user, db).where(Claim.id == claim_id))
         rec = _current_recommendation(claim) if claim else None
@@ -254,58 +254,13 @@ def bulk_agree_green(body: BulkAgreeRequest, db: Session = Depends(get_db), user
         else:
             _record_decision(db, claim, rec, user, DecisionCode.AGREE.value, None)
             agreed.append(claim_id)
+            hooks.append(queue_event(db, claim, "claim.decision_recorded"))
     db.commit()
+    dispatch(queue, hooks)
     return BulkAgreeResult(agreed=agreed, skipped=skipped)
 
 
 # --- unggah massal ZIP --------------------------------------------------------------------
-
-MANIFEST_COLUMNS = {
-    "folder": "folder",
-    "nomor_klaim": "claim_number",
-    "nomor_polis": "policy_number",
-    "id_peserta": "member_id",
-    "nama_peserta": "patient_name",
-    "nama_rs": "hospital_name",
-    "tanggal_masuk": "admission_date",
-    "tanggal_keluar": "discharge_date",
-    "nilai_tagihan": "billed_amount",
-}
-
-
-def _parse_date(value) -> date | None:
-    if value is None or value == "":
-        return None
-    if isinstance(value, datetime):
-        return value.date()
-    if isinstance(value, date):
-        return value
-    text = str(value).strip()
-    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
-        try:
-            return datetime.strptime(text, fmt).date()
-        except ValueError:
-            continue
-    raise ValueError(f"format tanggal tidak dikenal: {text}")
-
-
-def _read_manifest(data: bytes) -> list[dict]:
-    from openpyxl import load_workbook
-
-    ws = load_workbook(io.BytesIO(data), read_only=True, data_only=True).active
-    rows = list(ws.iter_rows(values_only=True))
-    if not rows:
-        raise ValueError("manifest kosong")
-    header = [str(h).strip().lower() if h is not None else "" for h in rows[0]]
-    missing = [c for c in MANIFEST_COLUMNS if c not in header and c != "nama_peserta"]
-    if missing:
-        raise ValueError(f"kolom manifest tidak ada: {', '.join(missing)}")
-    out = []
-    for values in rows[1:]:
-        if values is None or all(v in (None, "") for v in values):
-            continue
-        out.append({MANIFEST_COLUMNS[h]: v for h, v in zip(header, values) if h in MANIFEST_COLUMNS})
-    return out
 
 
 @router.post("/batch", response_model=BatchResult)
@@ -323,85 +278,14 @@ def upload_batch(
     if len(raw) > settings.max_zip_mb * 1024 * 1024:
         raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, f"ZIP melebihi {settings.max_zip_mb} MB")
     try:
-        zf = zipfile.ZipFile(io.BytesIO(raw))
-    except zipfile.BadZipFile:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "File bukan ZIP yang valid")
-
-    # Hanya baca entri; tidak ada yang diekstrak ke disk. Abaikan path aneh (zip-slip).
-    entries = {
-        info.filename.replace("\\", "/").strip("/"): info
-        for info in zf.infolist()
-        if not info.is_dir() and ".." not in info.filename and not info.filename.startswith(("/", "__MACOSX"))
-    }
-    manifest_name = next((n for n in entries if n.split("/")[-1].lower() in ("manifest.xlsx",)), None)
-    if manifest_name is None:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "manifest.xlsx tidak ditemukan di dalam ZIP")
-    prefix = manifest_name.rsplit("/", 1)[0] + "/" if "/" in manifest_name else ""
-    try:
-        rows = _read_manifest(zf.read(entries[manifest_name]))
-    except Exception as exc:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Manifest tidak bisa dibaca: {exc}")
-
-    results: list[BatchRowResult] = []
-    created_claims: list[Claim] = []
-    for i, row in enumerate(rows, start=2):  # baris 1 = header
-        folder = str(row.get("folder") or "").strip().strip("/")
-        claim_number = str(row.get("claim_number") or "").strip() or None
-        result = BatchRowResult(row=i, folder=folder or None, claim_number=claim_number, ok=False)
-        results.append(result)
-        try:
-            body = ClaimCreate(
-                claim_number=claim_number or "",
-                policy_number=str(row.get("policy_number") or "").strip(),
-                member_id=str(row.get("member_id") or "").strip(),
-                patient_name=(str(row["patient_name"]).strip() if row.get("patient_name") else None),
-                hospital_name=str(row.get("hospital_name") or "").strip(),
-                admission_date=_parse_date(row.get("admission_date")),
-                discharge_date=_parse_date(row.get("discharge_date")),
-                billed_amount=int(float(row.get("billed_amount") or 0)),
-            )
-        except (ValidationError, ValueError, TypeError) as exc:
-            msg = "; ".join(e["msg"] for e in exc.errors()) if isinstance(exc, ValidationError) else str(exc)
-            result.reason = f"Data manifest tidak valid: {msg}"
-            continue
-        if not folder:
-            result.reason = "Kolom folder kosong"
-            continue
-        files = [n for n in entries if n.startswith(f"{prefix}{folder}/")]
-        if not files:
-            result.reason = f"Folder {folder} tidak ada di ZIP atau kosong"
-            continue
-        try:
-            valid = [validate_file(n.split("/")[-1], zf.read(entries[n])) for n in sorted(files)]
-        except InvalidFile as exc:
-            result.reason = str(exc)
-            continue
-
-        savepoint = db.begin_nested()
-        try:
-            claim = Claim(insurer_id=target_insurer, created_by_id=user.id, **body.model_dump(exclude={"insurer_id"}))
-            db.add(claim)
-            db.flush()
-            for f in valid:
-                store_document(db, storage, claim, user, f)
-            savepoint.commit()
-        except IntegrityError:
-            savepoint.rollback()
-            result.reason = f"Nomor klaim {claim_number} sudah ada"
-            continue
-        except HTTPException as exc:
-            savepoint.rollback()
-            result.reason = str(exc.detail)
-            continue
-        result.ok, result.claim_id, result.documents = True, claim.id, len(valid)
-        created_claims.append(claim)
-
+        result = import_zip(db, storage, target_insurer, raw, source=ClaimSource.BATCH, user=user)
+    except BatchError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
     db.commit()
-    for claim in created_claims:
+    for claim in result.claims:
         _queue_claim(claim, queue)
     db.commit()
-    ok = sum(r.ok for r in results)
-    return BatchResult(created=ok, failed=len(results) - ok, rows=results)
+    return BatchResult(created=result.created, failed=result.failed, rows=result.rows)
 
 
 # --- per klaim -----------------------------------------------------------------------------
@@ -421,6 +305,7 @@ def get_claim(claim_id: str, db: Session = Depends(get_db), user: User = Depends
         recommendation_available=rec is not None,
         awaiting_doctor=current is not None and not _released_to_insurer(current),
         decision=dec.decision if dec else None,
+        policy=policy_out(claim.policy) if claim.policy is not None and has_perm(user.role, Perm.CLAIM_DETAIL) else None,
     )
 
 
@@ -488,7 +373,8 @@ def get_recommendation_pdf(claim_id: str, db: Session = Depends(get_db), user: U
 
 @router.post("/{claim_id}/decision", response_model=RecommendationOut, status_code=status.HTTP_201_CREATED)
 def record_decision(
-    claim_id: str, body: DecisionCreate, db: Session = Depends(get_db), user: User = Depends(can_decide)
+    claim_id: str, body: DecisionCreate, db: Session = Depends(get_db), user: User = Depends(can_decide),
+    queue=Depends(get_queue),
 ) -> RecommendationOut:
     claim = get_visible_claim(db, user, claim_id)
     rec = _current_recommendation(claim)
@@ -497,6 +383,8 @@ def record_decision(
     if _latest_decision(claim) is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Keputusan untuk klaim ini sudah dicatat")
     _record_decision(db, claim, rec, user, body.decision, (body.reason or "").strip() or None)
+    hook = queue_event(db, claim, "claim.decision_recorded")
     db.commit()
+    dispatch(queue, [hook])
     db.refresh(claim)
     return build_recommendation_view(claim, rec)

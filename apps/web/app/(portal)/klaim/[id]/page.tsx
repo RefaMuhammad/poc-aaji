@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiJson, downloadFile } from "@/lib/api";
 import { INSURER_ROLES, useAuth } from "@/lib/auth";
 import type { ClaimDetail, ClaimStatus, Recommendation } from "@/lib/types";
-import { DOC_TYPE_LABEL, IN_PROGRESS, rupiah, tanggal, waktu } from "@/lib/format";
+import { DOC_TYPE_LABEL, IN_PROGRESS, POLICY_STATUS_LABEL, SOURCE_LABEL, rupiah, tanggal, waktu } from "@/lib/format";
 import { StatusBadge } from "@/components/Badges";
 import { RecommendationView } from "@/components/RecommendationView";
 import { DecisionForm } from "@/components/DecisionForm";
@@ -85,7 +85,12 @@ export default function ClaimDetailPage() {
       <div>
         <Link href="/klaim" className="text-sm text-sky-800 hover:underline">‹ Daftar klaim</Link>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-lg font-semibold">Klaim {claim.claim_number}</h1>
+          <h1 className="flex items-center gap-2 text-lg font-semibold">
+            Klaim {claim.claim_number}
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-normal text-slate-600" title="Kanal masuk klaim">
+              via {SOURCE_LABEL[claim.source] ?? claim.source}
+            </span>
+          </h1>
           <div className="flex items-center gap-2">
             <StatusBadge status={claim.status} />
             {(user?.role === "doctor_gp" || user?.role === "doctor_specialist") && (
@@ -111,6 +116,34 @@ export default function ClaimDetailPage() {
         <div><div className="text-slate-500">Nilai tagihan</div>{rupiah(claim.billed_amount)}</div>
         <div><div className="text-slate-500">Diagnosis utama</div>{claim.primary_icd10 ?? "-"}</div>
       </div>
+
+      {claim.policy && (
+        <div className="card text-sm">
+          <h2 className="mb-2 font-medium">Polis dan benefit</h2>
+          <div className="grid gap-x-6 gap-y-2 sm:grid-cols-4">
+            <div>
+              <div className="text-slate-500">Plan</div>
+              {claim.policy.plan_name} <span className="text-xs text-slate-400">({claim.policy.plan_code})</span>
+            </div>
+            <div>
+              <div className="text-slate-500">Masa berlaku</div>
+              {tanggal(claim.policy.start_date)} – {tanggal(claim.policy.end_date)} · {POLICY_STATUS_LABEL[claim.policy.status] ?? claim.policy.status}
+            </div>
+            <div>
+              <div className="text-slate-500">Hak kamar</div>
+              {claim.policy.room_class ?? "-"} · maks. {rupiah(claim.policy.room_rate_limit)}/hari
+            </div>
+            <div>
+              <div className="text-slate-500">Sisa limit tahunan</div>
+              {rupiah(claim.policy.limit_remaining)} <span className="text-xs text-slate-400">dari {rupiah(claim.policy.annual_limit)}</span>
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            Masa tunggu {claim.policy.waiting_period_days} hari
+            {claim.policy.excluded_icd10.length > 0 ? ` · pengecualian ${claim.policy.excluded_icd10.join(", ")}` : ""}. Data polis rekaan dari sistem inti asuransi.
+          </p>
+        </div>
+      )}
 
       <Progress status={claim.status} />
       {claim.status === "FAILED" && (

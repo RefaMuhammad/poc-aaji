@@ -42,7 +42,8 @@ from mab_api.api_schemas import (
     Workspace,
 )
 from mab_api.db import get_db
-from mab_api.deps import require_roles
+from mab_api.deps import get_queue, require_roles
+from mab_api.webhooks import dispatch, queue_event
 from mab_api.documents import missing_documents
 from mab_api.models import (
     AssignmentStatus,
@@ -416,7 +417,7 @@ def escalate(claim_id: str, body: EscalateRequest, request: Request, db: Session
 
 @router.post("/{claim_id}/sign", response_model=RecommendationOut)
 def sign(claim_id: str, body: SignRequest, request: Request, db: Session = Depends(get_db),
-         user: User = Depends(doctor_only)) -> RecommendationOut:
+         user: User = Depends(doctor_only), queue=Depends(get_queue)) -> RecommendationOut:
     """Tetapkan dan tandatangani rekomendasi final (konfirmasi PIN).
 
     Draf AI disimpan sebagai versi lama; rekomendasi final menjadi versi baru berstatus SIGNED.
@@ -484,6 +485,7 @@ def sign(claim_id: str, body: SignRequest, request: Request, db: Session = Depen
         model_version=rec.model_version,
         prompt_version=rec.prompt_version,
         ruleset_version=rec.ruleset_version,
+        benefit_ruleset_version=rec.benefit_ruleset_version,
         signed_by_id=user.id,
         signed_at=now,
     )
@@ -507,7 +509,9 @@ def sign(claim_id: str, body: SignRequest, request: Request, db: Session = Depen
                  detail={"recommendation_id": signed.id, "version": signed.version, "recommendation": code,
                          "recommended_amount": amount, "agrees_with_ai": agrees, "reason_code": reason_code,
                          "review_seconds": int((now - started).total_seconds())})
+    hook = queue_event(db, claim, "claim.recommendation_released")
     db.commit()
+    dispatch(queue, [hook])
     db.refresh(claim)
     db.refresh(signed)
     return build_recommendation_view(claim, signed)

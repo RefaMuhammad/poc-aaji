@@ -120,7 +120,7 @@ def test_api_key_lifecycle_and_tenant_isolation(client, login, users, run):
     run("SYN-GEA-02", "staf_b")                # klaim tenant B
 
     assert client.post(f"/tenants/{a}/api-clients", json={"name": "Core A"}, headers=login("staf")).status_code == 403
-    assert client.post(f"/tenants/{a}/api-clients", json={"name": "Core A", "scopes": ["claims:write"]},
+    assert client.post(f"/tenants/{a}/api-clients", json={"name": "Core A", "scopes": ["claims:delete"]},
                        headers=login("admin")).status_code == 422
     created = client.post(f"/tenants/{a}/api-clients", json={"name": "Core A"}, headers=login("admin")).json()
     key = created["api_key"]
