@@ -68,6 +68,7 @@ export const CHANNEL_LABEL: Record<string, string> = {
   SFTP: "SFTP batch",
   POLICY_IMPORT: "Impor polis (file)",
   POLICY_API: "Polis lewat API",
+  FRAUD_HISTORY: "Riwayat klaim (fraud)",
 };
 
 export const JOB_STATUS_LABEL: Record<string, string> = { SUCCESS: "Berhasil", PARTIAL: "Sebagian", FAILED: "Gagal" };
@@ -154,4 +155,46 @@ export function slaRemaining(due: string | null | undefined, now: number = Date.
   const m = mins % 60;
   const text = d > 0 ? `${d} hr ${h} j` : h > 0 ? `${h} j ${m} m` : `${m} m`;
   return diff >= 0 ? `sisa ${text}` : `lewat ${text}`;
+}
+
+// ----------------------------------------------------------------------------- U3 fraud analytics
+
+export const FRAUD_ENTITY_LABEL: Record<string, string> = {
+  HOSPITAL: "Rumah sakit",
+  DOCTOR: "Dokter",
+  MEMBER: "Peserta",
+  BANK_ACCOUNT: "Rekening",
+  ADDRESS: "Alamat",
+  REFERRAL_LOOP: "Rujukan berputar",
+};
+
+export const FRAUD_REVIEW_LABEL: Record<string, string> = {
+  OPEN: "Belum ditelaah",
+  INVESTIGATING: "Sedang diselidiki",
+  CONFIRMED: "Pola terkonfirmasi",
+  DISMISSED: "Wajar / bukan fraud",
+};
+
+export const FRAUD_REVIEW_STYLE: Record<string, string> = {
+  OPEN: "bg-slate-100 text-slate-700",
+  INVESTIGATING: "bg-sky-50 text-sky-900",
+  CONFIRMED: "bg-rose-50 text-rose-800",
+  DISMISSED: "bg-emerald-50 text-emerald-800",
+};
+
+export const FRAUD_LEVEL_STYLE: Record<string, string> = {
+  TINGGI: "bg-rose-100 text-rose-800",
+  SEDANG: "bg-amber-100 text-amber-900",
+  RENDAH: "bg-slate-100 text-slate-700",
+};
+
+export const FRAUD_SOURCE_LABEL: Record<string, string> = {
+  HISTORY: "riwayat impor",
+  PLATFORM: "klaim platform",
+};
+
+/** Angka desimal gaya Indonesia: 7.25 -> "7,25". */
+export function desimal(n: number | null | undefined, digits = 1): string {
+  if (n === null || n === undefined) return "-";
+  return n.toLocaleString("id-ID", { maximumFractionDigits: digits });
 }

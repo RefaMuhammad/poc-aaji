@@ -19,6 +19,9 @@ export const DASHBOARD_ROLES = [...INSURER_ROLES, "auditor", "admin"];
 export const DETAIL_ROLES = [...INSURER_ROLES, ...DOCTOR_ROLES, "auditor", "admin"];
 export const POLICY_VIEW_ROLES = [...INSURER_ROLES, "auditor", "admin"];
 export const POLICY_MANAGE_ROLES = [...INSURER_ROLES, "admin"];
+export const FRAUD_VIEW_ROLES = [...INSURER_ROLES, "auditor", "admin"];
+/** U3: manajer klaim bertindak sebagai investigator fraud tenant-nya. */
+export const FRAUD_MANAGE_ROLES = ["insurer_manager", "admin"];
 export const CLAIM_LIST_ROLES = [...DETAIL_ROLES, "facility_officer", "member"];
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {

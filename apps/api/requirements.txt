@@ -24,3 +24,4 @@ numpy==1.26.4
 rapidfuzz==3.11.0
 fpdf2==2.8.2
 fhir.resources==7.1.0
+networkx==3.4.2

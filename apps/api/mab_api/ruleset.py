@@ -1,4 +1,4 @@
-"""File aturan yang aktif (klinis + benefit), dibaca sekali per proses API."""
+"""File aturan yang aktif (klinis + benefit + fraud), dibaca sekali per proses API."""
 from __future__ import annotations
 
 import dataclasses
@@ -6,12 +6,19 @@ from functools import lru_cache
 
 from mab_api.config import get_settings
 from mab_pipeline.benefit import BenefitRuleSet, load_benefit_rules
+from mab_pipeline.fraud import FraudRuleSet, load_fraud_rules
 from mab_pipeline.rules import RuleSet, load_rules
 
 
 @lru_cache(maxsize=1)
 def active_benefit_ruleset() -> BenefitRuleSet:
     return load_benefit_rules(get_settings().resolved_benefit_rules_path())
+
+
+@lru_cache(maxsize=1)
+def active_fraud_ruleset() -> FraudRuleSet:
+    """Aturan fraud (U3). Terpisah dari aturan klinis: tidak ikut triase klaim."""
+    return load_fraud_rules(get_settings().resolved_fraud_rules_path())
 
 
 @lru_cache(maxsize=1)

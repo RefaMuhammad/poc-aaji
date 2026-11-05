@@ -33,11 +33,18 @@ class Settings(BaseSettings):
     # U2: webhook keluar
     webhook_timeout_seconds: float = 5.0
     webhook_max_attempts: int = 3
+    # U3: aturan fraud. Kosong = aturan_fraud_demo.yaml di folder yang sama dengan rules_path.
+    fraud_rules_path: str | None = None
 
     def resolved_benefit_rules_path(self) -> str:
         from pathlib import Path
 
         return self.benefit_rules_path or str(Path(self.rules_path).with_name("aturan_benefit_demo.yaml"))
+
+    def resolved_fraud_rules_path(self) -> str:
+        from pathlib import Path
+
+        return self.fraud_rules_path or str(Path(self.rules_path).with_name("aturan_fraud_demo.yaml"))
     llm_provider: str = "mock"
     # Tampilkan pemilih "Ganti peran (demo)" di portal. Hanya untuk data rekaan.
     demo_mode: bool = True

@@ -233,6 +233,8 @@ Setiap aturan: `id`, `nama`, `kondisi`, `kode_alasan`, `keparahan`, `pesan` (bol
 
 **Aturan benefit polis (U2):** `rules/aturan_benefit_demo.yaml` memakai format dan evaluator yang sama, tetapi field-nya `policy.*` dan `benefit.*` (dihitung `mab_pipeline/benefit/` dari polis peserta + rincian tagihan). Dijalankan hanya bila tenant punya data polis; temuannya digabung dengan temuan klinis sebelum triase, dan koreksinya (selisih kamar, kelebihan limit) ditambahkan setelah koreksi klinis. Versi aturan benefit dicatat di `recommendations.benefit_ruleset_version`. Detail: [u2-integrasi-benefit.md](u2-integrasi-benefit.md).
 
+**Aturan fraud (U3):** `rules/aturan_fraud_demo.yaml` memakai evaluator ekspresi yang sama, tetapi menilai entitas (RS, dokter, peserta, rekening, alamat, rujukan) atas seluruh data klaim tenant, bukan satu klaim. Field-nya dihitung `mab_pipeline/fraud/` (statistik sejawat, graf networkx, urutan klaim). Hasilnya sinyal dengan bukti dan skor fraud yang terpisah dari skor triase; sinyal tidak pernah mengubah klaim. Detail: [u3-fraud-analytics.md](u3-fraud-analytics.md).
+
 **Penyesuaian per tenant (U1):** tenant tidak menulis aturan, hanya menyesuaikan: ambang skor merah/kuning (mengganti `skor_min` baris merah/kuning) dan mematikan aturan tertentu. `mab_api/tenancy.py` membuat salinan RuleSet dengan penyesuaian itu tepat sebelum pipeline menilai klaim, dan versinya diberi akhiran tenant (`+KODE.vN`).
 
 Uji aturan dari baris perintah:
@@ -276,6 +278,7 @@ Kode di `apps/api/mab_api/`. Dokumentasi interaktif otomatis di http://localhost
 | `integrations` (U1, U2) | `GET /integrations/v1/whoami`, `GET /integrations/v1/claims`, `GET /integrations/v1/claims/{nomor}`, `GET /integrations/v1/fhir/ClaimResponse/{nomor}` (`claims:read`); `POST /integrations/v1/claims` (multipart), `POST /integrations/v1/fhir` (Bundle R4) (`claims:write`); `PUT /integrations/v1/policies` (`policies:write`) | akun layanan, header `X-API-Key` |
 | `integrations` demo (U2) | `POST /integrations/demo-sink/{KODE}` (penerima webhook rekaan, cek HMAC), `GET /integrations/demo-sink` | hanya `DEMO_MODE`; daftar: peran tenant |
 | `policies` (U2) | `GET /policies`, `GET/PUT /policies/plans`, `POST /policies/import` (CSV/XLSX), `GET /policies/template.csv` | lihat: operator, auditor, admin; ubah: operator, admin |
+| `fraud` (U3) | `GET /fraud/overview`, `GET /fraud/signals`, `GET /fraud/signals/{id}`, `GET /fraud/claims/{claim_id}`, `GET /fraud/ruleset`, `GET /fraud/records/template.csv`; `POST /fraud/runs`, `POST /fraud/records/import`, `PUT /fraud/signals/{id}/review` | lihat: operator, auditor, admin; impor/analisis/telaah: manajer klaim, admin |
 | `tenants` (U2) | `GET /tenants/api-scopes`, `GET /tenants/{id}/integration-jobs`, `GET /tenants/{id}/webhook-deliveries`, `POST /tenants/{id}/webhook-deliveries/{did}/resend` | lihat: peran tenant; kirim ulang: admin |
 
 Hak akses per peran ada di satu tempat, `rbac.py` (matriks izin, `require_perm`); cakupan data di `access.py`. Matriks lengkap di [u1-fondasi-platform.md](u1-fondasi-platform.md#3-matriks-hak-akses).
@@ -307,6 +310,10 @@ Tabel utama (`apps/api/mab_api/models.py`, migrasi `apps/api/alembic/versions/`)
 | `policies` (U2) | `insurer_id`, `policy_number`, `member_id`, `member_name`, `plan_id`, `start_date`, `end_date`, `status`, `limit_used`, `source` | Polis peserta dari sistem inti asuransi |
 | `integration_jobs` (U2) | `insurer_id`, `channel` (API/FHIR/SFTP/POLICY_IMPORT/POLICY_API), `reference`, `status`, `summary` | Riwayat data masuk lewat integrasi |
 | `webhook_deliveries` (U2) | `insurer_id`, `event`, `claim_id`, `url`, `payload`, `status`, `attempts`, `last_status_code`, `last_error` | Webhook keluar dan hasil pengirimannya |
+| `fraud_claim_records` (U3) | `insurer_id`, `claim_number`, `claim_id`, `source` (HISTORY/PLATFORM), `member_id`, `address`, `bank_account`, `hospital_name`, `doctor_name`, `referral_from`, `icd10`, tanggal, `billed_amount`, `lab_panels` | Data analitik fraud per klaim |
+| `fraud_runs` (U3) | `insurer_id`, `ruleset_version`, `record_count`, `signal_count`, `entities` | Satu kali analisis fraud |
+| `fraud_signals` (U3) | `run_id`, `rule_id`, `entity_type`, `entity_key`, `message`, `weight`, `claim_numbers`, `evidence` | Sinyal fraud beserta bukti |
+| `fraud_reviews` (U3) | `insurer_id`, `rule_id`, `entity_key`, `status`, `notes`, `reviewed_by_id` | Telaah investigator, bertahan lintas run |
 
 Kolom U2 lain: `claims.source` (PORTAL/BATCH/API/SFTP/FHIR), `claims.api_client_id`, `claims.policy_id`, `tenant_settings.webhook_url/webhook_secret`, `recommendations.benefit_ruleset_version`. Klaim dan dokumen dari integrasi tidak punya `created_by_id`/`uploaded_by_id`.
 | `claims` | `claim_number`, `policy_number`, `member_id`, `hospital_name`, tanggal rawat, `billed_amount`, `primary_icd10`, `status`, `processing_error`, `assigned_doctor_id` | Satu klaim rawat inap |
@@ -408,6 +415,7 @@ Setiap rekomendasi menyimpan `model_version` (mis. `mock-llm-1` atau nama model)
 | `tests/test_rbac.py` | (U1) Matriks peran × endpoint, isolasi antar tenant dan antar peran, draf tersembunyi, TPA multi-tenant |
 | `tests/test_tenants.py` | (U1) Ambang triase & aturan per tenant, versi aturan bertenant, audit pengaturan, API key, penugasan otomatis, SLA |
 | `tests/test_u2_integrasi.py` | (U2) Aturan benefit, impor polis dan cakupannya, API klaim masuk, webhook bertanda tangan + percobaan ulang, FHIR Bundle → ClaimResponse, folder SFTP, penerima webhook demo |
+| `tests/test_u3_fraud.py` | (U3) Validasi aturan fraud, semua pola tertanam tertangkap dengan bukti tanpa alarm palsu (beberapa seed), populasi normal tanpa sinyal, impor riwayat, Fraud Monitor + telaah + isolasi tenant, klaim platform masuk analisis tanpa mengubah klaim |
 
 Frontend dicek dengan `npm run build` (TypeScript strict) dan uji alur di browser (Playwright) selama pengembangan.
 

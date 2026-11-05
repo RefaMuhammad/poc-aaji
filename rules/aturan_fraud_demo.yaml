@@ -1,0 +1,186 @@
+# =============================================================================
+# ATURAN FRAUD DEMO - PLATFORM MAB INDONESIA
+# =============================================================================
+# Versi      : fraud-2026.11-demo
+# Status     : DRAF UNTUK DEMO. Semua RS, dokter, peserta, dan pola fraud rekaan.
+#
+# Aturan fraud TERPISAH dari aturan klinis. Aturan klinis menilai satu klaim
+# (apakah perawatannya wajar secara medis). Aturan fraud menilai POLA di banyak
+# klaim: RS atau dokter yang menyimpang dari sejawat, dan relasi peserta-RS-
+# rekening-alamat yang mencurigakan.
+#
+# - Hasilnya SINYAL untuk ditelaah investigator, dengan bukti (klaim, angka
+#   pembanding sejawat, atau relasi graf). Sinyal fraud TIDAK PERNAH menolak
+#   klaim, tidak mengubah status klaim, dan tidak ikut skor risiko klinis.
+# - Skor fraud = jumlah bobot sinyal (maks. 100), terpisah dari skor triase.
+# - Setiap aturan memeriksa satu jenis entitas ("entitas"). Field di kondisi
+#   dan pesan hanya boleh dari kelompok entitas itu.
+# - Indeks = rata-rata (nilai klaim / median diagnosis yang sama di seluruh
+#   data). 1,0 berarti sama dengan kebanyakan; 1,5 berarti 50% lebih tinggi.
+#   Indeks menetralkan perbedaan campuran diagnosis antar-RS.
+# - z = (indeks entitas - rata-rata indeks sejawat) / simpangan baku sejawat,
+#   sejawat = entitas lain sejenis (entitas yang dinilai tidak ikut dihitung).
+# =============================================================================
+
+version: fraud-2026.11-demo
+status: draft_demo_data_rekaan
+
+parameter:
+  min_klaim_sejawat: 8        # RS/dokter dengan klaim lebih sedikit tidak dibandingkan (statistik belum stabil)
+  jendela_klaim_beruntun_hari: 180
+  min_rujukan_per_arah: 3     # jumlah rujukan minimal agar satu arah rujukan dihitung di graf
+  maks_klaim_bukti: 10        # klaim yang ditampilkan sebagai bukti per sinyal
+  tingkat:                    # skor fraud -> tingkat
+    TINGGI: 50
+    SEDANG: 25
+    RENDAH: 1
+
+kamus_data:
+  rs.name:              {tipe: teks, sumber: hitung, ket: "Nama rumah sakit"}
+  rs.claims:            {tipe: angka, sumber: hitung, ket: "Jumlah klaim RS di data analitik"}
+  rs.los_mean:          {tipe: angka, sumber: hitung, ket: "Rata-rata lama rawat RS (hari)"}
+  rs.peer_los_mean:     {tipe: angka, sumber: hitung, ket: "Rata-rata lama rawat RS lain (hari)"}
+  rs.los_index:         {tipe: angka, sumber: hitung, ket: "Indeks lama rawat terhadap median diagnosis yang sama"}
+  rs.los_z:             {tipe: angka, sumber: hitung, ket: "z-score indeks lama rawat dibanding RS lain"}
+  rs.cost_day_mean:     {tipe: angka, sumber: hitung, ket: "Rata-rata biaya per hari rawat (rupiah)"}
+  rs.peer_cost_day_mean: {tipe: angka, sumber: hitung, ket: "Rata-rata biaya per hari rawat RS lain (rupiah)"}
+  rs.cost_index:        {tipe: angka, sumber: hitung, ket: "Indeks biaya per hari terhadap median diagnosis yang sama"}
+  rs.cost_z:            {tipe: angka, sumber: hitung, ket: "z-score indeks biaya per hari dibanding RS lain"}
+  rs.lab_day_mean:      {tipe: angka, sumber: hitung, ket: "Rata-rata pemeriksaan lab per hari rawat"}
+  rs.peer_lab_day_mean: {tipe: angka, sumber: hitung, ket: "Rata-rata pemeriksaan lab per hari rawat RS lain"}
+  rs.lab_index:         {tipe: angka, sumber: hitung, ket: "Indeks frekuensi lab terhadap median diagnosis yang sama"}
+  rs.lab_z:             {tipe: angka, sumber: hitung, ket: "z-score indeks frekuensi lab dibanding RS lain"}
+
+  dokter.name:              {tipe: teks, sumber: hitung, ket: "Nama dokter penanggung jawab (DPJP)"}
+  dokter.hospital:          {tipe: teks, sumber: hitung, ket: "RS tempat dokter paling banyak merawat"}
+  dokter.claims:            {tipe: angka, sumber: hitung, ket: "Jumlah klaim dengan dokter ini sebagai DPJP"}
+  dokter.los_mean:          {tipe: angka, sumber: hitung, ket: "Rata-rata lama rawat pasien dokter (hari)"}
+  dokter.peer_los_mean:     {tipe: angka, sumber: hitung, ket: "Rata-rata lama rawat pasien dokter lain (hari)"}
+  dokter.los_index:         {tipe: angka, sumber: hitung, ket: "Indeks lama rawat"}
+  dokter.los_z:             {tipe: angka, sumber: hitung, ket: "z-score indeks lama rawat dibanding dokter lain"}
+  dokter.cost_day_mean:     {tipe: angka, sumber: hitung, ket: "Rata-rata biaya per hari rawat pasien dokter (rupiah)"}
+  dokter.peer_cost_day_mean: {tipe: angka, sumber: hitung, ket: "Rata-rata biaya per hari rawat pasien dokter lain (rupiah)"}
+  dokter.cost_index:        {tipe: angka, sumber: hitung, ket: "Indeks biaya per hari"}
+  dokter.cost_z:            {tipe: angka, sumber: hitung, ket: "z-score indeks biaya per hari dibanding dokter lain"}
+  dokter.lab_day_mean:      {tipe: angka, sumber: hitung, ket: "Rata-rata pemeriksaan lab per hari rawat pasien dokter"}
+  dokter.peer_lab_day_mean: {tipe: angka, sumber: hitung, ket: "Rata-rata pemeriksaan lab per hari rawat pasien dokter lain"}
+  dokter.lab_index:         {tipe: angka, sumber: hitung, ket: "Indeks frekuensi lab"}
+  dokter.lab_z:             {tipe: angka, sumber: hitung, ket: "z-score indeks frekuensi lab dibanding dokter lain"}
+
+  peserta.id:               {tipe: teks, sumber: hitung, ket: "Nomor peserta"}
+  peserta.claims:           {tipe: angka, sumber: hitung, ket: "Jumlah klaim peserta"}
+  peserta.claims_in_window: {tipe: angka, sumber: hitung, ket: "Klaim terbanyak dalam satu jendela waktu (parameter jendela_klaim_beruntun_hari)"}
+  peserta.window_days:      {tipe: angka, sumber: hitung, ket: "Panjang jendela waktu (hari)"}
+  peserta.min_gap_days:     {tipe: angka, sumber: hitung, ket: "Jarak terpendek antara pulang dan masuk berikutnya (hari)"}
+  peserta.overlaps:         {tipe: angka, sumber: hitung, ket: "Pasangan klaim dengan tanggal rawat tumpang tindih"}
+  peserta.hospitals:        {tipe: angka, sumber: hitung, ket: "Jumlah RS berbeda tempat peserta dirawat"}
+
+  rekening.id:          {tipe: teks, sumber: hitung, ket: "Nomor rekening penerima pembayaran"}
+  rekening.members:     {tipe: angka, sumber: hitung, ket: "Jumlah peserta berbeda yang memakai rekening ini"}
+  rekening.surnames:    {tipe: angka, sumber: hitung, ket: "Jumlah nama keluarga berbeda di antara peserta itu"}
+  rekening.addresses:   {tipe: angka, sumber: hitung, ket: "Jumlah alamat berbeda di antara peserta itu"}
+  rekening.claims:      {tipe: angka, sumber: hitung, ket: "Jumlah klaim yang dibayar ke rekening ini"}
+
+  alamat.text:          {tipe: teks, sumber: hitung, ket: "Alamat (dinormalkan)"}
+  alamat.members:       {tipe: angka, sumber: hitung, ket: "Jumlah peserta berbeda di alamat ini"}
+  alamat.surnames:      {tipe: angka, sumber: hitung, ket: "Jumlah nama keluarga berbeda di alamat ini"}
+  alamat.claims:        {tipe: angka, sumber: hitung, ket: "Jumlah klaim peserta di alamat ini"}
+  alamat.top_hospital:  {tipe: teks, sumber: hitung, ket: "RS terbanyak untuk klaim peserta di alamat ini"}
+  alamat.top_hospital_share: {tipe: angka, sumber: hitung, ket: "Porsi klaim di RS terbanyak itu (0-1)"}
+
+  rujukan.path:         {tipe: teks, sumber: hitung, ket: "Lintasan rujukan berputar, mis. RS A -> RS B -> RS A"}
+  rujukan.length:       {tipe: angka, sumber: hitung, ket: "Jumlah RS dalam putaran"}
+  rujukan.claims:       {tipe: angka, sumber: hitung, ket: "Jumlah klaim rujukan di sepanjang putaran"}
+  rujukan.min_edge:     {tipe: angka, sumber: hitung, ket: "Jumlah rujukan pada arah yang paling jarang"}
+
+kode_alasan:
+  LOS_OUTLIER:          "Lama rawat jauh di atas sejawat"
+  COST_OUTLIER:         "Biaya per hari jauh di atas sejawat"
+  LAB_OVERUSE:          "Frekuensi pemeriksaan lab jauh di atas sejawat"
+  SHARED_ACCOUNT:       "Satu rekening untuk banyak peserta tak bersaudara"
+  SHARED_ADDRESS:       "Banyak peserta tak bersaudara di satu alamat"
+  CIRCULAR_REFERRAL:    "Rujukan berputar antar-RS"
+  SERIAL_CLAIMS:        "Klaim beruntun dalam waktu singkat"
+  OVERLAPPING_STAYS:    "Rawat inap dengan tanggal tumpang tindih"
+
+aturan:
+  - id: FRD-01
+    nama: "Lama rawat RS di atas sejawat"
+    entitas: rs
+    kondisi: "rs.claims >= 8 and rs.los_z >= 3 and rs.los_index >= 1.3"
+    kode_alasan: LOS_OUTLIER
+    keparahan: HIGH
+    bobot: 40
+    pesan: "Rata-rata lama rawat di {rs.name} {rs.los_mean} hari, sedangkan RS lain {rs.peer_los_mean} hari (indeks {rs.los_index}, z = {rs.los_z}, {rs.claims} klaim)."
+
+  - id: FRD-02
+    nama: "Biaya per hari RS di atas sejawat"
+    entitas: rs
+    kondisi: "rs.claims >= 8 and rs.cost_z >= 3 and rs.cost_index >= 1.35"
+    kode_alasan: COST_OUTLIER
+    keparahan: HIGH
+    bobot: 40
+    pesan: "Rata-rata biaya per hari rawat di {rs.name} Rp{rs.cost_day_mean}, sedangkan RS lain Rp{rs.peer_cost_day_mean} (indeks {rs.cost_index}, z = {rs.cost_z})."
+
+  - id: FRD-03
+    nama: "Biaya per hari dokter di atas sejawat"
+    entitas: dokter
+    kondisi: "dokter.claims >= 8 and dokter.cost_z >= 3 and dokter.cost_index >= 1.35"
+    kode_alasan: COST_OUTLIER
+    keparahan: HIGH
+    bobot: 40
+    pesan: "Rata-rata biaya per hari pasien {dokter.name} ({dokter.hospital}) Rp{dokter.cost_day_mean}, sedangkan dokter lain Rp{dokter.peer_cost_day_mean} (indeks {dokter.cost_index}, z = {dokter.cost_z}, {dokter.claims} klaim)."
+
+  - id: FRD-04
+    nama: "Frekuensi lab dokter di atas sejawat"
+    entitas: dokter
+    kondisi: "dokter.claims >= 8 and dokter.lab_z >= 3 and dokter.lab_index >= 1.8"
+    kode_alasan: LAB_OVERUSE
+    keparahan: MEDIUM
+    bobot: 30
+    pesan: "Pasien {dokter.name} ({dokter.hospital}) rata-rata diperiksa lab {dokter.lab_day_mean} kali per hari rawat, sedangkan pasien dokter lain {dokter.peer_lab_day_mean} kali (indeks {dokter.lab_index}, z = {dokter.lab_z})."
+
+  - id: FRD-05
+    nama: "Rekening bersama banyak peserta"
+    entitas: rekening
+    kondisi: "rekening.members >= 3 and rekening.surnames >= 2"
+    kode_alasan: SHARED_ACCOUNT
+    keparahan: HIGH
+    bobot: 50
+    pesan: "Rekening {rekening.id} menerima pembayaran untuk {rekening.members} peserta dengan {rekening.surnames} nama keluarga dan {rekening.addresses} alamat berbeda ({rekening.claims} klaim)."
+
+  - id: FRD-06
+    nama: "Alamat bersama peserta tak bersaudara"
+    entitas: alamat
+    kondisi: "alamat.members >= 4 and alamat.surnames >= 3"
+    kode_alasan: SHARED_ADDRESS
+    keparahan: MEDIUM
+    bobot: 30
+    pesan: "{alamat.members} peserta dengan {alamat.surnames} nama keluarga berbeda tinggal di {alamat.text}; {alamat.claims} klaim, sebagian besar di {alamat.top_hospital}."
+
+  - id: FRD-07
+    nama: "Rujukan berputar"
+    entitas: rujukan
+    kondisi: "rujukan.min_edge >= 3"
+    kode_alasan: CIRCULAR_REFERRAL
+    keparahan: HIGH
+    bobot: 40
+    pesan: "Pasien dirujuk berputar {rujukan.path}: {rujukan.claims} klaim rujukan, paling sedikit {rujukan.min_edge} per arah."
+
+  - id: FRD-08
+    nama: "Klaim beruntun"
+    entitas: peserta
+    kondisi: "peserta.claims_in_window >= 4"
+    kode_alasan: SERIAL_CLAIMS
+    keparahan: MEDIUM
+    bobot: 30
+    pesan: "Peserta {peserta.id} punya {peserta.claims_in_window} klaim rawat inap dalam {peserta.window_days} hari di {peserta.hospitals} RS; jarak terpendek antar-rawat {peserta.min_gap_days} hari."
+
+  - id: FRD-09
+    nama: "Rawat inap tumpang tindih"
+    entitas: peserta
+    kondisi: "peserta.overlaps >= 1"
+    kode_alasan: OVERLAPPING_STAYS
+    keparahan: HIGH
+    bobot: 50
+    pesan: "Peserta {peserta.id} punya {peserta.overlaps} pasangan klaim rawat inap dengan tanggal yang beririsan di {peserta.hospitals} RS."

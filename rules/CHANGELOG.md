@@ -1,5 +1,13 @@
 # Changelog aturan klinis
 
+## fraud-2026.11-demo (file baru `aturan_fraud_demo.yaml`, U3)
+- Aturan fraud terpisah dari aturan klinis dan benefit; menilai pola di banyak klaim, tidak ikut triase.
+- FRD-01 lama rawat RS, FRD-02 biaya per hari RS, FRD-03 biaya per hari dokter, FRD-04 frekuensi lab dokter
+  (indeks + z-score sejawat), FRD-05 rekening bersama, FRD-06 alamat bersama, FRD-07 rujukan berputar,
+  FRD-08 klaim beruntun, FRD-09 rawat inap tumpang tindih.
+- Kunci baru per aturan: `entitas` dan `bobot` (skor fraud). Bagian `parameter` untuk ambang umum dan tingkat skor.
+- Isi aturan klinis `rules-2026.11-demo` dan benefit `benefit-2026.11-demo` tidak berubah.
+
 ## benefit-2026.11-demo (file baru `aturan_benefit_demo.yaml`, U2)
 - Aturan benefit polis terpisah dari aturan klinis: BEN-00 polis tidak ditemukan, BEN-01 polis tidak aktif,
   BEN-02 masa tunggu, BEN-03 diagnosis dikecualikan, BEN-04 melebihi sisa limit, BEN-05 kelas kamar melebihi hak.

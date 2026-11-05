@@ -87,7 +87,7 @@ Password semua akun: `demo12345`. PIN tanda tangan dokter: `123456`.
 | Peserta | `peserta@demo.test` | Status klaimnya |
 | Underwriter | `underwriter@demo.test` | Penanda modul U7 |
 
-Peran baru dan dua tenant demo dijelaskan di [docs/u1-fondasi-platform.md](docs/u1-fondasi-platform.md). Polis, aturan benefit, API klaim masuk, FHIR, SFTP (port 2222, login `demo`/`pelita` + `demo12345`), dan webhook dijelaskan di [docs/u2-integrasi-benefit.md](docs/u2-integrasi-benefit.md).
+Peran baru dan dua tenant demo dijelaskan di [docs/u1-fondasi-platform.md](docs/u1-fondasi-platform.md). Polis, aturan benefit, API klaim masuk, FHIR, SFTP (port 2222, login `demo`/`pelita` + `demo12345`), dan webhook dijelaskan di [docs/u2-integrasi-benefit.md](docs/u2-integrasi-benefit.md). Fraud analytics dan Fraud Monitor dijelaskan di [docs/u3-fraud-analytics.md](docs/u3-fraud-analytics.md).
 
 **Ganti peran (demo).** Setelah login dengan akun demo mana saja, pemilih kuning **Ganti peran (demo)** di kanan atas memindahkan Anda ke akun demo lain tanpa logout. Dengan begitu seluruh alur, dari unggah, telaah dokter, keputusan, sampai dashboard, bisa dijalankan dari satu jendela browser. Setiap aksi tetap tercatat atas nama peran yang benar, jadi aturan "hanya dokter yang menandatangani" tetap berlaku. Matikan dengan `DEMO_MODE=false` di `.env`. Penjelasan lengkap ada di [docs/skenario-unggah.md](docs/skenario-unggah.md).
 
@@ -105,6 +105,7 @@ Peran baru dan dua tenant demo dijelaskan di [docs/u1-fondasi-platform.md](docs/
 | Tenant kedua (Asuransi Pelita, ambang merah 20) | SYN-DEN-08, SYN-DEN-09, SYN-GEA-07, SYN-TIF-07 (merah, di antrean spesialis) | Perbedaan triase dan SLA antar tenant |
 | Pelita, temuan benefit polis (U2) | SYN-DEN-02 (kuning, BEN-05 kamar kelas 1 padahal hak kelas 2), SYN-GEA-02 (merah, BEN-04 melebihi sisa limit) | Aturan benefit, bukti dari data polis |
 | Pelita, masuk lewat integrasi (U2) | SYN-DEN-01 (FHIR), SYN-GEA-01 (API), SYN-TIF-01 dan SYN-TIF-02 (SFTP); semua hijau, webhook terkirim | Kanal integrasi, webhook, `data/sftp/PELITA/keluar/` |
+| Fraud Monitor, kedua tenant (U3) | 805 klaim riwayat rekaan + klaim platform; 8 sinyal: RS lama rawat, dokter biaya per hari, dokter lab, rekening bersama, alamat bersama, rujukan berputar, klaim beruntun, rawat tumpang tindih | Skor fraud terpisah dari triase, bukti sejawat dan graf, telaah investigator (login `manajer@demo.test`) |
 
 Tabel ini dari uji seed kami. SYN-DEN-06 sebenarnya klaim wajar, tetapi naik ke kuning karena ada catatan kualitas data pada dokumen pindaiannya (kalau ragu, klaim tidak boleh hijau). Hasil OCR di mesin lain bisa sedikit berbeda, sehingga isi antrean juga bisa sedikit berbeda.
 
@@ -225,7 +226,7 @@ data/                    (diabaikan git) output data sintetis
 
 - [x] U1 Fondasi platform: tenant, peran baru, API key, penugasan dokter + SLA ([docs/u1-fondasi-platform.md](docs/u1-fondasi-platform.md))
 - [x] U2 Integrasi data (REST, SFTP, FHIR) dan benefit polis ([docs/u2-integrasi-benefit.md](docs/u2-integrasi-benefit.md))
-- [ ] U3 Fraud analytics
+- [x] U3 Fraud analytics: statistik sejawat, graf relasi, Fraud Monitor ([docs/u3-fraud-analytics.md](docs/u3-fraud-analytics.md))
 - [ ] U4 Portal faskes, peserta, TPA
 - [ ] U5 Manajemen sengketa
 - [ ] U6 Audit dan pelaporan OJK
