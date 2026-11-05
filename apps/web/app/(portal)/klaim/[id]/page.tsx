@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { apiJson, downloadFile } from "@/lib/api";
-import { FRAUD_VIEW_ROLES, INSURER_ROLES, useAuth } from "@/lib/auth";
+import { AUDIT_ROLES, FRAUD_VIEW_ROLES, INSURER_ROLES, useAuth } from "@/lib/auth";
 import type { ClaimDetail, ClaimStatus, Recommendation } from "@/lib/types";
 import { DOC_TYPE_LABEL, IN_PROGRESS, POLICY_STATUS_LABEL, SOURCE_LABEL, rupiah, tanggal, waktu } from "@/lib/format";
 import { StatusBadge } from "@/components/Badges";
@@ -99,6 +99,9 @@ export default function ClaimDetailPage() {
             <StatusBadge status={claim.status} />
             {(user?.role === "doctor_gp" || user?.role === "doctor_specialist") && (
               <Link href={`/telaah/${id}`} className="btn-secondary">Buka ruang kerja dokter</Link>
+            )}
+            {user && AUDIT_ROLES.includes(user.role) && (
+              <Link href={`/laporan/jejak/${id}`} className="btn-secondary">Jejak audit</Link>
             )}
             {rec && (
               <button

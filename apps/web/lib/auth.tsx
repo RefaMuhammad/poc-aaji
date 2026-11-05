@@ -22,6 +22,8 @@ export const POLICY_MANAGE_ROLES = [...INSURER_ROLES, "admin"];
 export const FRAUD_VIEW_ROLES = [...INSURER_ROLES, "auditor", "admin"];
 /** U3: manajer klaim bertindak sebagai investigator fraud tenant-nya. */
 export const FRAUD_MANAGE_ROLES = ["insurer_manager", "admin"];
+/** U6: penampil log audit, jejak keputusan, dan laporan bulanan. */
+export const AUDIT_ROLES = ["insurer_manager", "auditor", "admin"];
 export const CLAIM_LIST_ROLES = [...DETAIL_ROLES, "facility_officer", "member"];
 // U4: portal faskes / peserta memakai halaman sendiri, bukan daftar klaim operator
 export const PORTAL_ROLES = ["facility_officer", "member"];

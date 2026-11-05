@@ -122,6 +122,21 @@ services:
       minio: {condition: service_healthy}
       api: {condition: service_started}
 
+  # U6: laporan bulanan otomatis (bulan lalu, per tenant + seluruh platform), cek tiap jam
+  report-scheduler:
+    <<: *backend-env
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    command: python -m mab_api.report_scheduler
+    volumes:
+      - ./apps/api/mab_api:/app/mab_api
+      - ./pipeline/mab_pipeline:/app/mab_pipeline
+      - ./rules:/app/rules
+    depends_on:
+      postgres: {condition: service_healthy}
+      api: {condition: service_started}
+
   web:
     build:
       context: .

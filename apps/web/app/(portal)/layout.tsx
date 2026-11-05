@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { apiJson } from "@/lib/api";
-import { DASHBOARD_ROLES, DETAIL_ROLES, DOCTOR_ROLES, FRAUD_VIEW_ROLES, INSURER_ROLES, POLICY_VIEW_ROLES, RequireAuth, useAuth } from "@/lib/auth";
+import { DASHBOARD_ROLES, DETAIL_ROLES, DOCTOR_ROLES, AUDIT_ROLES, FRAUD_VIEW_ROLES, INSURER_ROLES, POLICY_VIEW_ROLES, RequireAuth, useAuth } from "@/lib/auth";
 import { ROLE_LABEL, homeFor } from "@/lib/format";
 import type { Branding } from "@/lib/types";
 import DemoSwitcher from "@/components/DemoSwitcher";
@@ -72,6 +72,7 @@ function Shell({ children }: { children: React.ReactNode }) {
               {POLICY_VIEW_ROLES.includes(role) && nav("/polis", "Polis")}
               {DASHBOARD_ROLES.includes(role) && nav("/dashboard", "Dashboard")}
               {FRAUD_VIEW_ROLES.includes(role) && nav("/fraud", "Fraud Monitor")}
+              {AUDIT_ROLES.includes(role) && nav("/laporan", "Laporan & Audit")}
               {role === "underwriter" && nav("/underwriting", "Underwriting")}
               <Link
                 href="/kotak-masuk"

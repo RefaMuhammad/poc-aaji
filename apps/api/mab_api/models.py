@@ -569,7 +569,7 @@ class AuditLog(Base):
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
     user_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     user_role: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    action: Mapped[str] = mapped_column(String(100))
+    action: Mapped[str] = mapped_column(String(100), index=True)
     method: Mapped[str | None] = mapped_column(String(10), nullable=True)
     path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     status_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -577,3 +577,29 @@ class AuditLog(Base):
     document_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
     detail: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class Report(Base):
+    """U6: laporan berkala (bulanan) yang sudah dihasilkan. Isi dibekukan di `data` saat dibuat.
+
+    `insurer_id` kosong = laporan seluruh platform (auditor platform / admin). Satu laporan per
+    jenis + periode + tenant; membuat ulang menimpa isi dan menaikkan `revision`.
+    """
+
+    __tablename__ = "reports"
+    __table_args__ = (UniqueConstraint("kind", "period", "scope_key", name="uq_report_period"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    kind: Mapped[str] = mapped_column(String(32))                 # POJK36_MONTHLY
+    period: Mapped[str] = mapped_column(String(7), index=True)    # YYYY-MM
+    insurer_id: Mapped[str | None] = mapped_column(ForeignKey("insurers.id"), nullable=True, index=True)
+    scope_key: Mapped[str] = mapped_column(String(36))            # insurer_id atau "ALL"
+    template_version: Mapped[str] = mapped_column(String(32))
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+    trigger: Mapped[str] = mapped_column(String(16))              # SCHEDULED / MANUAL
+    partial: Mapped[bool] = mapped_column(Boolean, default=False)  # periode belum selesai saat dibuat
+    data: Mapped[dict] = mapped_column(JSON, default=dict)
+    generated_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    insurer: Mapped[Insurer | None] = relationship()
+    generated_by: Mapped[User | None] = relationship()
