@@ -1,7 +1,7 @@
-.PHONY: help env up down logs test synthetic seed-users seed reset eval eval-extraction eval-triage eval-underwriting
+.PHONY: help env up down logs test synthetic seed-users seed reset eval eval-extraction eval-triage eval-underwriting backup backups
 
 help:
-	@echo "Perintah: make env | up | down | logs | test | synthetic | seed-users | seed | reset | eval | eval-extraction | eval-triage | eval-underwriting"
+	@echo "Perintah: make env | up | down | logs | test | synthetic | seed-users | seed | reset | eval | eval-extraction | eval-triage | eval-underwriting | backup | backups"
 
 env:
 	@test -f .env || cp .env.example .env && echo ".env siap"
@@ -49,3 +49,10 @@ eval: env
 # U7: akurasi kelas risiko underwriting atas 35 kasus sintetis -> evaluation/reports/underwriting_*.md
 eval-underwriting: env
 	docker compose run --rm --no-deps worker python -m evaluation.underwriting_eval
+
+# U8: backup database + dokumen ke bucket mab-backups di MinIO lokal (lihat docs/runbook-operasi.md)
+backup: env
+	docker compose run --rm ops backup
+
+backups: env
+	docker compose run --rm ops list

@@ -38,7 +38,8 @@ def ensure_dirs(tenant_dir: Path) -> None:
         d = tenant_dir / sub
         d.mkdir(parents=True, exist_ok=True)
         try:  # pengguna SFTP (uid lain) harus bisa menulis ke masuk/ dan membaca keluar/
-            os.chmod(d, 0o777)
+            # Bawaan 0770 (pemilik + grup bersama, mis. fsGroup di Kubernetes). Dev dengan uid berbeda: SFTP_DIR_MODE=0777.
+            os.chmod(d, int(os.environ.get("SFTP_DIR_MODE", "0770"), 8))
         except PermissionError:
             pass
 
@@ -160,8 +161,8 @@ def main() -> None:
     s = get_settings()
     root = Path(s.sftp_root)
     session_factory = make_session_factory()
-    storage = S3Storage(s.s3_endpoint_url, s.s3_bucket, s.minio_root_user, s.minio_root_password)
-    queue = RQJobQueue(s.redis_url, s.rq_queue)
+    storage = S3Storage.from_settings(s)
+    queue = RQJobQueue.from_settings(s)
     log.info("Mengawasi %s setiap %.0f detik", root, args.interval)
     if args.once:
         print(scan_once(session_factory, storage, queue, root, wait_stable=False))

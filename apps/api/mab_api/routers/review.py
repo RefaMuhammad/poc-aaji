@@ -61,8 +61,8 @@ from mab_api.models import (
     User,
 )
 from mab_api.routers.claims import _current_recommendation, _latest_decision, build_recommendation_view
+from mab_api.ratelimit import guard_pin
 from mab_api.ruleset import active_ruleset
-from mab_api.security import verify_secret
 from mab_api.tenancy import tenant_config
 
 router = APIRouter(prefix="/review", tags=["dokter"])
@@ -440,17 +440,12 @@ def sign(claim_id: str, body: SignRequest, request: Request, db: Session = Depen
     claim = get_visible_claim(db, user, claim_id)
     review, rec = _require_open_review(db, claim, user)
 
-    if not user.pin_hash:
-        raise HTTPException(status.HTTP_409_CONFLICT, "PIN tanda tangan Anda belum diatur. Hubungi admin.")
-    if not verify_secret(body.pin, user.pin_hash):
-        audit.record(db, "SIGN_PIN_FAILED", user_id=user.id, user_role=user.role, claim_id=claim.id, request=request)
-        db.commit()
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "PIN salah")
+    guard_pin(request, db, user, body.pin, "SIGN_PIN_FAILED", claim_id=claim.id)
 
     adjustments = list(rec.line_adjustments or [])
     kept_idx = list(range(len(adjustments))) if body.kept_adjustments is None else sorted(set(body.kept_adjustments))
     if any(i < 0 or i >= len(adjustments) for i in kept_idx):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Indeks koreksi item tidak valid")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Indeks koreksi item tidak valid")
 
     code = body.recommendation
     billed = rec.billed_amount
@@ -466,7 +461,7 @@ def sign(claim_id: str, body: SignRequest, request: Request, db: Session = Depen
         if amount is None:
             amount = max(billed - sum(int(a.get("amount", 0)) for a in kept), 0)
         if amount >= billed:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Nilai bayar sebagian harus lebih kecil dari nilai tagihan")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Nilai bayar sebagian harus lebih kecil dari nilai tagihan")
 
     suggestion = suggest_final(rec)
     agrees = (
@@ -480,11 +475,11 @@ def sign(claim_id: str, body: SignRequest, request: Request, db: Session = Depen
     # cukup pertimbangan dokter di catatan.
     overturn = bool(rec.dispute_id) and code == "PAY_FULL"
     if not agrees and not reason_code and not (overturn and (body.notes or "").strip()):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
                             "Tuliskan pertimbangan telaah ulang di catatan" if overturn
                             else "Kode alasan wajib diisi bila mengubah draf AI")
     if reason_code and reason_code not in reason_codes:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Kode alasan '{reason_code}' tidak dikenal")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Kode alasan '{reason_code}' tidak dikenal")
 
     now = _now()
     signed = Recommendation(

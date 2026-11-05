@@ -1,0 +1,35 @@
+# Uji lokal (k3s/kind/minikube): dependensi di dalam klaster, rahasia dev, TLS sertifikat self-signed.
+# JANGAN dipakai di cloud.
+environment: staging
+image:
+  registry: ""
+  tag: dev
+  pullPolicy: Never
+ingress:
+  host: mab.localtest.me
+  className: traefik
+  tls: {enabled: true, secretName: mab-local-tls, clusterIssuer: ""}
+  annotations: {}
+config:
+  S3_ENDPOINT_URL: http://minio:9000
+  S3_REGION: us-east-1
+  S3_SSE: AES256
+  OCR_ENGINE: none
+secrets:
+  create: true
+  values:
+    DATABASE_URL: postgresql+psycopg://mab:lokal-pg-8f3a1c@postgres:5432/mab
+    POSTGRES_PASSWORD: lokal-pg-8f3a1c
+    REDIS_URL: redis://redis:6379/0
+    JWT_SECRET: lokal-jwt-0123456789abcdef0123456789abcdef
+    MINIO_ROOT_USER: mablokal
+    MINIO_ROOT_PASSWORD: lokal-minio-5d2e9b
+    MINIO_KMS_SECRET_KEY: mab-local-key:Zm9yLWxvY2FsLXRlc3Qtb25seS1ub3QtZm9yLWNsb3U=
+api: {autoscaling: {enabled: false}, replicas: 1}
+web: {autoscaling: {enabled: false}, replicas: 1}
+workers:
+  - {name: all, queues: "claims,underwriting,webhooks", replicas: 1, resources: {requests: {cpu: 100m, memory: 512Mi}}}
+networkPolicy:
+  ingressNamespace: kube-system
+localDeps:
+  enabled: true

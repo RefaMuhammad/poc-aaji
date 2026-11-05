@@ -374,7 +374,7 @@ def upload_documents(
     try:
         valid = [validate_file(f.filename or "dokumen", f.file.read(max_bytes + 1)) for f in files]
     except InvalidFile as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc))
     docs = [store_document(db, storage, claim, user, f) for f in valid]
     db.commit()
     job_id = None

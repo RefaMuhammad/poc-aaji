@@ -55,10 +55,10 @@ def open_request(db: Session, claim: Claim, rec: Recommendation, user: User, *, 
         raise HTTPException(status.HTTP_409_CONFLICT, "Klaim sedang diputus ulang atas banding; dokumen tidak bisa diminta")
     types = list(dict.fromkeys(t.strip() for t in (doc_types or []) if t and t.strip())) or missing_documents(claim)
     if not types:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Pilih minimal satu jenis dokumen yang diminta")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Pilih minimal satu jenis dokumen yang diminta")
     unknown = [t for t in types if t not in KNOWN_DOC_TYPES]
     if unknown:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Jenis dokumen tidak dikenal: {', '.join(unknown)}")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Jenis dokumen tidak dikenal: {', '.join(unknown)}")
     text = (message or "").strip() or ("Mohon kirimkan " + ", ".join(notify.doc_label(t) for t in types)
                                        + " untuk melengkapi klaim.")
     due = _now() + timedelta(days=due_days)
@@ -81,14 +81,14 @@ def attach_documents(db: Session, storage, claim: Claim, user: User, files: list
         raise HTTPException(status.HTTP_409_CONFLICT, "Tidak ada permintaan dokumen yang terbuka untuk klaim ini")
     declared = list(doc_types or [])
     if declared and len(declared) != len(files):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Jumlah jenis dokumen harus sama dengan jumlah file")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Jumlah jenis dokumen harus sama dengan jumlah file")
     docs = []
     for i, f in enumerate(files):
         doc = store_document(db, storage, claim, user, f)
         kind = (declared[i] if declared else "").strip()
         if kind:
             if kind not in KNOWN_DOC_TYPES:
-                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Jenis dokumen tidak dikenal: {kind}")
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Jenis dokumen tidak dikenal: {kind}")
             doc.doc_type = kind
         docs.append(doc)
     db.flush()
@@ -162,7 +162,7 @@ def upload_late(db: Session, storage, queue, claim: Claim, user: User, uploads: 
     try:
         valid = [validate_file(f.filename or "dokumen", f.file.read(max_bytes + 1)) for f in uploads]
     except InvalidFile as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc))
     docs, req = attach_documents(db, storage, claim, user, valid, doc_types, note, request=request)
     db.commit()
     job_id = None

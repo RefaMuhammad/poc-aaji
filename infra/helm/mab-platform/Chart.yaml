@@ -1,0 +1,7 @@
+apiVersion: v2
+name: mab-platform
+description: Platform MAB Indonesia (POC) - portal web, API, worker antrean, penjadwal laporan, dan backup terjadwal.
+type: application
+version: 0.8.0
+appVersion: "0.8.0"
+keywords: [mab, klaim, underwriting]

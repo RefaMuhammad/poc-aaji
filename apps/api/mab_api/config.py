@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     minio_root_user: str = "mabminio"
     minio_root_password: str = "mabminio_dev_password"
 
-    jwt_secret: str = "ganti_dengan_rahasia_acak"
+    jwt_secret: str = "ganti_dengan_rahasia_acak_minimal_32_karakter"
     jwt_expire_minutes: int = 8 * 60
 
     max_upload_mb: int = 20
@@ -55,6 +55,63 @@ class Settings(BaseSettings):
     llm_provider: str = "mock"
     # Tampilkan pemilih "Ganti peran (demo)" di portal. Hanya untuk data rekaan.
     demo_mode: bool = True
+
+    # --- U8: operasi dan kesiapan data sungguhan ---
+    # development | staging | production. Selain development, API menolak start bila konfigurasi tidak aman.
+    environment: str = "development"
+    # text = log biasa (dev), json = satu baris JSON per log (staging/produksi, untuk log terpusat)
+    log_format: str = "text"
+    log_level: str = "INFO"
+    # Antrean RQ per jenis pekerjaan. Worker bisa dipisah per antrean (lihat Helm chart).
+    rq_queue_underwriting: str = "underwriting"
+    rq_queue_webhooks: str = "webhooks"
+    # S3/MinIO: region dan enkripsi sisi server. "" = tanpa header (MinIO dev), AES256 = SSE-S3, aws:kms = SSE-KMS
+    s3_region: str = "us-east-1"
+    s3_sse: str = ""
+    s3_kms_key_id: str | None = None
+    # /metrics untuk Prometheus. Token kosong = terbuka (batasi lewat NetworkPolicy); diisi = wajib header Bearer.
+    metrics_enabled: bool = True
+    metrics_token: str | None = None
+    # Batas percobaan login dan PIN tanda tangan (per akun), dalam jendela waktu
+    auth_max_failures: int = 5
+    auth_lockout_seconds: int = 15 * 60
+    # Batas per alamat IP (banyak akun dari satu sumber). Dibuat jauh lebih longgar karena satu kantor
+    # asuransi bisa keluar lewat satu IP publik; terlalu ketat malah mengunci semua staf.
+    auth_ip_max_failures: int = 100
+    # Gerbang data sungguhan. Selama false, platform hanya boleh berisi data rekaan.
+    real_data_enabled: bool = False
+    # Diisi true hanya setelah keputusan residensi data LLM disetujui (docs/u8-residensi-llm.md)
+    llm_data_residency_approved: bool = False
+
+    def readiness_problems(self) -> list[str]:
+        """Konfigurasi yang belum aman untuk staging/produksi. Kosong berarti lolos."""
+        problems: list[str] = []
+        if self.environment == "development":
+            return problems
+        if self.jwt_secret in {"ganti_dengan_rahasia_acak", "ganti_dengan_rahasia_acak_minimal_32_karakter", ""} or len(self.jwt_secret) < 32:
+            problems.append("JWT_SECRET masih bawaan atau kurang dari 32 karakter")
+        if "mab_dev_password" in self.database_url:
+            problems.append("DATABASE_URL masih memakai password dev")
+        if self.minio_root_password == "mabminio_dev_password":
+            problems.append("MINIO_ROOT_PASSWORD masih password dev")
+        if self.log_format != "json":
+            problems.append("LOG_FORMAT harus json supaya log bisa dikumpulkan terpusat")
+        if any(o.strip().startswith("http://") and "localhost" not in o for o in self.cors_origins.split(",")):
+            problems.append("CORS_ORIGINS memuat origin http:// (harus https)")
+        if self.real_data_enabled:
+            if self.environment != "production":
+                problems.append("REAL_DATA_ENABLED hanya boleh di environment production")
+            if self.demo_mode:
+                problems.append("DEMO_MODE harus false bila memakai data sungguhan")
+            if self.llm_provider == "mock":
+                problems.append("LLM_PROVIDER mock tidak untuk data sungguhan")
+            if not self.llm_data_residency_approved:
+                problems.append("Keputusan residensi data LLM belum disetujui (LLM_DATA_RESIDENCY_APPROVED)")
+            if not self.s3_sse:
+                problems.append("S3_SSE wajib diisi (AES256 atau aws:kms) untuk data sungguhan")
+            if "sslmode=require" not in self.database_url and "sslmode=verify" not in self.database_url:
+                problems.append("DATABASE_URL harus memakai sslmode=require atau verify-full")
+        return problems
 
 
 @lru_cache

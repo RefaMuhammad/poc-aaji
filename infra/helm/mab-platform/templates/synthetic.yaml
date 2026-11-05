@@ -1,0 +1,89 @@
+{{- if .Values.syntheticData.enabled }}
+# DATA REKAAN untuk demo di staging. Jangan aktifkan di produksi.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "mab.fullname" . }}-synthetic
+  labels: {{- include "mab.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: [{{ .Values.syntheticData.accessMode }}]
+  {{- with .Values.syntheticData.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.syntheticData.size }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "mab.fullname" . }}-synthetic-{{ .Release.Revision }}
+  labels: {{- include "mab.labels" . | nindent 4 }}
+    app.kubernetes.io/component: synthetic
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext: {{- include "mab.podSecurity" . | nindent 8 }}
+      containers:
+        - name: synthetic
+          image: {{ include "mab.image" (dict "root" . "name" "synthetic") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - {name: HOME, value: /tmp}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: out, mountPath: /app/data/synthetic_output}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: out
+          persistentVolumeClaim:
+            claimName: {{ include "mab.fullname" . }}-synthetic
+{{- end }}
+{{- if and .Values.seed.enabled .Values.syntheticData.enabled }}
+---
+# Isi akun dan data demo lewat API (sekali). Menunggu API siap dan data sintetis selesai dibuat.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "mab.fullname" . }}-seed-{{ .Release.Revision }}
+  labels: {{- include "mab.labels" . | nindent 4 }}
+    app.kubernetes.io/component: seed
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: seed
+    spec:
+      restartPolicy: OnFailure
+      securityContext: {{- include "mab.podSecurity" . | nindent 8 }}
+      containers:
+        - name: seed
+          image: {{ include "mab.image" (dict "root" . "name" "api") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "-c", "until [ -f /app/data/synthetic_output/kunci_jawaban.csv ] && python -c \"import urllib.request; urllib.request.urlopen('http://{{ include "mab.fullname" . }}-api:8000/health/ready')\"; do sleep 10; done; python infra/scripts/seed_demo.py"]
+          envFrom: {{- include "mab.envFrom" . | nindent 12 }}
+          env:
+            - {name: SEED_API_URL, value: "http://{{ include "mab.fullname" . }}-api:8000"}
+            - {name: SEED_WEBHOOK_BASE, value: "http://{{ include "mab.fullname" . }}-api:8000"}
+            - {name: SFTP_ROOT, value: /tmp/sftp}
+          securityContext: {{- include "mab.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            {{- include "mab.syntheticMount" . | nindent 12 }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- include "mab.syntheticVolume" . | nindent 8 }}
+{{- end }}

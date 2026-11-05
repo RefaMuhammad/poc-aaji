@@ -83,23 +83,23 @@ Pembagian tanggung jawab:
 
 | Lapisan | Teknologi (versi terkunci) | Dipakai untuk |
 |---|---|---|
-| Frontend | Next.js 14.2.35 (App Router), React 18.3.1, TypeScript 5.7 (strict), Tailwind CSS 3.4 | Portal asuransi, ruang kerja dokter, admin, dashboard |
-| API | Python 3.11, FastAPI 0.115.6, Uvicorn 0.34, Pydantic 2.10 + pydantic-settings 2.7 | REST API, validasi request/response, konfigurasi dari `.env` |
+| Frontend | Next.js 15.5.29 (App Router), React 19.2.9, TypeScript 5.7 (strict), Tailwind CSS 3.4 | Portal asuransi, ruang kerja dokter, admin, dashboard |
+| API | Python 3.11, FastAPI 0.162, Uvicorn 0.54, Pydantic 2.10 + pydantic-settings 2.7 | REST API, validasi request/response, konfigurasi dari `.env` |
 | ORM / migrasi | SQLAlchemy 2.0.36 (typed `Mapped[...]`), Alembic 1.14, psycopg 3.2 | Model data, migrasi skema, trigger audit |
-| Autentikasi | PyJWT 2.10 (HS256), PBKDF2-SHA256 240.000 iterasi (stdlib `hashlib`) | Token login 8 jam, hash password dan PIN tanda tangan |
+| Autentikasi | PyJWT 2.15 (HS256), PBKDF2-SHA256 240.000 iterasi (stdlib `hashlib`) | Token login 8 jam, hash password dan PIN tanda tangan |
 | Antrean | Redis 7, RQ 2.1 | Job proses klaim di latar belakang (timeout 900 detik) |
 | Penyimpanan file | MinIO (S3-compatible, image `bitnamilegacy/minio`), boto3 1.35 | File dokumen klaim |
 | Database | PostgreSQL 16 | Data aplikasi |
-| Baca PDF | pdfplumber 0.11.4 | Teks + koordinat dari PDF digital |
-| Render halaman | pypdfium2 4.30, Pillow 11.1, NumPy 1.26 | PDF pindaian → gambar 200 DPI untuk OCR; gambar pratinjau halaman |
+| Baca PDF | pdfplumber 0.11.10 | Teks + koordinat dari PDF digital |
+| Render halaman | pypdfium2 5.14, Pillow 13.0, NumPy 1.26 | PDF pindaian → gambar 200 DPI untuk OCR; gambar pratinjau halaman |
 | OCR | PaddleOCR 2.9.1 + paddlepaddle 2.6.2 (CPU), model `latin` | Teks dari halaman pindaian (hanya di image worker) |
 | Pencocokan bukti | rapidfuzz 3.11 | Fuzzy match kutipan LLM ke teks dokumen |
 | LLM | Klien HTTP sendiri di atas httpx 0.28 (API kompatibel OpenAI, `response_format: json_object`) | Klasifikasi dokumen, ekstraksi, penalaran klinis |
 | Aturan | PyYAML 6.0 + evaluator ekspresi aman berbasis `ast` | Aturan klinis sebagai konfigurasi |
 | PDF rekomendasi | fpdf2 2.8.2 + font DejaVu | Unduhan rekomendasi untuk asuransi |
 | Excel | openpyxl 3.1 | Membaca `manifest.xlsx` unggah massal |
-| Data sintetis | Jinja2 3.1 + WeasyPrint 63 (HTML → PDF), Pillow/NumPy (efek pindaian) | 30 klaim rekaan, PDF digital dan pindaian |
-| Tes | pytest 8.3, fakeredis, SQLite in-memory, FastAPI TestClient | Tes otomatis tanpa Docker |
+| Data sintetis | Jinja2 3.1 + WeasyPrint 70 (HTML → PDF), Pillow/NumPy (efek pindaian) | 30 klaim rekaan, PDF digital dan pindaian |
+| Tes | pytest 9.2, fakeredis, SQLite in-memory, FastAPI TestClient | Tes otomatis tanpa Docker |
 | Kontainer | Docker Compose v2 | Semua service dalam satu perintah |
 
 ## 3. Service dan deployment lokal
@@ -118,6 +118,11 @@ Pembagian tanggung jawab:
 | `sftp` (U2) | `atmoz/sftp:alpine` | 2222 | `data/sftp/DEMO`, `data/sftp/PELITA` | login `demo`/`pelita`, password `demo12345` |
 | `sftp-watcher` (U2) | `infra/docker/api.Dockerfile` | - | kode, `rules/`, `data/` | `python -m mab_pipeline.sftp_watcher`, memproses `data/sftp/<KODE>/masuk` |
 | `report-scheduler` (U6) | `infra/docker/api.Dockerfile` | - | kode, `rules/` | `python -m mab_api.report_scheduler`, tiap jam memastikan laporan bulan lalu ada (per tenant + platform) |
+| `ops` (U8) | `infra/docker/ops.Dockerfile` (postgres:16-alpine + Python) | - | - | profil `ops`: `docker compose run --rm ops backup|list|restore|verify` |
+
+Sejak U8 image berjalan non-root (UID 10001; web UID 1000). Di docker compose, service yang memakai mount kode dari laptop tetap `user: root`. MinIO lokal memakai kunci KMS bawaan (`MINIO_KMS_SECRET_KEY`) sehingga dokumen terenkripsi at rest (`S3_SSE=AES256`).
+
+Deploy cloud memakai Helm chart `infra/helm/mab-platform` (worker per antrean, migrasi di initContainer dengan kunci advisory, ingress TLS, NetworkPolicy, HPA, CronJob backup, ServiceMonitor + PrometheusRule). Lihat [u8-infrastruktur-cloud.md](u8-infrastruktur-cloud.md) dan [runbook-operasi.md](runbook-operasi.md).
 
 Semua konfigurasi backend dibaca dari `.env` (template `.env.example`): koneksi database, Redis, MinIO, `JWT_SECRET`, `RULES_PATH`, `LLM_PROVIDER`/`LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL`, `OCR_ENGINE`/`OCR_LANG`. `.env` diabaikan git.
 
@@ -406,7 +411,10 @@ Komponen utama di `components/`: `DocumentViewer` (`DocumentPane` inline + modal
 - **Pemisahan peran:** hanya asuransi/TPA yang bisa membuat klaim dan memutuskan; hanya dokter yang bisa menelaah dan menandatangani; hanya dokter umum yang bisa mengeskalasi; auditor, faskes, dan peserta hanya-baca; admin mengatur tenant dan penugasan tetapi tidak memutuskan klaim.
 - **Validasi unggahan:** tipe file dari magic bytes (bukan ekstensi), maksimum 20 MB per file dan 500 MB per ZIP, nama file disanitasi, sha256 disimpan.
 - **Audit:** middleware mencatat setiap aksi tulis dan akses dokumen; endpoint mencatat kejadian penting (`LOGIN_*`, `PIPELINE_COMPLETED/FAILED`, `REVIEW_STARTED/ESCALATED/RELEASED`, `FIELD_CORRECTED`, `SIGN_PIN_FAILED`, `RECOMMENDATION_SIGNED`, dan sejak U1 `CASE_ASSIGNED`, `TENANT_CREATED`, `TENANT_SETTINGS_UPDATED`, `API_CLIENT_CREATED/REVOKED`, `INTEGRATION_ACCESS`, dan sejak U4 `DOCUMENTS_REQUESTED`, `LATE_DOCUMENTS_UPLOADED`, `DOCUMENT_REQUEST_FULFILLED/CANCELLED`, dan sejak U5 `DISPUTE_FILED`, `DISPUTE_REVIEWED`, `DISPUTE_RESOLVED`, `DISPUTE_WITHDRAWN`, dan sejak U6 `REPORT_GENERATED`, `REPORT_DOWNLOADED`, `AUDIT_TRACE_EXPORTED`, `AUDIT_LOG_EXPORTED`, dan sejak U7 `UW_SUBMITTED`, `UW_PROCESSED`, `UW_FAILED`, `UW_SIGNED`, `UW_SIGN_PIN_FAILED`, `UW_DECIDED`, `UW_PDF_DOWNLOADED`, `UW_DOCUMENT_VIEWED`). Log dibaca lewat halaman Laporan & Audit (U6). Di PostgreSQL, trigger `audit_logs_no_change` menolak UPDATE dan DELETE.
-- **Rahasia:** hanya di `.env` (diabaikan git). Nilai di `.env.example` khusus lokal.
+- **Batas percobaan (U8):** 5 login gagal per akun atau 100 per IP dalam 15 menit mengunci sementara (429, `LOGIN_LOCKED`); 5 PIN tanda tangan salah mengunci PIN dokter itu. Hitungan di Redis (`mab_api/ratelimit.py`).
+- **Header dan log (U8):** API mengirim header keamanan, `X-Request-ID`, dan HSTS di luar development; web memakai CSP dengan nonce per permintaan (`apps/web/middleware.ts`). `LOG_FORMAT=json` menulis satu baris JSON per permintaan tanpa isi dokumen. `/metrics` (Prometheus) dan `/health/ready` untuk Kubernetes.
+- **Rahasia:** hanya di `.env` (diabaikan git) atau Secret Manager di cloud. Nilai di `.env.example` khusus lokal; di luar `ENVIRONMENT=development` API, worker, dan migrasi menolak start bila rahasia bawaan masih dipakai (`Settings.readiness_problems`).
+- **Gerbang data sungguhan (U8):** `REAL_DATA_ENABLED=true` mensyaratkan produksi, `DEMO_MODE=false`, LLM bukan mock, `LLM_DATA_RESIDENCY_APPROVED=true`, `S3_SSE`, dan TLS database. Item organisasi ada di [checklist UU PDP](u8-checklist-uu-pdp.md).
 - **Data:** hanya data sintetis di Tahap 0. Sebelum memakai data nyata, cek ulang lokasi pemrosesan data penyedia LLM dan terapkan penyamaran.
 
 ## 13. Keterlacakan dan versi
@@ -440,6 +448,7 @@ Setiap rekomendasi menyimpan `model_version` (mis. `mock-llm-1` atau nama model)
 | `tests/test_u5_sengketa.py` | (U5) banding ujung ke ujung (ajukan, penelaah awal ditolak, spesialis kedua membatalkan, putusan ulang, audit, dashboard), tarik dan ajukan ulang, banding hanya satu tingkat, kelayakan (belum diputus, bayar penuh, alasan pendek, kategori salah, peran, batas waktu) |
 | `tests/test_u7_underwriting.py` | (U7) pipeline underwriting cocok dengan kunci jawaban dan setiap temuan berbukti, dokumen kurang tidak pernah menjadi terima standar, agregasi debit/kelas/batas tolak, validasi file aturan, alur API (standar langsung ke underwriter; tolak wajib tanda tangan dokter dengan PIN; keputusan harus sama dengan tanda tangan dokter), cakupan peran |
 | `tests/test_u6_audit_laporan.py` | (U6) auditor menelusuri keputusan dari unggah sampai keputusan akhir (jejak, mata rantai, PDF), filter log audit, cakupan tenant dan auditor hanya-baca, ekspor Excel, laporan bulanan oleh penjadwal (tanpa dobel), isi bagian POJK, ekspor PDF/Excel, revisi dan validasi periode |
+| `tests/test_u8_operasi_keamanan.py` | (U8) penguncian login dan PIN, token palsu/kedaluwarsa, header keamanan dan request id, readiness, metrik tanpa id, token metrik, gerbang konfigurasi staging dan data sungguhan, antrean terpisah, argumen SSE S3, log JSON, skrip backup (password tidak di argumen, quoting nama tabel) |
 | `tests/test_u3_fraud.py` | (U3) Validasi aturan fraud, semua pola tertanam tertangkap dengan bukti tanpa alarm palsu (beberapa seed), populasi normal tanpa sinyal, impor riwayat, Fraud Monitor + telaah + isolasi tenant, klaim platform masuk analisis tanpa mengubah klaim |
 
 Frontend dicek dengan `npm run build` (TypeScript strict) dan uji alur di browser (Playwright) selama pengembangan.

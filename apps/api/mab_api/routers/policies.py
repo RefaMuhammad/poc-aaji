@@ -27,7 +27,7 @@ def target_tenant(db: Session, user: User, requested: str | None) -> str:
     allowed = tenant_ids(db, user)
     if allowed is None:
         if not requested or db.get(Insurer, requested) is None:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Pilih asuransi (insurer_id)")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Pilih asuransi (insurer_id)")
         return requested
     if requested:
         if requested not in allowed:
@@ -37,7 +37,7 @@ def target_tenant(db: Session, user: User, requested: str | None) -> str:
         return user.insurer_id
     if len(allowed) == 1:
         return next(iter(allowed))
-    raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Pilih asuransi (insurer_id)")
+    raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Pilih asuransi (insurer_id)")
 
 
 def policy_out(p: Policy) -> PolicyOut:
@@ -115,14 +115,14 @@ async def import_policies(
     tenant = target_tenant(db, user, insurer_id)
     name = file.filename or "polis.csv"
     if not name.lower().endswith((".csv", ".xlsx", ".xlsm")):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "File harus CSV atau XLSX")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "File harus CSV atau XLSX")
     data = await file.read()
     if len(data) > MAX_IMPORT_BYTES:
         raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "File maksimal 10 MB")
     try:
         rows = read_rows(name, data)
     except Exception as exc:  # file rusak / bukan CSV-XLSX yang valid
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"File tidak bisa dibaca: {type(exc).__name__}")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"File tidak bisa dibaca: {type(exc).__name__}")
     result = upsert_policies(db, tenant, rows)
     job = IntegrationJob(insurer_id=tenant, channel="POLICY_IMPORT", reference=name[:255], status=result.status,
                          summary=result.summary(), user_id=user.id)

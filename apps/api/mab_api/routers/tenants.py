@@ -144,11 +144,11 @@ def update_settings(insurer_id: str, body: TenantSettingsIn, request: Request, d
     insurer = _get_insurer(db, insurer_id)
     unknown = sorted(set(body.disabled_rules) - all_rule_ids(active_ruleset(), active_benefit_ruleset()))
     if unknown:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Aturan tidak dikenal: {', '.join(unknown)}")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Aturan tidak dikenal: {', '.join(unknown)}")
     red = body.triage_red_min_score if body.triage_red_min_score is not None else _default_threshold(TriageStatus.RED)
     yellow = body.triage_yellow_min_score if body.triage_yellow_min_score is not None else _default_threshold(TriageStatus.YELLOW)
     if red is not None and yellow is not None and red <= yellow:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
                             f"Ambang merah ({red}) harus lebih besar dari ambang kuning ({yellow})")
 
     row = db.get(TenantSettings, insurer.id)
@@ -192,7 +192,7 @@ def create_api_client(insurer_id: str, body: ApiClientCreate, request: Request, 
     scopes = sorted(set(body.scopes))
     unknown = [s for s in scopes if s not in API_SCOPES]
     if unknown or not scopes:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
                             f"Cakupan tidak dikenal: {', '.join(unknown) or '(kosong)'}. Pilihan: {', '.join(API_SCOPES)}")
     key, prefix, key_hash = generate_api_key()
     client = ApiClient(insurer_id=insurer_id, name=body.name.strip(), key_prefix=prefix, key_hash=key_hash,

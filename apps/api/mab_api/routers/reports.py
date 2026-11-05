@@ -150,14 +150,14 @@ def generate(body: GenerateIn, request: Request, db: Session = Depends(get_db), 
     try:
         start, _ = reporting.parse_period(body.period)
     except ValueError as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc))
     if start > datetime.now(timezone.utc):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Periode belum dimulai")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Periode belum dimulai")
     insurer_id = body.insurer_id
     if insurer_id is None and not platform:
         insurer_id = next(iter(tenants), None) if len(tenants) == 1 else None
         if insurer_id is None:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Pilih asuransi")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Pilih asuransi")
     if insurer_id is not None and insurer_id not in tenants:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Asuransi tidak ditemukan")
     insurer = db.get(Insurer, insurer_id) if insurer_id else None

@@ -1,0 +1,120 @@
+{{- if .Values.networkPolicy.enabled }}
+# Bawaan: tolak semua trafik masuk ke pod rilis ini, lalu buka yang dibutuhkan saja.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "mab.fullname" . }}-default-deny
+  labels: {{- include "mab.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes: [Ingress, Egress]
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    # Layanan lain dalam rilis yang sama (web -> api, worker -> api untuk webhook demo, dependensi lokal)
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+    # Database, Redis, S3, KMS, dan API LLM terkelola di luar klaster
+    - to:
+        {{- range .Values.networkPolicy.egressCidrs }}
+        - ipBlock: {cidr: {{ . }}}
+        {{- end }}
+      ports:
+        - {protocol: TCP, port: 443}
+        - {protocol: TCP, port: 5432}
+        - {protocol: TCP, port: 6379}
+        - {protocol: TCP, port: 6380}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "mab.fullname" . }}-web-ingress
+  labels: {{- include "mab.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {{- include "mab.selector" (dict "root" . "component" "web") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.ingressNamespace }}
+      ports:
+        - {protocol: TCP, port: 3000}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "mab.fullname" . }}-api-ingress
+  labels: {{- include "mab.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {{- include "mab.selector" (dict "root" . "component" "api") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    # Portal web, seed, dan worker (webhook demo) di rilis yang sama
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - {protocol: TCP, port: 8000}
+    {{- if .Values.ingress.apiHost }}
+    # API integrasi lewat ingress controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.ingressNamespace }}
+      ports:
+        - {protocol: TCP, port: 8000}
+    {{- end }}
+    # Prometheus mengambil /metrics
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.monitoring.prometheusNamespace }}
+      ports:
+        - {protocol: TCP, port: 8000}
+{{- end }}
+---
+{{- $root := . }}
+{{- range $name, $spec := dict "api" .Values.api "web" .Values.web }}
+{{- if $spec.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "mab.fullname" $root }}-{{ $name }}
+  labels: {{- include "mab.labels" $root | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "mab.fullname" $root }}-{{ $name }}
+  minReplicas: {{ $spec.autoscaling.minReplicas }}
+  maxReplicas: {{ $spec.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: {type: Utilization, averageUtilization: {{ $spec.autoscaling.targetCPU }}}
+---
+{{- end }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "mab.fullname" $root }}-{{ $name }}
+  labels: {{- include "mab.labels" $root | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {{- include "mab.selector" (dict "root" $root "component" $name) | nindent 6 }}
+---
+{{- end }}

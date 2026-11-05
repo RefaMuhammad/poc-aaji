@@ -1,0 +1,58 @@
+# Contoh nilai staging. Salin, ganti nilai bertanda "ganti", lalu:
+#   helm upgrade --install mab infra/helm/mab-platform -n mab-staging --create-namespace -f values-staging.yaml
+# Penyedia cloud belum dipilih klien; komentar di bawah menunjukkan nilai per penyedia (region Jakarta/Indonesia).
+environment: staging
+
+image:
+  # GCP: asia-southeast2-docker.pkg.dev/<proyek>/mab
+  # AWS: <akun>.dkr.ecr.ap-southeast-3.amazonaws.com/mab
+  # Azure: <registry>.azurecr.io/mab
+  registry: registry.contoh.id/mab        # ganti
+  tag: "0.8.0"
+
+ingress:
+  host: mab-staging.contoh.id              # ganti dengan domain klien
+  apiHost: ""
+  className: nginx
+  tls: {enabled: true, secretName: mab-staging-tls, clusterIssuer: letsencrypt}
+  # Staging dibatasi ke IP kantor klien dan tim (CIDR dipisah koma)
+  allowlistSourceRange: "203.0.113.0/24"   # ganti
+
+config:
+  DEMO_MODE: "true"          # staging berisi data rekaan
+  LLM_PROVIDER: mock         # atau penyedia LLM yang disetujui; data rekaan saja selama REAL_DATA_ENABLED=false
+  # Penyimpanan dokumen terenkripsi KMS:
+  # AWS: S3_ENDPOINT_URL kosong, S3_REGION ap-southeast-3, S3_SSE aws:kms, S3_KMS_KEY_ID arn:aws:kms:...
+  # GCP: S3_ENDPOINT_URL https://storage.googleapis.com (interop HMAC), S3_SSE kosong; bucket memakai CMEK Cloud KMS
+  # Azure: lewat gateway S3-compatible atau MinIO di AKS dengan KES + Key Vault
+  S3_ENDPOINT_URL: ""
+  S3_REGION: ap-southeast-3
+  S3_SSE: aws:kms
+  S3_KMS_KEY_ID: "arn:aws:kms:ap-southeast-3:000000000000:key/ganti"
+  S3_BUCKET: mab-staging-documents
+  BACKUP_BUCKET: mab-staging-backups
+
+secrets:
+  # Dibuat External Secrets Operator dari Secret Manager / Secrets Manager / Key Vault
+  existingSecret: mab-staging-secrets
+
+serviceAccount:
+  annotations: {}
+  # GKE: {iam.gke.io/gcp-service-account: mab-staging@<proyek>.iam.gserviceaccount.com}
+  # EKS: {eks.amazonaws.com/role-arn: arn:aws:iam::<akun>:role/mab-staging}
+  # AKS: {azure.workload.identity/client-id: <client-id>}
+
+syntheticData:
+  enabled: true
+  storageClass: standard-rwx            # ganti sesuai penyedia. GKE: standard-rwx (Filestore), EKS: efs-sc, AKS: azurefile-csi
+  accessMode: ReadWriteMany
+seed:
+  enabled: true
+
+monitoring:
+  serviceMonitor: true
+  prometheusRule: true
+
+networkPolicy:
+  # Persempit ke CIDR VPC (database/Redis privat) dan endpoint S3/KMS/LLM bila memungkinkan
+  egressCidrs: ["0.0.0.0/0"]

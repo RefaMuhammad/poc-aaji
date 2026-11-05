@@ -1,0 +1,165 @@
+# Nilai bawaan Platform MAB. Lihat docs/u8-infrastruktur-cloud.md.
+# Penyedia cloud belum dipilih: chart ini netral. Contoh nilai per penyedia ada di values-staging.yaml.
+
+# development | staging | production. Selain development, API/worker menolak start bila konfigurasi belum aman.
+environment: staging
+
+image:
+  registry: ""            # mis. asia-southeast2-docker.pkg.dev/<proyek>/mab atau <akun>.dkr.ecr.ap-southeast-3.amazonaws.com
+  tag: "0.8.0"
+  pullPolicy: IfNotPresent
+  api: mab-api
+  worker: mab-worker
+  web: mab-web
+  ops: mab-ops
+  synthetic: mab-synthetic
+imagePullSecrets: []
+
+# Domain publik. Hanya portal web yang dibuka ke internet; API langsung (integrasi REST/FHIR) opsional.
+ingress:
+  enabled: true
+  className: nginx
+  host: mab-staging.example.id
+  apiHost: ""             # mis. api.mab-staging.example.id untuk integrasi sistem asuransi (API key)
+  tls:
+    enabled: true
+    secretName: mab-tls
+    # cert-manager membuat sertifikat Let's Encrypt otomatis bila issuer diisi
+    clusterIssuer: letsencrypt
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "500m"     # unggah ZIP batch (MAX_ZIP_MB)
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+  # Rentang IP yang boleh mengakses (kosong = semua). Untuk staging: IP kantor klien dan tim.
+  allowlistSourceRange: ""
+
+# Konfigurasi non-rahasia (ConfigMap). Kunci = nama variabel lingkungan aplikasi.
+config:
+  LOG_FORMAT: json
+  LOG_LEVEL: INFO
+  DEMO_MODE: "true"
+  LLM_PROVIDER: mock
+  LLM_BASE_URL: ""
+  LLM_MODEL: ""
+  OCR_ENGINE: paddle
+  OCR_LANG: latin
+  RQ_QUEUE: claims
+  RQ_QUEUE_UNDERWRITING: underwriting
+  RQ_QUEUE_WEBHOOKS: webhooks
+  S3_ENDPOINT_URL: ""     # kosong = S3 bawaan cloud; isi untuk MinIO/GCS interop/S3-compatible lain
+  S3_BUCKET: mab-documents
+  S3_REGION: ap-southeast-3
+  S3_SSE: aws:kms         # AES256 (SSE-S3) atau aws:kms (SSE-KMS + S3_KMS_KEY_ID)
+  S3_KMS_KEY_ID: ""
+  BACKUP_BUCKET: mab-backups
+  BACKUP_RETENTION_DAYS: "30"
+  RULES_PATH: /app/rules/aturan_klinis_demo.yaml
+  MAX_UPLOAD_MB: "20"
+  MAX_ZIP_MB: "500"
+  AUTH_MAX_FAILURES: "5"
+  AUTH_LOCKOUT_SECONDS: "900"
+  AUTH_IP_MAX_FAILURES: "100"
+  REAL_DATA_ENABLED: "false"
+  LLM_DATA_RESIDENCY_APPROVED: "false"
+
+# Rahasia. Disarankan existingSecret yang diisi External Secrets Operator / Secret Manager penyedia cloud,
+# sehingga rahasia tidak pernah ada di file values. create: true hanya untuk uji lokal.
+secrets:
+  existingSecret: ""
+  create: false
+  values: {}
+  # Kunci yang wajib ada di Secret:
+  #   DATABASE_URL (postgresql+psycopg://...?sslmode=require), REDIS_URL (rediss://... bila TLS),
+  #   JWT_SECRET (>= 32 karakter acak), MINIO_ROOT_USER, MINIO_ROOT_PASSWORD (kunci akses S3; kosong bila workload identity),
+  #   LLM_API_KEY (bila LLM_PROVIDER bukan mock), METRICS_TOKEN (opsional)
+
+serviceAccount:
+  create: true
+  name: ""
+  # Workload identity: GKE iam.gke.io/gcp-service-account, EKS eks.amazonaws.com/role-arn, AKS azure.workload.identity/client-id
+  annotations: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile: {type: RuntimeDefault}
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities: {drop: [ALL]}
+
+api:
+  replicas: 2
+  resources:
+    requests: {cpu: 250m, memory: 512Mi}
+    limits: {memory: 1Gi}
+  autoscaling: {enabled: true, minReplicas: 2, maxReplicas: 6, targetCPU: 70}
+
+web:
+  replicas: 2
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {memory: 512Mi}
+  autoscaling: {enabled: true, minReplicas: 2, maxReplicas: 4, targetCPU: 70}
+
+# Worker dipisah per antrean, supaya beban satu modul tidak menahan modul lain.
+workers:
+  - name: claims
+    queues: claims
+    replicas: 2
+    resources: {requests: {cpu: 500m, memory: 2Gi}, limits: {memory: 4Gi}}
+  - name: underwriting
+    queues: underwriting
+    replicas: 1
+    resources: {requests: {cpu: 500m, memory: 2Gi}, limits: {memory: 4Gi}}
+  - name: webhooks
+    queues: webhooks
+    replicas: 1
+    resources: {requests: {cpu: 50m, memory: 256Mi}, limits: {memory: 512Mi}}
+
+reportScheduler:
+  enabled: true
+  resources: {requests: {cpu: 50m, memory: 256Mi}, limits: {memory: 512Mi}}
+
+# Batch SFTP dari asuransi/TPA. Di cloud, folder masuk biasanya bucket atau layanan SFTP terkelola.
+sftpWatcher:
+  enabled: false
+  pvcName: ""
+
+backup:
+  enabled: true
+  schedule: "0 18 * * *"      # 01.00 WIB
+  resources: {requests: {cpu: 100m, memory: 256Mi}, limits: {memory: 1Gi}}
+
+# Data rekaan untuk demo di staging: Job membuat data sintetis ke PVC, lalu worker (LLM mock) dan seed membacanya.
+# Klaster multi-node butuh storageClass ReadWriteMany (Filestore, EFS, Azure Files).
+syntheticData:
+  enabled: false
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  size: 2Gi
+seed:
+  enabled: false
+
+monitoring:
+  # Butuh Prometheus Operator (kube-prometheus-stack) di klaster
+  serviceMonitor: false
+  prometheusRule: false
+  # Namespace Prometheus yang boleh mengambil /metrics (NetworkPolicy)
+  prometheusNamespace: monitoring
+  # Kunci di Secret yang berisi METRICS_TOKEN, bila /metrics memakai token
+  metricsTokenKey: ""
+
+networkPolicy:
+  enabled: true
+  ingressNamespace: ingress-nginx
+  # Tujuan keluar yang diizinkan selain DNS dan layanan di namespace ini.
+  # Database, Redis, S3, dan API LLM terkelola ada di luar klaster, jadi port 443/5432/6379/6380 dibuka ke CIDR ini.
+  egressCidrs: ["0.0.0.0/0"]
+
+# Hanya untuk uji lokal (kind/k3s/minikube): PostgreSQL, Redis, dan MinIO di dalam klaster.
+# Di cloud pakai layanan terkelola (Cloud SQL/RDS/Azure Database, Memorystore/ElastiCache/Azure Cache, S3/GCS/Blob).
+localDeps:
+  enabled: false
