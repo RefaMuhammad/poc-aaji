@@ -689,5 +689,115 @@ class WebhookDeliveryOut(BaseModel):
     payload: dict
 
 
+
+# ----------------------------------------------------------------------------- U3 fraud analytics
+
+
+class FraudReviewIn(BaseModel):
+    status: str = Field(pattern="^(INVESTIGATING|CONFIRMED|DISMISSED)$")
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class FraudReviewOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    status: str
+    notes: str | None
+    reviewed_by_id: str
+    reviewed_by_name: str | None = None
+    reviewed_at: datetime
+
+
+class FraudSignalOut(BaseModel):
+    id: str
+    run_id: str
+    rule_id: str
+    rule_name: str | None = None
+    reason_code: str
+    reason_label: str | None = None
+    severity: str
+    weight: int
+    entity_type: str
+    entity_key: str
+    entity_label: str
+    message: str
+    claim_count: int
+    claim_numbers: list[str] = []
+    evidence: dict[str, Any] = {}
+    review: FraudReviewOut | None = None
+
+
+class FraudEntityOut(BaseModel):
+    entity_type: str
+    entity_key: str
+    entity_label: str
+    score: int
+    level: str | None
+    rule_ids: list[str]
+    claims: int
+    review_statuses: list[str] = []
+
+
+class FraudRunOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    insurer_id: str
+    ruleset_version: str
+    record_count: int
+    signal_count: int
+    created_by_id: str | None
+    created_at: datetime
+
+
+class FraudOverviewOut(BaseModel):
+    insurer_id: str
+    ruleset_version: str
+    record_count: int
+    record_sources: dict[str, int]
+    last_run: FraudRunOut | None
+    stale: bool                       # ada data baru sejak run terakhir
+    signals_open: int
+    signals_by_status: dict[str, int]
+    entities: list[FraudEntityOut]
+
+
+class FraudImportOut(BaseModel):
+    job_id: str
+    status: str
+    created: int
+    updated: int
+    errors: list[str]
+    run: FraudRunOut | None = None
+
+
+class FraudClaimOut(BaseModel):
+    """Kartu fraud di detail klaim. Terpisah dari skor risiko klinis dan tidak mengubah klaim."""
+    claim_id: str
+    ruleset_version: str | None
+    run_at: datetime | None
+    score: int
+    level: str | None
+    in_analysis: bool                 # klaim sudah masuk data analitik
+    signals: list[FraudSignalOut]
+
+
+class FraudRuleOut(BaseModel):
+    id: str
+    name: str
+    entity: str
+    entity_type: str
+    condition: str
+    reason_code: str
+    severity: str
+    weight: int
+    message: str
+
+
+class FraudRulesetOut(BaseModel):
+    version: str
+    params: dict[str, Any]
+    reason_codes: dict[str, str]
+    rules: list[FraudRuleOut]
+
+
 ClaimDetail.model_rebuild()
 RulesetOut.model_rebuild()

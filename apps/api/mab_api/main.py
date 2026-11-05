@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from mab_api.audit import AuditMiddleware
 from mab_api.config import get_settings
-from mab_api.routers import admin, auth, claims, dashboard, documents, integrations, policies, review, tenants, users
+from mab_api.routers import admin, auth, claims, dashboard, documents, fraud, integrations, policies, review, tenants, users
 
 
 def create_app(*, session_factory=None, storage=None, job_queue=None) -> FastAPI:
@@ -56,6 +56,7 @@ def create_app(*, session_factory=None, storage=None, job_queue=None) -> FastAPI
     app.include_router(integrations.router)
     app.include_router(integrations.demo_router)
     app.include_router(policies.router)
+    app.include_router(fraud.router)
     return app
 
 

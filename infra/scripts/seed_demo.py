@@ -13,6 +13,9 @@ Langkah:
    demo, API key Pelita, lalu satu klaim per kanal integrasi ke Pelita: SYN-DEN-01 lewat FHIR Bundle,
    SYN-GEA-01 lewat API multipart, SYN-TIF-01 dan SYN-TIF-02 lewat folder SFTP (butuh layanan sftp-watcher).
    Di Pelita, SYN-DEN-02 memakai plan kelas 2 (kamar melebihi hak) dan SYN-GEA-02 hampir habis limitnya.
+8. (U3) Riwayat klaim sintetis dengan pola fraud tertanam (data/synthetic_output/fraud/riwayat_klaim.csv,
+   dibuat otomatis bila belum ada) diimpor ke kedua tenant, lalu analisis fraud dijalankan. Klaim yang
+   sudah diproses di langkah sebelumnya ikut dianalisis. Fraud Monitor langsung berisi 8 sinyal.
 
 Butuh: `make up` dan `make synthetic` sudah dijalankan. Jalankan di container api:
     docker compose exec api python infra/scripts/seed_demo.py
@@ -33,6 +36,7 @@ import httpx
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "apps" / "api"))
 sys.path.insert(0, "/app")
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from seed_users import link_portal_accounts  # noqa: E402
 from seed_users import seed as seed_users  # noqa: E402
@@ -333,6 +337,25 @@ def insurer_decisions(staf: Api) -> None:
         print(f"  asuransi {'berbeda' if body['decision'] == 'DIFFER' else 'setuju'}: {c['claim_number']}")
 
 
+def fraud_history() -> None:
+    """U3: impor riwayat klaim berpola fraud ke kedua tenant; impor otomatis menjalankan analisis."""
+    from synthetic.generate_fraud import HISTORY_FILE, write_outputs
+
+    history = DATA / "fraud" / HISTORY_FILE
+    if not history.exists():
+        history, _ = write_outputs(DATA / "fraud")
+        print(f"  riwayat klaim sintetis dibuat: {history}")
+    admin = Api(ADMIN)
+    for t in admin.get("/tenants"):
+        if t["code"] not in PLANS:
+            continue
+        res = admin.post("/fraud/records/import", data={"insurer_id": t["insurer_id"]},
+                         files={"file": (history.name, history.read_bytes(), "text/csv")})
+        run = res.get("run") or {}
+        print(f"  {t['code']}: {res['created']} klaim riwayat, {run.get('record_count', 0)} klaim dianalisis, "
+              f"{run.get('signal_count', 0)} sinyal fraud")
+
+
 def main() -> None:
     print("1. Akun demo")
     created = seed_users()
@@ -360,6 +383,8 @@ def main() -> None:
     doctor_reviews()
     print("6. Keputusan asuransi")
     insurer_decisions(staf)
+    print("7. Riwayat klaim dan analisis fraud (U3)")
+    fraud_history()
     print(f"\nSelesai. Buka http://localhost:3000 (staf@demo.test / {PASSWORD}).")
     print(f"Klaim {LIVE_DEMO_CLAIM} sengaja belum diunggah ke tenant DEMO untuk diunggah langsung saat demo.")
     print(f"Tenant kedua: {SECOND_TENANT_STAFF} melihat {len(pelita_ids)} klaim Asuransi Pelita (ambang merah 20).")

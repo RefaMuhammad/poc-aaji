@@ -4,13 +4,14 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { apiJson, downloadFile } from "@/lib/api";
-import { INSURER_ROLES, useAuth } from "@/lib/auth";
+import { FRAUD_VIEW_ROLES, INSURER_ROLES, useAuth } from "@/lib/auth";
 import type { ClaimDetail, ClaimStatus, Recommendation } from "@/lib/types";
 import { DOC_TYPE_LABEL, IN_PROGRESS, POLICY_STATUS_LABEL, SOURCE_LABEL, rupiah, tanggal, waktu } from "@/lib/format";
 import { StatusBadge } from "@/components/Badges";
 import { RecommendationView } from "@/components/RecommendationView";
 import { DecisionForm } from "@/components/DecisionForm";
 import { DocumentViewer, type ViewerTarget } from "@/components/DocumentViewer";
+import { FraudClaimCard } from "@/components/FraudClaimCard";
 
 const STEPS: { status: ClaimStatus[]; label: string }[] = [
   { status: ["RECEIVED", "QUEUED"], label: "Diterima & antre" },
@@ -144,6 +145,8 @@ export default function ClaimDetailPage() {
           </p>
         </div>
       )}
+
+      {user && FRAUD_VIEW_ROLES.includes(user.role) && <FraudClaimCard claimId={claim.id} />}
 
       <Progress status={claim.status} />
       {claim.status === "FAILED" && (

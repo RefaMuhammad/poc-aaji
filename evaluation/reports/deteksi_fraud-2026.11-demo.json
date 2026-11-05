@@ -1,0 +1,843 @@
+{
+ "ruleset_version": "fraud-2026.11-demo",
+ "seeds": [
+  2026,
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9
+ ],
+ "hasil": [
+  {
+   "seed": 2026,
+   "klaim": 805,
+   "sinyal": 8,
+   "pola": [
+    {
+     "pola_id": "FP-01",
+     "nama": "Lama rawat RS jauh di atas sejawat",
+     "aturan_diharapkan": "FRD-01",
+     "entitas": "RS Cempaka Rekaan",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rata-rata lama rawat di RS Cempaka Rekaan 7,3 hari, sedangkan RS lain 4,4 hari (indeks 1,69, z = 18,8, 87 klaim)."
+    },
+    {
+     "pola_id": "FP-02",
+     "nama": "Biaya per hari dokter jauh di atas sejawat",
+     "aturan_diharapkan": "FRD-03",
+     "entitas": "dr. Prita Pratama, Sp.PD",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rata-rata biaya per hari pasien dr. Prita Pratama, Sp.PD (RS Anggrek Fiktif) Rp2.215.609, sedangkan dokter lain Rp1.432.429 (indeks 1,6, z = 14,7, 28 klaim)."
+    },
+    {
+     "pola_id": "FP-03",
+     "nama": "Frekuensi pemeriksaan lab dokter berlebihan",
+     "aturan_diharapkan": "FRD-04",
+     "entitas": "dr. Miftah Halim, Sp.PD",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Pasien dr. Miftah Halim, Sp.PD (RSU Melati Contoh) rata-rata diperiksa lab 3 kali per hari rawat, sedangkan pasien dokter lain 1,3 kali (indeks 2,55, z = 44,4)."
+    },
+    {
+     "pola_id": "FP-04",
+     "nama": "Rekening bersama banyak peserta",
+     "aturan_diharapkan": "FRD-05",
+     "entitas": "REK-77810042",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rekening REK-77810042 menerima pembayaran untuk 6 peserta dengan 6 nama keluarga dan 6 alamat berbeda (9 klaim)."
+    },
+    {
+     "pola_id": "FP-05",
+     "nama": "Alamat bersama peserta tak bersaudara",
+     "aturan_diharapkan": "FRD-06",
+     "entitas": "Jl. Rekaan Raya No. 17, Kota Fiktif Timur",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "5 peserta dengan 5 nama keluarga berbeda tinggal di Jl. Rekaan Raya No. 17, Kota Fiktif Timur; 6 klaim, sebagian besar di RS Kenari Demo."
+    },
+    {
+     "pola_id": "FP-06",
+     "nama": "Rujukan berputar antar-RS",
+     "aturan_diharapkan": "FRD-07",
+     "entitas": "RS Bakti Rekaan -> RS Teratai Rekaan -> RS Bakti Rekaan",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Pasien dirujuk berputar RS Bakti Rekaan -> RS Teratai Rekaan -> RS Bakti Rekaan: 14 klaim rujukan, paling sedikit 7 per arah."
+    },
+    {
+     "pola_id": "FP-07",
+     "nama": "Klaim beruntun satu peserta",
+     "aturan_diharapkan": "FRD-08",
+     "entitas": "PST-H-9001",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Peserta PST-H-9001 punya 7 klaim rawat inap dalam 180 hari di 3 RS; jarak terpendek antar-rawat 14 hari."
+    },
+    {
+     "pola_id": "FP-08",
+     "nama": "Rawat inap tumpang tindih di dua RS",
+     "aturan_diharapkan": "FRD-09",
+     "entitas": "PST-H-9002",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Peserta PST-H-9002 punya 1 pasangan klaim rawat inap dengan tanggal yang beririsan di 2 RS."
+    }
+   ],
+   "tertangkap": 8,
+   "jumlah_pola": 8,
+   "alarm_palsu": []
+  },
+  {
+   "seed": 1,
+   "klaim": 846,
+   "sinyal": 8,
+   "pola": [
+    {
+     "pola_id": "FP-01",
+     "nama": "Lama rawat RS jauh di atas sejawat",
+     "aturan_diharapkan": "FRD-01",
+     "entitas": "RS Cempaka Rekaan",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rata-rata lama rawat di RS Cempaka Rekaan 7,3 hari, sedangkan RS lain 4,4 hari (indeks 1,69, z = 23,2, 103 klaim)."
+    },
+    {
+     "pola_id": "FP-02",
+     "nama": "Biaya per hari dokter jauh di atas sejawat",
+     "aturan_diharapkan": "FRD-03",
+     "entitas": "dr. Irfan Sihombing, Sp.PD",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rata-rata biaya per hari pasien dr. Irfan Sihombing, Sp.PD (RS Anggrek Fiktif) Rp2.354.239, sedangkan dokter lain Rp1.422.233 (indeks 1,6, z = 16,6, 33 klaim)."
+    },
+    {
+     "pola_id": "FP-03",
+     "nama": "Frekuensi pemeriksaan lab dokter berlebihan",
+     "aturan_diharapkan": "FRD-04",
+     "entitas": "dr. Zul Kusuma, Sp.PD",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Pasien dr. Zul Kusuma, Sp.PD (RSU Melati Contoh) rata-rata diperiksa lab 3,8 kali per hari rawat, sedangkan pasien dokter lain 1,2 kali (indeks 3,14, z = 70,8)."
+    },
+    {
+     "pola_id": "FP-04",
+     "nama": "Rekening bersama banyak peserta",
+     "aturan_diharapkan": "FRD-05",
+     "entitas": "REK-77810042",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rekening REK-77810042 menerima pembayaran untuk 6 peserta dengan 6 nama keluarga dan 6 alamat berbeda (12 klaim)."
+    },
+    {
+     "pola_id": "FP-05",
+     "nama": "Alamat bersama peserta tak bersaudara",
+     "aturan_diharapkan": "FRD-06",
+     "entitas": "Jl. Rekaan Raya No. 17, Kota Fiktif Timur",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "5 peserta dengan 5 nama keluarga berbeda tinggal di Jl. Rekaan Raya No. 17, Kota Fiktif Timur; 5 klaim, sebagian besar di RS Kenari Demo."
+    },
+    {
+     "pola_id": "FP-06",
+     "nama": "Rujukan berputar antar-RS",
+     "aturan_diharapkan": "FRD-07",
+     "entitas": "RS Bakti Rekaan -> RS Teratai Rekaan -> RS Bakti Rekaan",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Pasien dirujuk berputar RS Bakti Rekaan -> RS Teratai Rekaan -> RS Bakti Rekaan: 14 klaim rujukan, paling sedikit 7 per arah."
+    },
+    {
+     "pola_id": "FP-07",
+     "nama": "Klaim beruntun satu peserta",
+     "aturan_diharapkan": "FRD-08",
+     "entitas": "PST-H-9001",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Peserta PST-H-9001 punya 7 klaim rawat inap dalam 180 hari di 3 RS; jarak terpendek antar-rawat 14 hari."
+    },
+    {
+     "pola_id": "FP-08",
+     "nama": "Rawat inap tumpang tindih di dua RS",
+     "aturan_diharapkan": "FRD-09",
+     "entitas": "PST-H-9002",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Peserta PST-H-9002 punya 1 pasangan klaim rawat inap dengan tanggal yang beririsan di 2 RS."
+    }
+   ],
+   "tertangkap": 8,
+   "jumlah_pola": 8,
+   "alarm_palsu": []
+  },
+  {
+   "seed": 2,
+   "klaim": 843,
+   "sinyal": 8,
+   "pola": [
+    {
+     "pola_id": "FP-01",
+     "nama": "Lama rawat RS jauh di atas sejawat",
+     "aturan_diharapkan": "FRD-01",
+     "entitas": "RS Cempaka Rekaan",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rata-rata lama rawat di RS Cempaka Rekaan 7,6 hari, sedangkan RS lain 4,4 hari (indeks 1,67, z = 22,6, 93 klaim)."
+    },
+    {
+     "pola_id": "FP-02",
+     "nama": "Biaya per hari dokter jauh di atas sejawat",
+     "aturan_diharapkan": "FRD-03",
+     "entitas": "dr. Nanda Maulana, Sp.PD",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rata-rata biaya per hari pasien dr. Nanda Maulana, Sp.PD (RS Anggrek Fiktif) Rp2.228.660, sedangkan dokter lain Rp1.423.198 (indeks 1,62, z = 19, 28 klaim)."
+    },
+    {
+     "pola_id": "FP-03",
+     "nama": "Frekuensi pemeriksaan lab dokter berlebihan",
+     "aturan_diharapkan": "FRD-04",
+     "entitas": "dr. Reza Halim, Sp.PD",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Pasien dr. Reza Halim, Sp.PD (RSU Melati Contoh) rata-rata diperiksa lab 4,1 kali per hari rawat, sedangkan pasien dokter lain 1,2 kali (indeks 3,13, z = 55,7)."
+    },
+    {
+     "pola_id": "FP-04",
+     "nama": "Rekening bersama banyak peserta",
+     "aturan_diharapkan": "FRD-05",
+     "entitas": "REK-77810042",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rekening REK-77810042 menerima pembayaran untuk 6 peserta dengan 5 nama keluarga dan 6 alamat berbeda (10 klaim)."
+    },
+    {
+     "pola_id": "FP-05",
+     "nama": "Alamat bersama peserta tak bersaudara",
+     "aturan_diharapkan": "FRD-06",
+     "entitas": "Jl. Rekaan Raya No. 17, Kota Fiktif Timur",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "5 peserta dengan 5 nama keluarga berbeda tinggal di Jl. Rekaan Raya No. 17, Kota Fiktif Timur; 7 klaim, sebagian besar di RS Kenari Demo."
+    },
+    {
+     "pola_id": "FP-06",
+     "nama": "Rujukan berputar antar-RS",
+     "aturan_diharapkan": "FRD-07",
+     "entitas": "RS Bakti Rekaan -> RS Teratai Rekaan -> RS Bakti Rekaan",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Pasien dirujuk berputar RS Bakti Rekaan -> RS Teratai Rekaan -> RS Bakti Rekaan: 14 klaim rujukan, paling sedikit 7 per arah."
+    },
+    {
+     "pola_id": "FP-07",
+     "nama": "Klaim beruntun satu peserta",
+     "aturan_diharapkan": "FRD-08",
+     "entitas": "PST-H-9001",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Peserta PST-H-9001 punya 7 klaim rawat inap dalam 180 hari di 2 RS; jarak terpendek antar-rawat 14 hari."
+    },
+    {
+     "pola_id": "FP-08",
+     "nama": "Rawat inap tumpang tindih di dua RS",
+     "aturan_diharapkan": "FRD-09",
+     "entitas": "PST-H-9002",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Peserta PST-H-9002 punya 1 pasangan klaim rawat inap dengan tanggal yang beririsan di 2 RS."
+    }
+   ],
+   "tertangkap": 8,
+   "jumlah_pola": 8,
+   "alarm_palsu": []
+  },
+  {
+   "seed": 3,
+   "klaim": 831,
+   "sinyal": 8,
+   "pola": [
+    {
+     "pola_id": "FP-01",
+     "nama": "Lama rawat RS jauh di atas sejawat",
+     "aturan_diharapkan": "FRD-01",
+     "entitas": "RS Cempaka Rekaan",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rata-rata lama rawat di RS Cempaka Rekaan 7,4 hari, sedangkan RS lain 4,4 hari (indeks 1,61, z = 20,8, 90 klaim)."
+    },
+    {
+     "pola_id": "FP-02",
+     "nama": "Biaya per hari dokter jauh di atas sejawat",
+     "aturan_diharapkan": "FRD-03",
+     "entitas": "dr. Yanti Ramadhan, Sp.PD",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rata-rata biaya per hari pasien dr. Yanti Ramadhan, Sp.PD (RS Anggrek Fiktif) Rp2.255.007, sedangkan dokter lain Rp1.436.238 (indeks 1,56, z = 14,5, 19 klaim)."
+    },
+    {
+     "pola_id": "FP-03",
+     "nama": "Frekuensi pemeriksaan lab dokter berlebihan",
+     "aturan_diharapkan": "FRD-04",
+     "entitas": "dr. Vina Hakim, Sp.PD",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Pasien dr. Vina Hakim, Sp.PD (RSU Melati Contoh) rata-rata diperiksa lab 3,4 kali per hari rawat, sedangkan pasien dokter lain 1,3 kali (indeks 2,98, z = 60,5)."
+    },
+    {
+     "pola_id": "FP-04",
+     "nama": "Rekening bersama banyak peserta",
+     "aturan_diharapkan": "FRD-05",
+     "entitas": "REK-77810042",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rekening REK-77810042 menerima pembayaran untuk 6 peserta dengan 5 nama keluarga dan 6 alamat berbeda (10 klaim)."
+    },
+    {
+     "pola_id": "FP-05",
+     "nama": "Alamat bersama peserta tak bersaudara",
+     "aturan_diharapkan": "FRD-06",
+     "entitas": "Jl. Rekaan Raya No. 17, Kota Fiktif Timur",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "5 peserta dengan 5 nama keluarga berbeda tinggal di Jl. Rekaan Raya No. 17, Kota Fiktif Timur; 6 klaim, sebagian besar di RS Kenari Demo."
+    },
+    {
+     "pola_id": "FP-06",
+     "nama": "Rujukan berputar antar-RS",
+     "aturan_diharapkan": "FRD-07",
+     "entitas": "RS Bakti Rekaan -> RS Teratai Rekaan -> RS Bakti Rekaan",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Pasien dirujuk berputar RS Bakti Rekaan -> RS Teratai Rekaan -> RS Bakti Rekaan: 14 klaim rujukan, paling sedikit 7 per arah."
+    },
+    {
+     "pola_id": "FP-07",
+     "nama": "Klaim beruntun satu peserta",
+     "aturan_diharapkan": "FRD-08",
+     "entitas": "PST-H-9001",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Peserta PST-H-9001 punya 7 klaim rawat inap dalam 180 hari di 3 RS; jarak terpendek antar-rawat 14 hari."
+    },
+    {
+     "pola_id": "FP-08",
+     "nama": "Rawat inap tumpang tindih di dua RS",
+     "aturan_diharapkan": "FRD-09",
+     "entitas": "PST-H-9002",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Peserta PST-H-9002 punya 1 pasangan klaim rawat inap dengan tanggal yang beririsan di 2 RS."
+    }
+   ],
+   "tertangkap": 8,
+   "jumlah_pola": 8,
+   "alarm_palsu": []
+  },
+  {
+   "seed": 4,
+   "klaim": 839,
+   "sinyal": 8,
+   "pola": [
+    {
+     "pola_id": "FP-01",
+     "nama": "Lama rawat RS jauh di atas sejawat",
+     "aturan_diharapkan": "FRD-01",
+     "entitas": "RS Cempaka Rekaan",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rata-rata lama rawat di RS Cempaka Rekaan 7,9 hari, sedangkan RS lain 4,4 hari (indeks 1,69, z = 23,2, 71 klaim)."
+    },
+    {
+     "pola_id": "FP-02",
+     "nama": "Biaya per hari dokter jauh di atas sejawat",
+     "aturan_diharapkan": "FRD-03",
+     "entitas": "dr. Hadi Firmansyah, Sp.PD",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rata-rata biaya per hari pasien dr. Hadi Firmansyah, Sp.PD (RS Anggrek Fiktif) Rp2.425.006, sedangkan dokter lain Rp1.423.874 (indeks 1,62, z = 18,2, 25 klaim)."
+    },
+    {
+     "pola_id": "FP-03",
+     "nama": "Frekuensi pemeriksaan lab dokter berlebihan",
+     "aturan_diharapkan": "FRD-04",
+     "entitas": "dr. Lukman Purba, Sp.PD",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Pasien dr. Lukman Purba, Sp.PD (RSU Melati Contoh) rata-rata diperiksa lab 4,1 kali per hari rawat, sedangkan pasien dokter lain 1,2 kali (indeks 2,87, z = 61,6)."
+    },
+    {
+     "pola_id": "FP-04",
+     "nama": "Rekening bersama banyak peserta",
+     "aturan_diharapkan": "FRD-05",
+     "entitas": "REK-77810042",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rekening REK-77810042 menerima pembayaran untuk 6 peserta dengan 5 nama keluarga dan 6 alamat berbeda (10 klaim)."
+    },
+    {
+     "pola_id": "FP-05",
+     "nama": "Alamat bersama peserta tak bersaudara",
+     "aturan_diharapkan": "FRD-06",
+     "entitas": "Jl. Rekaan Raya No. 17, Kota Fiktif Timur",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "5 peserta dengan 5 nama keluarga berbeda tinggal di Jl. Rekaan Raya No. 17, Kota Fiktif Timur; 7 klaim, sebagian besar di RS Kenari Demo."
+    },
+    {
+     "pola_id": "FP-06",
+     "nama": "Rujukan berputar antar-RS",
+     "aturan_diharapkan": "FRD-07",
+     "entitas": "RS Bakti Rekaan -> RS Teratai Rekaan -> RS Bakti Rekaan",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Pasien dirujuk berputar RS Bakti Rekaan -> RS Teratai Rekaan -> RS Bakti Rekaan: 14 klaim rujukan, paling sedikit 7 per arah."
+    },
+    {
+     "pola_id": "FP-07",
+     "nama": "Klaim beruntun satu peserta",
+     "aturan_diharapkan": "FRD-08",
+     "entitas": "PST-H-9001",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Peserta PST-H-9001 punya 7 klaim rawat inap dalam 180 hari di 3 RS; jarak terpendek antar-rawat 14 hari."
+    },
+    {
+     "pola_id": "FP-08",
+     "nama": "Rawat inap tumpang tindih di dua RS",
+     "aturan_diharapkan": "FRD-09",
+     "entitas": "PST-H-9002",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Peserta PST-H-9002 punya 1 pasangan klaim rawat inap dengan tanggal yang beririsan di 2 RS."
+    }
+   ],
+   "tertangkap": 8,
+   "jumlah_pola": 8,
+   "alarm_palsu": []
+  },
+  {
+   "seed": 5,
+   "klaim": 865,
+   "sinyal": 8,
+   "pola": [
+    {
+     "pola_id": "FP-01",
+     "nama": "Lama rawat RS jauh di atas sejawat",
+     "aturan_diharapkan": "FRD-01",
+     "entitas": "RS Cempaka Rekaan",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rata-rata lama rawat di RS Cempaka Rekaan 7 hari, sedangkan RS lain 4,4 hari (indeks 1,63, z = 20,3, 64 klaim)."
+    },
+    {
+     "pola_id": "FP-02",
+     "nama": "Biaya per hari dokter jauh di atas sejawat",
+     "aturan_diharapkan": "FRD-03",
+     "entitas": "dr. Mira Pratama, Sp.PD",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rata-rata biaya per hari pasien dr. Mira Pratama, Sp.PD (RS Anggrek Fiktif) Rp2.166.372, sedangkan dokter lain Rp1.407.742 (indeks 1,6, z = 16,8, 23 klaim)."
+    },
+    {
+     "pola_id": "FP-03",
+     "nama": "Frekuensi pemeriksaan lab dokter berlebihan",
+     "aturan_diharapkan": "FRD-04",
+     "entitas": "dr. Taufik Kusuma, Sp.PD",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Pasien dr. Taufik Kusuma, Sp.PD (RSU Melati Contoh) rata-rata diperiksa lab 3,7 kali per hari rawat, sedangkan pasien dokter lain 1,2 kali (indeks 3,19, z = 52,2)."
+    },
+    {
+     "pola_id": "FP-04",
+     "nama": "Rekening bersama banyak peserta",
+     "aturan_diharapkan": "FRD-05",
+     "entitas": "REK-77810042",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rekening REK-77810042 menerima pembayaran untuk 6 peserta dengan 6 nama keluarga dan 6 alamat berbeda (9 klaim)."
+    },
+    {
+     "pola_id": "FP-05",
+     "nama": "Alamat bersama peserta tak bersaudara",
+     "aturan_diharapkan": "FRD-06",
+     "entitas": "Jl. Rekaan Raya No. 17, Kota Fiktif Timur",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "5 peserta dengan 5 nama keluarga berbeda tinggal di Jl. Rekaan Raya No. 17, Kota Fiktif Timur; 10 klaim, sebagian besar di RS Kenari Demo."
+    },
+    {
+     "pola_id": "FP-06",
+     "nama": "Rujukan berputar antar-RS",
+     "aturan_diharapkan": "FRD-07",
+     "entitas": "RS Bakti Rekaan -> RS Teratai Rekaan -> RS Bakti Rekaan",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Pasien dirujuk berputar RS Bakti Rekaan -> RS Teratai Rekaan -> RS Bakti Rekaan: 14 klaim rujukan, paling sedikit 7 per arah."
+    },
+    {
+     "pola_id": "FP-07",
+     "nama": "Klaim beruntun satu peserta",
+     "aturan_diharapkan": "FRD-08",
+     "entitas": "PST-H-9001",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Peserta PST-H-9001 punya 7 klaim rawat inap dalam 180 hari di 3 RS; jarak terpendek antar-rawat 15 hari."
+    },
+    {
+     "pola_id": "FP-08",
+     "nama": "Rawat inap tumpang tindih di dua RS",
+     "aturan_diharapkan": "FRD-09",
+     "entitas": "PST-H-9002",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Peserta PST-H-9002 punya 1 pasangan klaim rawat inap dengan tanggal yang beririsan di 2 RS."
+    }
+   ],
+   "tertangkap": 8,
+   "jumlah_pola": 8,
+   "alarm_palsu": []
+  },
+  {
+   "seed": 6,
+   "klaim": 864,
+   "sinyal": 8,
+   "pola": [
+    {
+     "pola_id": "FP-01",
+     "nama": "Lama rawat RS jauh di atas sejawat",
+     "aturan_diharapkan": "FRD-01",
+     "entitas": "RS Cempaka Rekaan",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rata-rata lama rawat di RS Cempaka Rekaan 7,1 hari, sedangkan RS lain 4,4 hari (indeks 1,63, z = 20,9, 67 klaim)."
+    },
+    {
+     "pola_id": "FP-02",
+     "nama": "Biaya per hari dokter jauh di atas sejawat",
+     "aturan_diharapkan": "FRD-03",
+     "entitas": "dr. Kemala Permana, Sp.PD",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rata-rata biaya per hari pasien dr. Kemala Permana, Sp.PD (RS Anggrek Fiktif) Rp2.244.061, sedangkan dokter lain Rp1.420.881 (indeks 1,61, z = 17,9, 26 klaim)."
+    },
+    {
+     "pola_id": "FP-03",
+     "nama": "Frekuensi pemeriksaan lab dokter berlebihan",
+     "aturan_diharapkan": "FRD-04",
+     "entitas": "dr. Gita Hakim, Sp.PD",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Pasien dr. Gita Hakim, Sp.PD (RSU Melati Contoh) rata-rata diperiksa lab 4,4 kali per hari rawat, sedangkan pasien dokter lain 1,2 kali (indeks 3,12, z = 60,2)."
+    },
+    {
+     "pola_id": "FP-04",
+     "nama": "Rekening bersama banyak peserta",
+     "aturan_diharapkan": "FRD-05",
+     "entitas": "REK-77810042",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rekening REK-77810042 menerima pembayaran untuk 6 peserta dengan 5 nama keluarga dan 6 alamat berbeda (9 klaim)."
+    },
+    {
+     "pola_id": "FP-05",
+     "nama": "Alamat bersama peserta tak bersaudara",
+     "aturan_diharapkan": "FRD-06",
+     "entitas": "Jl. Rekaan Raya No. 17, Kota Fiktif Timur",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "5 peserta dengan 5 nama keluarga berbeda tinggal di Jl. Rekaan Raya No. 17, Kota Fiktif Timur; 9 klaim, sebagian besar di RS Kenari Demo."
+    },
+    {
+     "pola_id": "FP-06",
+     "nama": "Rujukan berputar antar-RS",
+     "aturan_diharapkan": "FRD-07",
+     "entitas": "RS Bakti Rekaan -> RS Teratai Rekaan -> RS Bakti Rekaan",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Pasien dirujuk berputar RS Bakti Rekaan -> RS Teratai Rekaan -> RS Bakti Rekaan: 14 klaim rujukan, paling sedikit 7 per arah."
+    },
+    {
+     "pola_id": "FP-07",
+     "nama": "Klaim beruntun satu peserta",
+     "aturan_diharapkan": "FRD-08",
+     "entitas": "PST-H-9001",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Peserta PST-H-9001 punya 7 klaim rawat inap dalam 180 hari di 3 RS; jarak terpendek antar-rawat 14 hari."
+    },
+    {
+     "pola_id": "FP-08",
+     "nama": "Rawat inap tumpang tindih di dua RS",
+     "aturan_diharapkan": "FRD-09",
+     "entitas": "PST-H-9002",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Peserta PST-H-9002 punya 1 pasangan klaim rawat inap dengan tanggal yang beririsan di 2 RS."
+    }
+   ],
+   "tertangkap": 8,
+   "jumlah_pola": 8,
+   "alarm_palsu": []
+  },
+  {
+   "seed": 7,
+   "klaim": 850,
+   "sinyal": 8,
+   "pola": [
+    {
+     "pola_id": "FP-01",
+     "nama": "Lama rawat RS jauh di atas sejawat",
+     "aturan_diharapkan": "FRD-01",
+     "entitas": "RS Cempaka Rekaan",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rata-rata lama rawat di RS Cempaka Rekaan 7,4 hari, sedangkan RS lain 4,5 hari (indeks 1,68, z = 22,8, 91 klaim)."
+    },
+    {
+     "pola_id": "FP-02",
+     "nama": "Biaya per hari dokter jauh di atas sejawat",
+     "aturan_diharapkan": "FRD-03",
+     "entitas": "dr. Zul Saputra, Sp.PD",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rata-rata biaya per hari pasien dr. Zul Saputra, Sp.PD (RS Anggrek Fiktif) Rp2.324.517, sedangkan dokter lain Rp1.421.505 (indeks 1,61, z = 16,8, 36 klaim)."
+    },
+    {
+     "pola_id": "FP-03",
+     "nama": "Frekuensi pemeriksaan lab dokter berlebihan",
+     "aturan_diharapkan": "FRD-04",
+     "entitas": "dr. Wahyu Wibowo, Sp.PD",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Pasien dr. Wahyu Wibowo, Sp.PD (RSU Melati Contoh) rata-rata diperiksa lab 3,5 kali per hari rawat, sedangkan pasien dokter lain 1,3 kali (indeks 2,81, z = 56)."
+    },
+    {
+     "pola_id": "FP-04",
+     "nama": "Rekening bersama banyak peserta",
+     "aturan_diharapkan": "FRD-05",
+     "entitas": "REK-77810042",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rekening REK-77810042 menerima pembayaran untuk 6 peserta dengan 6 nama keluarga dan 6 alamat berbeda (11 klaim)."
+    },
+    {
+     "pola_id": "FP-05",
+     "nama": "Alamat bersama peserta tak bersaudara",
+     "aturan_diharapkan": "FRD-06",
+     "entitas": "Jl. Rekaan Raya No. 17, Kota Fiktif Timur",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "5 peserta dengan 5 nama keluarga berbeda tinggal di Jl. Rekaan Raya No. 17, Kota Fiktif Timur; 6 klaim, sebagian besar di RS Kenari Demo."
+    },
+    {
+     "pola_id": "FP-06",
+     "nama": "Rujukan berputar antar-RS",
+     "aturan_diharapkan": "FRD-07",
+     "entitas": "RS Bakti Rekaan -> RS Teratai Rekaan -> RS Bakti Rekaan",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Pasien dirujuk berputar RS Bakti Rekaan -> RS Teratai Rekaan -> RS Bakti Rekaan: 14 klaim rujukan, paling sedikit 7 per arah."
+    },
+    {
+     "pola_id": "FP-07",
+     "nama": "Klaim beruntun satu peserta",
+     "aturan_diharapkan": "FRD-08",
+     "entitas": "PST-H-9001",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Peserta PST-H-9001 punya 7 klaim rawat inap dalam 180 hari di 3 RS; jarak terpendek antar-rawat 16 hari."
+    },
+    {
+     "pola_id": "FP-08",
+     "nama": "Rawat inap tumpang tindih di dua RS",
+     "aturan_diharapkan": "FRD-09",
+     "entitas": "PST-H-9002",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Peserta PST-H-9002 punya 1 pasangan klaim rawat inap dengan tanggal yang beririsan di 2 RS."
+    }
+   ],
+   "tertangkap": 8,
+   "jumlah_pola": 8,
+   "alarm_palsu": []
+  },
+  {
+   "seed": 8,
+   "klaim": 817,
+   "sinyal": 8,
+   "pola": [
+    {
+     "pola_id": "FP-01",
+     "nama": "Lama rawat RS jauh di atas sejawat",
+     "aturan_diharapkan": "FRD-01",
+     "entitas": "RS Cempaka Rekaan",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rata-rata lama rawat di RS Cempaka Rekaan 7,4 hari, sedangkan RS lain 4,5 hari (indeks 1,65, z = 21,3, 68 klaim)."
+    },
+    {
+     "pola_id": "FP-02",
+     "nama": "Biaya per hari dokter jauh di atas sejawat",
+     "aturan_diharapkan": "FRD-03",
+     "entitas": "dr. Andi Wijaya, Sp.PD",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rata-rata biaya per hari pasien dr. Andi Wijaya, Sp.PD (RS Anggrek Fiktif) Rp2.261.894, sedangkan dokter lain Rp1.426.685 (indeks 1,59, z = 15,2, 27 klaim)."
+    },
+    {
+     "pola_id": "FP-03",
+     "nama": "Frekuensi pemeriksaan lab dokter berlebihan",
+     "aturan_diharapkan": "FRD-04",
+     "entitas": "dr. Wahyu Wibowo, Sp.PD",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Pasien dr. Wahyu Wibowo, Sp.PD (RSU Melati Contoh) rata-rata diperiksa lab 3,8 kali per hari rawat, sedangkan pasien dokter lain 1,2 kali (indeks 2,93, z = 52,8)."
+    },
+    {
+     "pola_id": "FP-04",
+     "nama": "Rekening bersama banyak peserta",
+     "aturan_diharapkan": "FRD-05",
+     "entitas": "REK-77810042",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rekening REK-77810042 menerima pembayaran untuk 6 peserta dengan 6 nama keluarga dan 6 alamat berbeda (8 klaim)."
+    },
+    {
+     "pola_id": "FP-05",
+     "nama": "Alamat bersama peserta tak bersaudara",
+     "aturan_diharapkan": "FRD-06",
+     "entitas": "Jl. Rekaan Raya No. 17, Kota Fiktif Timur",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "5 peserta dengan 5 nama keluarga berbeda tinggal di Jl. Rekaan Raya No. 17, Kota Fiktif Timur; 9 klaim, sebagian besar di RS Kenari Demo."
+    },
+    {
+     "pola_id": "FP-06",
+     "nama": "Rujukan berputar antar-RS",
+     "aturan_diharapkan": "FRD-07",
+     "entitas": "RS Bakti Rekaan -> RS Teratai Rekaan -> RS Bakti Rekaan",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Pasien dirujuk berputar RS Bakti Rekaan -> RS Teratai Rekaan -> RS Bakti Rekaan: 14 klaim rujukan, paling sedikit 7 per arah."
+    },
+    {
+     "pola_id": "FP-07",
+     "nama": "Klaim beruntun satu peserta",
+     "aturan_diharapkan": "FRD-08",
+     "entitas": "PST-H-9001",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Peserta PST-H-9001 punya 7 klaim rawat inap dalam 180 hari di 3 RS; jarak terpendek antar-rawat 15 hari."
+    },
+    {
+     "pola_id": "FP-08",
+     "nama": "Rawat inap tumpang tindih di dua RS",
+     "aturan_diharapkan": "FRD-09",
+     "entitas": "PST-H-9002",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Peserta PST-H-9002 punya 1 pasangan klaim rawat inap dengan tanggal yang beririsan di 2 RS."
+    }
+   ],
+   "tertangkap": 8,
+   "jumlah_pola": 8,
+   "alarm_palsu": []
+  },
+  {
+   "seed": 9,
+   "klaim": 824,
+   "sinyal": 8,
+   "pola": [
+    {
+     "pola_id": "FP-01",
+     "nama": "Lama rawat RS jauh di atas sejawat",
+     "aturan_diharapkan": "FRD-01",
+     "entitas": "RS Cempaka Rekaan",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rata-rata lama rawat di RS Cempaka Rekaan 7 hari, sedangkan RS lain 4,4 hari (indeks 1,63, z = 20,7, 84 klaim)."
+    },
+    {
+     "pola_id": "FP-02",
+     "nama": "Biaya per hari dokter jauh di atas sejawat",
+     "aturan_diharapkan": "FRD-03",
+     "entitas": "dr. Yanti Santoso, Sp.PD",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rata-rata biaya per hari pasien dr. Yanti Santoso, Sp.PD (RS Anggrek Fiktif) Rp2.250.639, sedangkan dokter lain Rp1.414.935 (indeks 1,55, z = 14,4, 31 klaim)."
+    },
+    {
+     "pola_id": "FP-03",
+     "nama": "Frekuensi pemeriksaan lab dokter berlebihan",
+     "aturan_diharapkan": "FRD-04",
+     "entitas": "dr. Farid Hidayat, Sp.PD",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Pasien dr. Farid Hidayat, Sp.PD (RSU Melati Contoh) rata-rata diperiksa lab 3 kali per hari rawat, sedangkan pasien dokter lain 1,2 kali (indeks 2,86, z = 42,3)."
+    },
+    {
+     "pola_id": "FP-04",
+     "nama": "Rekening bersama banyak peserta",
+     "aturan_diharapkan": "FRD-05",
+     "entitas": "REK-77810042",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Rekening REK-77810042 menerima pembayaran untuk 6 peserta dengan 5 nama keluarga dan 6 alamat berbeda (10 klaim)."
+    },
+    {
+     "pola_id": "FP-05",
+     "nama": "Alamat bersama peserta tak bersaudara",
+     "aturan_diharapkan": "FRD-06",
+     "entitas": "Jl. Rekaan Raya No. 17, Kota Fiktif Timur",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "5 peserta dengan 5 nama keluarga berbeda tinggal di Jl. Rekaan Raya No. 17, Kota Fiktif Timur; 7 klaim, sebagian besar di RS Kenari Demo."
+    },
+    {
+     "pola_id": "FP-06",
+     "nama": "Rujukan berputar antar-RS",
+     "aturan_diharapkan": "FRD-07",
+     "entitas": "RS Bakti Rekaan -> RS Teratai Rekaan -> RS Bakti Rekaan",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Pasien dirujuk berputar RS Bakti Rekaan -> RS Teratai Rekaan -> RS Bakti Rekaan: 14 klaim rujukan, paling sedikit 7 per arah."
+    },
+    {
+     "pola_id": "FP-07",
+     "nama": "Klaim beruntun satu peserta",
+     "aturan_diharapkan": "FRD-08",
+     "entitas": "PST-H-9001",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Peserta PST-H-9001 punya 7 klaim rawat inap dalam 180 hari di 3 RS; jarak terpendek antar-rawat 14 hari."
+    },
+    {
+     "pola_id": "FP-08",
+     "nama": "Rawat inap tumpang tindih di dua RS",
+     "aturan_diharapkan": "FRD-09",
+     "entitas": "PST-H-9002",
+     "tertangkap": true,
+     "aturan_lain": [],
+     "bukti": "Peserta PST-H-9002 punya 1 pasangan klaim rawat inap dengan tanggal yang beririsan di 2 RS."
+    }
+   ],
+   "tertangkap": 8,
+   "jumlah_pola": 8,
+   "alarm_palsu": []
+  }
+ ],
+ "ringkasan": {
+  "pola_tertangkap": 80,
+  "pola_total": 80,
+  "alarm_palsu": 0,
+  "sinyal_total": 80
+ }
+}

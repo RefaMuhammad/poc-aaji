@@ -41,6 +41,8 @@ ENDPOINTS = [
     ("POST", "/tenants", Perm.TENANT_ADMIN),
     ("POST", "/claims", Perm.CLAIM_SUBMIT),
     ("POST", "/claims/decisions/bulk-agree", Perm.CLAIM_DECIDE),
+    ("GET", "/fraud/overview", Perm.FRAUD_VIEW),
+    ("POST", "/fraud/runs", Perm.FRAUD_MANAGE),
 ]
 
 

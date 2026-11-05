@@ -397,3 +397,148 @@ export interface ApiScope {
   scope: string;
   description: string;
 }
+
+// ----------------------------------------------------------------------------- U3 fraud analytics
+
+export type FraudEntityType = "HOSPITAL" | "DOCTOR" | "MEMBER" | "BANK_ACCOUNT" | "ADDRESS" | "REFERRAL_LOOP";
+export type FraudReviewStatus = "OPEN" | "INVESTIGATING" | "CONFIRMED" | "DISMISSED";
+
+export interface FraudReview {
+  status: Exclude<FraudReviewStatus, "OPEN">;
+  notes: string | null;
+  reviewed_by_id: string;
+  reviewed_by_name: string | null;
+  reviewed_at: string;
+}
+
+export interface FraudGraphNode {
+  id: string;
+  label: string;
+  type: FraudEntityType | string;
+  subject: boolean;
+}
+
+export interface FraudGraphEdge {
+  source: string;
+  target: string;
+  label: string;
+  count: number;
+  directed: boolean;
+}
+
+export interface FraudEvidenceClaim {
+  claim_number: string;
+  member_id: string;
+  hospital: string;
+  doctor: string | null;
+  icd10: string | null;
+  admission_date: string;
+  discharge_date: string;
+  los_days: number;
+  billed_amount: number;
+  lab_panels: number | null;
+  referral_from: string | null;
+  value: number | null;
+}
+
+export interface FraudEvidence {
+  kind?: "peer" | "relation" | "timeline";
+  metric?: "los" | "cost" | "lab";
+  comparison?: { label: string; unit: string; value: number | null; peer: number | null; index: number | null; z: number | null; peer_group: string }[];
+  peer_distribution?: { name: string; claims: number; index: number | null; z: number | null; is_subject: boolean }[];
+  relations?: { from: string; to: string; label: string }[];
+  claims?: FraudEvidenceClaim[];
+  graph?: { nodes: FraudGraphNode[]; edges: FraudGraphEdge[] };
+  metrics?: Record<string, unknown>;
+  claim_links?: Record<string, string>;
+}
+
+export interface FraudSignal {
+  id: string;
+  run_id: string;
+  rule_id: string;
+  rule_name: string | null;
+  reason_code: string;
+  reason_label: string | null;
+  severity: "HIGH" | "MEDIUM" | "LOW" | "INFO";
+  weight: number;
+  entity_type: FraudEntityType;
+  entity_key: string;
+  entity_label: string;
+  message: string;
+  claim_count: number;
+  claim_numbers: string[];
+  evidence: FraudEvidence;
+  review: FraudReview | null;
+}
+
+export interface FraudEntity {
+  entity_type: FraudEntityType;
+  entity_key: string;
+  entity_label: string;
+  score: number;
+  level: string | null;
+  rule_ids: string[];
+  claims: number;
+  review_statuses: FraudReviewStatus[];
+}
+
+export interface FraudRun {
+  id: string;
+  insurer_id: string;
+  ruleset_version: string;
+  record_count: number;
+  signal_count: number;
+  created_by_id: string | null;
+  created_at: string;
+}
+
+export interface FraudOverview {
+  insurer_id: string;
+  ruleset_version: string;
+  record_count: number;
+  record_sources: Record<string, number>;
+  last_run: FraudRun | null;
+  stale: boolean;
+  signals_open: number;
+  signals_by_status: Partial<Record<FraudReviewStatus, number>>;
+  entities: FraudEntity[];
+}
+
+export interface FraudImportResult {
+  job_id: string;
+  status: string;
+  created: number;
+  updated: number;
+  errors: string[];
+  run: FraudRun | null;
+}
+
+export interface FraudClaim {
+  claim_id: string;
+  ruleset_version: string | null;
+  run_at: string | null;
+  score: number;
+  level: string | null;
+  in_analysis: boolean;
+  signals: FraudSignal[];
+}
+
+export interface FraudRule {
+  id: string;
+  name: string;
+  entity: string;
+  entity_type: FraudEntityType;
+  condition: string;
+  reason_code: string;
+  severity: string;
+  weight: number;
+  message: string;
+}
+
+export interface FraudRuleset {
+  version: string;
+  params: Record<string, unknown>;
+  reason_codes: Record<string, string>;
+  rules: FraudRule[];
+}

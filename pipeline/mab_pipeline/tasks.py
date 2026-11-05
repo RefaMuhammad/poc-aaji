@@ -88,6 +88,18 @@ def _overlapping_claims(db, claim) -> list[dict]:
     return [{"claim_id": o.id, "quote": f"Klaim {o.claim_number}: {o.admission_date} s.d. {o.discharge_date}"} for o in others]
 
 
+def _record_for_fraud(db, claim, facts) -> None:
+    """U3: klaim yang sudah dibaca masuk data analitik fraud (DPJP, jumlah pemeriksaan lab).
+    Hanya mengisi data analitik; analisis fraud dijalankan terpisah dan tidak mengubah klaim."""
+    from mab_api.fraud import upsert_platform_record
+
+    doctor = facts.resume.attending_doctor.value if facts.resume is not None else None
+    panels = None
+    if facts.labs is not None:
+        panels = len({(r.date, r.time) for r in facts.labs.results}) or None
+    upsert_platform_record(db, claim, doctor=doctor, lab_panels=panels, icd10=claim.primary_icd10)
+
+
 def process_claim(claim_id: str, session_factory=None, storage=None, llm=None, ocr=None, ruleset=None,
                   benefit_ruleset=None, job_queue=None) -> str:
     from sqlalchemy import delete, select
@@ -160,6 +172,7 @@ def process_claim(claim_id: str, session_factory=None, storage=None, llm=None, o
             primary = assessment.fields["dx.primary"].value
             if primary:
                 claim.primary_icd10 = str(primary)
+            _record_for_fraud(db, claim, read.facts)
 
             previous = db.scalars(select(Recommendation).where(Recommendation.claim_id == claim.id)).all()
             for old in previous:

@@ -26,6 +26,7 @@ function jobSummary(j: IntegrationJob): string {
   const s = j.summary as Record<string, unknown>;
   if (typeof s.error === "string") return s.error;
   if (j.channel === "SFTP") return `${s.created ?? 0} klaim diterima, ${s.failed ?? 0} ditolak`;
+  if (j.channel === "FRAUD_HISTORY") return `${s.created ?? 0} baru, ${s.updated ?? 0} diperbarui, ${s.error_count ?? 0} baris salah`;
   if (j.channel.startsWith("POLICY")) return `${s.created ?? 0} baru, ${s.updated ?? 0} diperbarui, ${s.error_count ?? 0} baris salah`;
   if (typeof s.claim_number === "string") return `Klaim ${s.claim_number} · ${s.documents ?? 0} dokumen`;
   return "";

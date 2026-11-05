@@ -64,6 +64,10 @@ Sumber kebenaran: `apps/api/mab_api/rbac.py`. Cakupan data (tenant mana, RS mana
 | Lihat aturan klinis | | | ✓ | ✓ | | | | ✓ |
 | Lihat pengaturan tenant sendiri | ✓ | ✓ | | ✓ | | | | ✓ |
 | Ubah tenant, API key, pindah penugasan | | | | | | | | ✓ |
+| (U2) Lihat polis & plan benefit | ✓ | ✓ | | ✓ | | | | ✓ |
+| (U2) Impor polis, ubah plan | ✓ | ✓ | | | | | | ✓ |
+| (U3) Fraud Monitor, kartu fraud klaim | ✓ | ✓ | | ✓ | | | | ✓ |
+| (U3) Impor riwayat, analisis, telaah sinyal fraud | manajer saja | | | | | | | ✓ |
 
 Prinsip yang tidak berubah:
 

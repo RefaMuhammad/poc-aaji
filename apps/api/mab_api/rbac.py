@@ -26,20 +26,23 @@ class Perm(str, Enum):
     ASSIGN_ADMIN = "assignment.admin"      # pindahkan penugasan dokter
     POLICY_VIEW = "policy.view"            # U2: lihat polis & plan benefit tenant
     POLICY_MANAGE = "policy.manage"        # U2: impor polis, ubah plan benefit
+    FRAUD_VIEW = "fraud.view"              # U3: Fraud Monitor, sinyal fraud, kartu fraud di detail klaim
+    FRAUD_MANAGE = "fraud.manage"          # U3: impor riwayat klaim, jalankan analisis, telaah sinyal
 
 
 _OPERATOR = {Perm.CLAIM_LIST, Perm.CLAIM_DETAIL, Perm.CLAIM_SUBMIT, Perm.CLAIM_DECIDE, Perm.CLAIM_EXPORT,
-             Perm.DASHBOARD, Perm.TENANT_VIEW, Perm.POLICY_VIEW, Perm.POLICY_MANAGE}
+             Perm.DASHBOARD, Perm.TENANT_VIEW, Perm.POLICY_VIEW, Perm.POLICY_MANAGE, Perm.FRAUD_VIEW}
 _DOCTOR = {Perm.CLAIM_LIST, Perm.CLAIM_DETAIL, Perm.REVIEW, Perm.RULESET_VIEW}
 
 ROLE_PERMS: dict[Role, frozenset[Perm]] = {
     Role.INSURER_STAFF: frozenset(_OPERATOR),
-    Role.INSURER_MANAGER: frozenset(_OPERATOR),
+    # Manajer klaim juga investigator fraud tenant-nya: impor riwayat, jalankan analisis, telaah sinyal.
+    Role.INSURER_MANAGER: frozenset(_OPERATOR | {Perm.FRAUD_MANAGE}),
     Role.TPA_OPERATOR: frozenset(_OPERATOR),
     Role.DOCTOR_GP: frozenset(_DOCTOR),
     Role.DOCTOR_SPECIALIST: frozenset(_DOCTOR),
     Role.AUDITOR: frozenset({Perm.CLAIM_LIST, Perm.CLAIM_DETAIL, Perm.CLAIM_EXPORT, Perm.DASHBOARD,
-                             Perm.RULESET_VIEW, Perm.TENANT_VIEW, Perm.POLICY_VIEW}),
+                             Perm.RULESET_VIEW, Perm.TENANT_VIEW, Perm.POLICY_VIEW, Perm.FRAUD_VIEW}),
     # Portal faskes & peserta (U4): untuk sekarang hanya daftar dan status klaimnya sendiri.
     Role.FACILITY_OFFICER: frozenset({Perm.CLAIM_LIST}),
     Role.MEMBER: frozenset({Perm.CLAIM_LIST}),
@@ -47,7 +50,7 @@ ROLE_PERMS: dict[Role, frozenset[Perm]] = {
     Role.UNDERWRITER: frozenset(),
     Role.ADMIN: frozenset({Perm.CLAIM_LIST, Perm.CLAIM_DETAIL, Perm.DASHBOARD, Perm.RULESET_VIEW,
                            Perm.TENANT_VIEW, Perm.TENANT_ADMIN, Perm.USER_ADMIN, Perm.ASSIGN_ADMIN,
-                           Perm.POLICY_VIEW, Perm.POLICY_MANAGE}),
+                           Perm.POLICY_VIEW, Perm.POLICY_MANAGE, Perm.FRAUD_VIEW, Perm.FRAUD_MANAGE}),
 }
 
 # Peran yang boleh melihat draf AI sebelum ditandatangani dokter. Selain ini hanya melihat

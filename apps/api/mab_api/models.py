@@ -255,6 +255,84 @@ class WebhookDelivery(Base):
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class FraudClaimRecord(Base):
+    """Data analitik fraud (U3): satu baris per klaim, dari riwayat impor atau klaim platform.
+
+    Kolom rekening dan alamat berasal dari sistem inti asuransi (riwayat impor); klaim
+    platform belum membawanya. Data ini hanya untuk analisis pola, tidak mengubah klaim.
+    """
+
+    __tablename__ = "fraud_claim_records"
+    __table_args__ = (UniqueConstraint("insurer_id", "claim_number", name="uq_fraud_record_claim"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    insurer_id: Mapped[str] = mapped_column(ForeignKey("insurers.id"), index=True)
+    claim_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)  # klaim platform, bila ada
+    claim_number: Mapped[str] = mapped_column(String(64))
+    source: Mapped[str] = mapped_column(String(16), default="HISTORY")  # HISTORY / PLATFORM
+    member_id: Mapped[str] = mapped_column(String(64), index=True)
+    member_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    address: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    bank_account: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    hospital_name: Mapped[str] = mapped_column(String(200))
+    doctor_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    referral_from: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    icd10: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    admission_date: Mapped[date] = mapped_column(Date)
+    discharge_date: Mapped[date] = mapped_column(Date)
+    billed_amount: Mapped[int] = mapped_column(BigInteger)
+    lab_panels: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class FraudRun(Base):
+    """Satu kali analisis fraud untuk satu tenant. Sinyal selalu dibaca dari run terakhir."""
+
+    __tablename__ = "fraud_runs"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    insurer_id: Mapped[str] = mapped_column(ForeignKey("insurers.id"), index=True)
+    ruleset_version: Mapped[str] = mapped_column(String(50))
+    record_count: Mapped[int] = mapped_column(Integer)
+    signal_count: Mapped[int] = mapped_column(Integer)
+    entities: Mapped[list] = mapped_column(JSON, default=list)   # skor fraud per entitas
+    created_by_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class FraudSignal(Base):
+    __tablename__ = "fraud_signals"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    run_id: Mapped[str] = mapped_column(ForeignKey("fraud_runs.id", ondelete="CASCADE"), index=True)
+    insurer_id: Mapped[str] = mapped_column(ForeignKey("insurers.id"), index=True)
+    rule_id: Mapped[str] = mapped_column(String(32))
+    reason_code: Mapped[str] = mapped_column(String(50))
+    severity: Mapped[str] = mapped_column(String(10))
+    weight: Mapped[int] = mapped_column(Integer)
+    entity_type: Mapped[str] = mapped_column(String(20))
+    entity_key: Mapped[str] = mapped_column(String(300))
+    entity_label: Mapped[str] = mapped_column(String(300))
+    message: Mapped[str] = mapped_column(Text)
+    claim_numbers: Mapped[list] = mapped_column(JSON, default=list)
+    evidence: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class FraudReview(Base):
+    """Hasil telaah investigator atas satu sinyal (aturan + entitas). Bertahan lintas run."""
+
+    __tablename__ = "fraud_reviews"
+    __table_args__ = (UniqueConstraint("insurer_id", "rule_id", "entity_key", name="uq_fraud_review_signal"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    insurer_id: Mapped[str] = mapped_column(ForeignKey("insurers.id"), index=True)
+    rule_id: Mapped[str] = mapped_column(String(32))
+    entity_type: Mapped[str] = mapped_column(String(20))
+    entity_key: Mapped[str] = mapped_column(String(300))
+    status: Mapped[str] = mapped_column(String(16))   # INVESTIGATING / CONFIRMED / DISMISSED
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    reviewed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class Claim(Base):
     __tablename__ = "claims"
     __table_args__ = (UniqueConstraint("insurer_id", "claim_number", name="uq_claim_number_per_insurer"),)
