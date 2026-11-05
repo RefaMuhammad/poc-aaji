@@ -116,6 +116,8 @@ Poin penutup:
 
 ## Variasi bila ada waktu
 
+Langkah rinci dan output setiap variasi ada di [skenario-unggah.md](skenario-unggah.md) bagian 6 (Skenario 2–9), termasuk unggah massal ZIP.
+
 - **Kasus merah + spesialis:** login `dokter.spesialis@mab.test`. SYN-DEN-08 ada di antrean dengan label **eskalasi** dari dokter umum; tunjukkan catatan eskalasinya di **Riwayat telaah**.
 - **Klaim tumpang tindih:** buka SYN-GEA-10 (sebagai spesialis); temuan DUP_CLAIM menunjuk ke klaim lama KLM-RIWAYAT-0001.
 - **Dokumen tidak lengkap:** SYN-TIF-10 (antrean dokter umum) berstatus kuning dengan rekomendasi tunda dan tindak lanjut "minta dokumen" karena rincian tagihan tidak dilampirkan.

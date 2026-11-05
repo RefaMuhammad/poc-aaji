@@ -98,7 +98,7 @@ Tabel ini dari uji seed kami. SYN-DEN-06 sebenarnya klaim wajar, tetapi naik ke 
 
 ## 4. Skenario demo (ringkas)
 
-Naskah lengkap 10 menit, dengan kalimat yang bisa diucapkan dan nilai yang perlu diisi, ada di [docs/demo-script.md](docs/demo-script.md). Ringkasnya:
+Naskah lengkap 10 menit, dengan kalimat yang bisa diucapkan dan nilai yang perlu diisi, ada di [docs/demo-script.md](docs/demo-script.md). Sembilan skenario langkah demi langkah (unggah satu klaim, unggah massal ZIP, klaim hijau, data meragukan, dokumen tidak lengkap, klaim tumpang tindih, eskalasi, komplikasi tanpa bukti, asuransi berbeda) ada di [docs/skenario-unggah.md](docs/skenario-unggah.md). Ringkasnya:
 
 1. **Staf asuransi** (`staf@demo.test`) mengunggah klaim DBD bermasalah **SYN-DEN-09** lewat **Unggah klaim**. Isi formulir dengan data dari `data/synthetic_output/SYN-DEN-09/case.json` (nomor klaim harus persis `SYN-DEN-09` di mode mock) dan lampirkan 4 PDF-nya. Halaman detail menampilkan progres, lalu status **Menunggu dokter**. Asuransi belum bisa melihat temuan.
 2. **Dokter umum** (`dokter.umum@mab.test`) membuka **Antrean telaah**. SYN-DEN-09 masuk antrean dengan triase kuning. Di layar dua panel, klik kutipan bukti: halaman dokumen terbuka dan lokasinya disorot (darah lengkap 4x sehari, tidak ada warning sign).
