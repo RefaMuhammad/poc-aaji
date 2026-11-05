@@ -12,6 +12,17 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class DemoAccountOut(BaseModel):
+    email: str
+    label: str
+    full_name: str
+    role: str
+
+
+class DemoSwitchRequest(BaseModel):
+    email: str
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"

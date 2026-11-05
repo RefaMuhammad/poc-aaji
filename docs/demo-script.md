@@ -13,6 +13,8 @@ Alur cerita: **unggah klaim DBD bermasalah → lihat temuan dan bukti → dokter
 3. Siapkan dua jendela browser di http://localhost:3000:
    - **Jendela A (biasa):** login `staf@demo.test`
    - **Jendela B (incognito):** login `dokter.umum@mab.test`
+
+   Atau cukup **satu jendela**: login `staf@demo.test`, lalu pakai pemilih **Ganti peran (demo)** di kanan atas setiap kali naskah berpindah jendela (Jendela A = "1. Staf klaim", Jendela B = "2. Dokter umum"). Bila sedang membuka sebuah klaim, ganti peran tetap membuka klaim yang sama.
 4. Siapkan folder `data/synthetic_output/SYN-DEN-09/` di File Explorer (4 PDF) dan buka `case.json`-nya untuk menyalin isian formulir.
 
 Isian formulir SYN-DEN-09 (dari `case.json`, generator memakai seed tetap jadi nilainya sama di setiap mesin):

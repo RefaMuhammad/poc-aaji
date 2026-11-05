@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { INSURER_ROLES, RequireAuth, useAuth } from "@/lib/auth";
 import { homeFor } from "@/lib/format";
+import DemoSwitcher from "@/components/DemoSwitcher";
 
 const ROLE_LABEL: Record<string, string> = {
   insurer_staff: "Staf klaim",
@@ -41,7 +42,8 @@ function Shell({ children }: { children: React.ReactNode }) {
               {(isInsurer || isAdmin) && nav("/dashboard", "Dashboard")}
             </nav>
           </div>
-          <div className="flex items-center gap-3 text-sm">
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            {user && <DemoSwitcher user={user} />}
             <span className="text-slate-600">
               {user?.full_name} <span className="text-slate-400">· {user ? ROLE_LABEL[user.role] ?? user.role : ""}</span>
             </span>

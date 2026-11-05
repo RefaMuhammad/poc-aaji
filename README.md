@@ -17,7 +17,9 @@ Prinsip yang dijaga di seluruh kode:
 4. Hanya data sintetis. Setiap layar diberi label "Data rekaan untuk demonstrasi".
 5. Setiap rekomendasi mencatat versi model, versi prompt, dan versi aturan.
 
-Penjelasan teknis lengkap (komponen, alur data, model data, keamanan, keputusan desain) ada di **[docs/ARSITEKTUR.md](docs/ARSITEKTUR.md)**. Naskah demo ada di **[docs/demo-script.md](docs/demo-script.md)**.
+Penjelasan teknis lengkap (komponen, alur data, model data, keamanan, keputusan desain) ada di **[docs/ARSITEKTUR.md](docs/ARSITEKTUR.md)**. Naskah demo ada di **[docs/demo-script.md](docs/demo-script.md)**. Apa yang terjadi di web untuk setiap file yang diunggah, dan output tiap klaim sintetis, ada di **[docs/skenario-unggah.md](docs/skenario-unggah.md)**.
+
+Frontend memakai **React** lewat Next.js (App Router, TypeScript, Tailwind) di `apps/web`.
 
 ---
 
@@ -78,7 +80,7 @@ Password semua akun: `demo12345`. PIN tanda tangan dokter: `123456`.
 | Dokter spesialis (Penyakit Dalam) | `dokter.spesialis@mab.test` | Antrean telaah (kasus merah + eskalasi) |
 | Admin MAB | `admin@mab.test` | Aturan & pengguna, Dashboard |
 
-Tips: buka peran yang berbeda di jendela browser biasa dan jendela penyamaran (incognito), supaya tidak perlu keluar-masuk.
+**Ganti peran (demo).** Setelah login dengan akun demo mana saja, pemilih kuning **Ganti peran (demo)** di kanan atas memindahkan Anda ke akun demo lain tanpa logout. Dengan begitu seluruh alur, dari unggah, telaah dokter, keputusan, sampai dashboard, bisa dijalankan dari satu jendela browser. Setiap aksi tetap tercatat atas nama peran yang benar, jadi aturan "hanya dokter yang menandatangani" tetap berlaku. Matikan dengan `DEMO_MODE=false` di `.env`. Penjelasan lengkap ada di [docs/skenario-unggah.md](docs/skenario-unggah.md).
 
 ## 3. Isi data demo setelah `make seed`
 
