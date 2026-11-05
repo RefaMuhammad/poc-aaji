@@ -6,6 +6,7 @@ import { apiJson } from "@/lib/api";
 import type { PortalClaimDetail, PortalClaimItem } from "@/lib/types";
 import { DOC_TYPE_LABEL, rupiah, tanggal, waktu } from "@/lib/format";
 import { DocumentRequestList, LateUploadForm } from "@/components/DocumentRequests";
+import { DisputeForm, DisputeList, DisputeStatusPill, WithdrawDisputeButton } from "@/components/Disputes";
 
 const LABEL_NOTE = "Data rekaan untuk demonstrasi";
 
@@ -13,7 +14,9 @@ function StatusPill({ item }: { item: PortalClaimItem }) {
   const style =
     item.status === "PENDING_DOCUMENTS"
       ? "bg-amber-100 text-amber-900"
-      : item.status === "COMPLETED"
+      : item.open_dispute
+        ? "bg-violet-50 text-violet-800"
+        : item.status === "COMPLETED"
         ? "bg-emerald-50 text-emerald-800"
         : "bg-sky-50 text-sky-800";
   return <span className={`rounded px-2 py-0.5 text-xs font-medium ${style}`}>{item.status_label}</span>;
@@ -77,6 +80,9 @@ export function PortalClaimList({ base, title, intro, showMember }: { base: stri
                       </div>
                     )}
                     {i.outcome && <div className="mt-0.5 text-xs text-slate-600">{i.outcome}</div>}
+                    {i.open_dispute && (
+                      <div className="mt-0.5 text-xs text-violet-800">Banding: SLA {tanggal(i.open_dispute.due_at)}</div>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -90,6 +96,7 @@ export function PortalClaimList({ base, title, intro, showMember }: { base: stri
 
 /** Detail klaim untuk faskes / peserta: status awam, permintaan dokumen, linimasa, penjelasan keputusan. */
 export function PortalClaimView({ id, base, canUpload }: { id: string; base: string; canUpload: boolean }) {
+  const myRole = canUpload ? "facility_officer" : "member";
   const [c, setC] = useState<PortalClaimDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -101,6 +108,8 @@ export function PortalClaimView({ id, base, canUpload }: { id: string; base: str
   if (error && !c) return <div className="rounded border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{error}</div>;
   if (!c) return <p className="text-sm text-slate-500">Memuat…</p>;
   const open = c.open_request;
+  const dispute = c.open_dispute;
+  const done = (m: string) => { setNotice(m); load(); };
 
   return (
     <div className="space-y-5">
@@ -139,10 +148,48 @@ export function PortalClaimView({ id, base, canUpload }: { id: string; base: str
           {canUpload ? (
             <div className="mt-3 rounded bg-white p-3">
               <LateUploadForm claimId={c.id} request={open} endpoint={`/portal/claims/${c.id}/documents`}
-                              onDone={(m) => { setNotice(m); load(); }} />
+                              onDone={done} />
             </div>
           ) : (
             <p className="mt-2 text-sm text-amber-900">Anda tidak perlu melakukan apa pun. Kami akan memberi kabar lewat email.</p>
+          )}
+        </div>
+      )}
+
+      {dispute && (
+        <div className="card border-violet-300 bg-violet-50">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-medium text-violet-900">Banding {dispute.category_label.toLowerCase()}</h2>
+            <DisputeStatusPill status={dispute.status} />
+          </div>
+          <p className="mt-1 whitespace-pre-line text-sm text-violet-900">{dispute.reason}</p>
+          <p className="mt-1 text-xs text-violet-800">
+            Diajukan {dispute.raised_by} · {waktu(dispute.created_at)} · target selesai {tanggal(dispute.due_at)}
+            {dispute.overdue ? " (sudah lewat)" : ""}
+          </p>
+          <p className="mt-2 text-sm text-violet-900">
+            {dispute.status === "IN_REVIEW"
+              ? "Klaim sedang ditelaah ulang oleh dokter yang berbeda dari penelaah awal."
+              : "Dokter penelaah ulang sudah selesai. Asuransi akan mencatat keputusan ulang."}
+          </p>
+          {dispute.status === "IN_REVIEW" && dispute.raised_by_role === myRole && (
+            <div className="mt-2"><WithdrawDisputeButton claimId={c.id} onDone={done} /></div>
+          )}
+        </div>
+      )}
+      {!dispute && c.status === "COMPLETED" && c.decision && (
+        <div className="card">
+          <h2 className="mb-2 font-medium">Banding</h2>
+          {c.can_dispute ? (
+            <>
+              <p className="mb-3 text-sm text-slate-600">
+                Tidak setuju dengan keputusan ini? Ajukan banding beserta alasannya. Klaim akan ditelaah ulang oleh
+                dokter lain, lalu asuransi memutus ulang.
+              </p>
+              <DisputeForm claimId={c.id} onDone={done} />
+            </>
+          ) : (
+            <p className="text-sm text-slate-500">{c.dispute_blocked_reason ?? "Banding tidak tersedia untuk klaim ini."}</p>
           )}
         </div>
       )}
@@ -181,6 +228,12 @@ export function PortalClaimView({ id, base, canUpload }: { id: string; base: str
               ))}
             </ul>
           </div>
+          {c.disputes.length > 0 && (
+            <div className="card">
+              <h2 className="mb-2 font-medium">Riwayat banding</h2>
+              <DisputeList disputes={c.disputes} />
+            </div>
+          )}
           {c.document_requests.length > 0 && (
             <div className="card">
               <h2 className="mb-2 font-medium">Riwayat permintaan dokumen</h2>

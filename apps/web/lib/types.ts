@@ -77,6 +77,7 @@ export interface ClaimDetail extends Omit<ClaimListItem, "risk_score" | "recomme
   awaiting_doctor: boolean;
   policy: Policy | null;
   document_requests: DocumentRequest[];
+  disputes: DisputeInfo[];
 }
 
 export interface Evidence {
@@ -159,6 +160,7 @@ export interface QueueItem {
   level: "GP" | "SPECIALIST";
   specialty: string | null;
   escalated: boolean;
+  dispute: boolean;
   assigned_to: string | null;
   assigned_to_me: boolean;
   waiting_since: string;
@@ -226,6 +228,7 @@ export interface Workspace {
   fields: ReviewField[];
   field_history: FieldHistory[];
   reason_codes: Record<string, string>;
+  dispute: DisputeInfo | null;
 }
 
 export interface RulesetRule {
@@ -274,6 +277,7 @@ export interface Dashboard {
   doctor_reviews: number;
   doctor_agreement_pct: number | null;
   avg_review_seconds: number | null;
+  disputes: DisputeMetrics | null;
 }
 
 // --- Tenant & akun layanan (U1) ---------------------------------------------------------
@@ -597,6 +601,9 @@ export interface PortalClaimItem {
   open_request: DocumentRequest | null;
   outcome: string | null;
   updated_at: string;
+  open_dispute: DisputeInfo | null;
+  can_dispute: boolean;
+  dispute_blocked_reason: string | null;
 }
 
 export interface PortalClaimDetail extends PortalClaimItem {
@@ -607,6 +614,7 @@ export interface PortalClaimDetail extends PortalClaimItem {
   decision: string | null;
   reviewer: string | null;
   document_requests: DocumentRequest[];
+  disputes: DisputeInfo[];
 }
 
 export interface TpaTenantSummary {
@@ -617,4 +625,55 @@ export interface TpaTenantSummary {
   awaiting_decision: number;
   pending_documents: number;
   overdue_requests: number;
+}
+
+// ----------------------------------------------------------------------------- U5: sengketa / banding
+
+export interface DisputeInfo {
+  id: string;
+  claim_id: string;
+  status: "IN_REVIEW" | "AWAITING_DECISION" | "RESOLVED" | "WITHDRAWN";
+  category: string;
+  category_label: string;
+  reason: string;
+  raised_by: string;
+  raised_by_role: string;
+  created_at: string;
+  due_at: string;
+  overdue: boolean;
+  document_ids: string[];
+  original_reviewer: string | null;
+  reviewer: string | null;
+  reviewed_at: string | null;
+  review_outcome: string | null;
+  review_notes: string | null;
+  disputed_recommendation: string | null;
+  disputed_amount: number | null;
+  new_recommendation: string | null;
+  new_amount: number | null;
+  outcome: string | null;
+  outcome_label: string | null;
+  resolved_at: string | null;
+  resolved_by: string | null;
+}
+
+export interface DisputeListItem extends DisputeInfo {
+  claim_number: string;
+  hospital_name: string;
+  insurer_name: string | null;
+}
+
+export interface DisputeMetrics {
+  total: number;
+  open: number;
+  in_review: number;
+  awaiting_decision: number;
+  overdue: number;
+  resolved: number;
+  withdrawn: number;
+  by_outcome: CountItem[];
+  by_category: CountItem[];
+  overturn_rate: number | null;
+  avg_resolution_days: number | null;
+  resolved_on_time: number;
 }

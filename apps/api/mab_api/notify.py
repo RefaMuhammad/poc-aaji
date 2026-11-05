@@ -107,3 +107,41 @@ def decision_recorded(db: Session, claim: Claim, summary: str) -> None:
     body = f"Asuransi sudah memutuskan klaim {claim.claim_number}: {summary}.\nPenjelasan lengkap ada di portal."
     notify(db, member_users(db, claim), claim, "claim.decision_recorded", f"Keputusan klaim {claim.claim_number}", body)
     notify(db, facility_users(db, claim), claim, "claim.decision_recorded", f"Keputusan klaim {claim.claim_number}", body)
+
+
+# ----------------------------------------------------------------------------- U5: sengketa / banding
+
+
+def _filer_side(db: Session, claim: Claim, filer: User) -> list[User]:
+    """Pihak portal selain pengaju (faskes <-> peserta), supaya keduanya tahu ada banding."""
+    others = member_users(db, claim) if filer.role == Role.FACILITY_OFFICER.value else facility_users(db, claim)
+    return [u for u in others if u.id != filer.id]
+
+
+def dispute_filed(db: Session, claim: Claim, dispute, filer: User) -> None:
+    who = "rumah sakit" if filer.role == Role.FACILITY_OFFICER.value else "peserta"
+    notify(db, insurer_users(db, claim), claim, "claim.dispute_filed", f"Banding atas klaim {claim.claim_number}",
+           f"{filer.full_name} ({who}) mengajukan banding atas keputusan klaim {claim.claim_number}.\n"
+           f"Alasan: {dispute.reason}\nBanding ditelaah ulang oleh dokter yang berbeda dari penelaah awal, "
+           "lalu dikembalikan ke Anda untuk diputus ulang.")
+    notify(db, [filer], claim, "claim.dispute_filed", f"Banding klaim {claim.claim_number} diterima",
+           "Banding Anda sudah kami terima dan akan ditelaah ulang oleh dokter lain. "
+           f"Target penyelesaian: {dispute.due_at.strftime('%d-%m-%Y')}.")
+    notify(db, _filer_side(db, claim, filer), claim, "claim.dispute_filed", f"Klaim {claim.claim_number} sedang dibanding",
+           f"Keputusan klaim {claim.claim_number} sedang dibanding oleh {who} dan ditelaah ulang.")
+
+
+def dispute_reviewed(db: Session, claim: Claim, dispute) -> None:
+    notify(db, insurer_users(db, claim), claim, "claim.dispute_reviewed",
+           f"Telaah ulang banding klaim {claim.claim_number} selesai",
+           "Dokter penelaah banding sudah menandatangani rekomendasi baru. Mohon catat keputusan ulang.")
+
+
+def dispute_resolved(db: Session, claim: Claim, dispute, decision: str) -> None:
+    label = {"UPHELD": "dikuatkan (keputusan awal tetap)", "MODIFIED": "diubah",
+             "OVERTURNED": "dibatalkan (klaim dibayar penuh)"}.get(dispute.outcome or "", dispute.outcome or "")
+    body = (f"Banding atas klaim {claim.claim_number} selesai: keputusan awal {label}."
+            + (" Asuransi memutuskan berbeda dari rekomendasi dokter; lihat alasannya di portal." if decision == "DIFFER" else "")
+            + "\nPenjelasan lengkap ada di portal.")
+    users = member_users(db, claim) + facility_users(db, claim)
+    notify(db, users, claim, "claim.dispute_resolved", f"Hasil banding klaim {claim.claim_number}", body)

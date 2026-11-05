@@ -13,6 +13,7 @@ import { RecommendationView } from "@/components/RecommendationView";
 import { FindingCard } from "@/components/FindingCard";
 import { ExtractedFields } from "@/components/ExtractedFields";
 import { ReviewActions } from "@/components/ReviewActions";
+import { DisputeBanner } from "@/components/Disputes";
 
 type Tab = "findings" | "fields" | "history";
 
@@ -92,9 +93,12 @@ export default function ReviewPage() {
             {ws.level === "SPECIALIST" && ws.specialty ? ` · ${ws.specialty}` : ""}
           </span>
           {ws.escalated && <span className="rounded bg-violet-100 px-1.5 py-0.5 text-xs text-violet-800">hasil eskalasi</span>}
+          {ws.dispute && <span className="rounded bg-rose-100 px-1.5 py-0.5 text-xs text-rose-800">banding</span>}
           <StatusBadge status={claim.status} />
         </div>
       </div>
+
+      {ws.dispute && <DisputeBanner dispute={ws.dispute} />}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         {/* Panel kiri: dokumen asli */}

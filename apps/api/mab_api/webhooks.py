@@ -5,6 +5,8 @@ Peristiwa:
 - claim.decision_recorded       : asuransi mencatat keputusan
 - claim.processing_failed       : pipeline gagal memproses klaim
 - claim.documents_requested     : U4, asuransi menunda klaim dan meminta dokumen susulan ke faskes
+- claim.dispute_filed           : U5, faskes/peserta mengajukan banding atas keputusan
+- claim.dispute_resolved        : U5, asuransi memutus ulang klaim hasil banding
 
 Payload hanya berisi rekomendasi yang SUDAH dirilis (draf yang menunggu dokter tidak pernah dikirim).
 Setiap pengiriman ditandatangani HMAC-SHA256 atas body mentah dengan rahasia webhook tenant:
@@ -29,7 +31,7 @@ from mab_api.models import Claim, Insurer, RecommendationCode, RecommendationSta
 log = logging.getLogger(__name__)
 
 EVENTS = ("claim.recommendation_released", "claim.decision_recorded", "claim.processing_failed",
-          "claim.documents_requested")
+          "claim.documents_requested", "claim.dispute_filed", "claim.dispute_resolved")
 LABEL = "Data rekaan untuk demonstrasi"
 
 

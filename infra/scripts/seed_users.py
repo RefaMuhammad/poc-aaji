@@ -47,6 +47,8 @@ DEMO_USERS = [
     ("manajer@demo.test", "Manajer Klaim Demo", Role.INSURER_MANAGER, "DEMO", None),
     ("dokter.umum@mab.test", "dr. Dokter Umum Demo", Role.DOCTOR_GP, None, None),
     ("dokter.spesialis@mab.test", "dr. Spesialis Demo, Sp.PD", Role.DOCTOR_SPECIALIST, None, "Penyakit Dalam"),
+    # U5: spesialis kedua bidang yang sama, untuk telaah banding (harus berbeda dari penelaah awal)
+    ("dokter.spesialis2@mab.test", "dr. Spesialis Banding Demo, Sp.PD", Role.DOCTOR_SPECIALIST, None, "Penyakit Dalam"),
     ("admin@mab.test", "Admin MAB Demo", Role.ADMIN, None, None),
     # U1: tenant kedua dan peran baru
     ("staf@pelita.test", "Staf Klaim Pelita", Role.INSURER_STAFF, "PELITA", None),
@@ -64,7 +66,8 @@ DEFAULT_FACILITY = "RSU Harapan Bunda"
 DEFAULT_MEMBER_REF = "PST-15720019"
 
 
-def seed(session_factory=None, password: str | None = None) -> list[str]:
+def seed(session_factory=None, password: str | None = None, skip: frozenset[str] = frozenset()) -> list[str]:
+    """Buat tenant dan akun demo yang belum ada. `skip`: email yang belum dibuat sekarang (lihat seed_demo.py)."""
     password = password or os.environ.get("DEMO_PASSWORD", "demo12345")
     session_factory = session_factory or make_session_factory()
     created = []
@@ -81,7 +84,7 @@ def seed(session_factory=None, password: str | None = None) -> list[str]:
                                       **spec["settings"]))
             tenants[spec["code"]] = insurer
         for email, name, role, tenant, specialty in DEMO_USERS:
-            if db.scalar(select(User).where(User.email == email)):
+            if email in skip or db.scalar(select(User).where(User.email == email)):
                 continue
             user = User(
                 email=email,

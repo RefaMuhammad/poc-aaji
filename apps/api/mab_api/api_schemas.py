@@ -111,6 +111,7 @@ class ClaimDetail(ClaimOut):
     decision: str | None = None
     policy: "PolicyOut | None" = None        # U2: polis yang dipakai aturan benefit
     document_requests: list["DocumentRequestOut"] = []  # U4: permintaan dokumen susulan
+    disputes: list["DisputeOut"] = []                   # U5: riwayat sengketa / banding
 
 
 class ClaimStatusOut(BaseModel):
@@ -272,6 +273,7 @@ class QueueItem(BaseModel):
     sla_due_at: datetime | None = None
     sla_state: str | None = None     # ON_TRACK / AT_RISK / OVERDUE (kasus yang masih di antrean)
     sla_met: bool | None = None      # untuk kasus selesai: ditandatangani sebelum batas SLA?
+    dispute: bool = False            # U5: telaah ulang atas banding
 
 
 class ReviewFieldOut(BaseModel):
@@ -334,6 +336,7 @@ class Workspace(BaseModel):
     fields: list[ReviewFieldOut]
     field_history: list[FieldHistoryOut]
     reason_codes: dict[str, str]
+    dispute: "DisputeOut | None" = None  # U5: banding yang sedang ditelaah ulang
 
 
 class FieldCorrection(BaseModel):
@@ -424,6 +427,7 @@ class DashboardOut(BaseModel):
     doctor_reviews: int
     doctor_agreement_pct: float | None    # persentase telaah yang setuju dengan draf AI
     avg_review_seconds: float | None
+    disputes: "DisputeMetrics | None" = None   # U5
 
 
 # --- Tenant, akun layanan, penugasan (U1) ---------------------------------------------
@@ -865,6 +869,9 @@ class PortalClaimItem(BaseModel):
     status_label: str
     open_request: DocumentRequestOut | None = None
     outcome: str | None = None          # ringkasan hasil bila sudah diputuskan
+    open_dispute: "DisputeOut | None" = None  # U5
+    can_dispute: bool = False                 # U5: pengguna ini boleh mengajukan banding sekarang
+    dispute_blocked_reason: str | None = None
     updated_at: datetime
 
 
@@ -876,6 +883,7 @@ class PortalClaimDetail(PortalClaimItem):
     decision: str | None = None
     reviewer: str | None = None
     document_requests: list[DocumentRequestOut] = []
+    disputes: list["DisputeOut"] = []
 
 
 class TpaTenantSummary(BaseModel):
@@ -888,5 +896,61 @@ class TpaTenantSummary(BaseModel):
     overdue_requests: int
 
 
+
+# ----------------------------------------------------------------------------- U5: sengketa
+
+
+class DisputeOut(BaseModel):
+    id: str
+    claim_id: str
+    status: str                       # IN_REVIEW / AWAITING_DECISION / RESOLVED / WITHDRAWN
+    category: str
+    category_label: str
+    reason: str
+    raised_by: str
+    raised_by_role: str
+    created_at: datetime
+    due_at: datetime
+    overdue: bool = False
+    document_ids: list[str] = []
+    original_reviewer: str | None = None
+    reviewer: str | None = None
+    reviewed_at: datetime | None = None
+    review_outcome: str | None = None
+    review_notes: str | None = None
+    disputed_recommendation: str | None = None
+    disputed_amount: int | None = None
+    new_recommendation: str | None = None
+    new_amount: int | None = None
+    outcome: str | None = None        # UPHELD / MODIFIED / OVERTURNED
+    outcome_label: str | None = None
+    resolved_at: datetime | None = None
+    resolved_by: str | None = None
+
+
+class DisputeListItem(DisputeOut):
+    claim_number: str
+    hospital_name: str
+    insurer_name: str | None = None
+
+
+class DisputeMetrics(BaseModel):
+    total: int
+    open: int
+    in_review: int
+    awaiting_decision: int
+    overdue: int
+    resolved: int
+    withdrawn: int
+    by_outcome: list[CountItem]
+    by_category: list[CountItem]
+    overturn_rate: float | None       # (diubah + dibatalkan) / selesai
+    avg_resolution_days: float | None
+    resolved_on_time: int
+
+
 ClaimDetail.model_rebuild()
+DashboardOut.model_rebuild()
 PortalClaimDetail.model_rebuild()
+PortalClaimItem.model_rebuild()
+Workspace.model_rebuild()

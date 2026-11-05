@@ -45,6 +45,7 @@ ENDPOINTS = [
     ("POST", "/fraud/runs", Perm.FRAUD_MANAGE),
     ("GET", "/portal/claims", Perm.PORTAL_VIEW),
     ("GET", "/tpa/summary", Perm.TPA_OVERVIEW),
+    ("GET", "/disputes", Perm.DISPUTE_VIEW),
 ]
 
 

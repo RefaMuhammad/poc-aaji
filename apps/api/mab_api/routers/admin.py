@@ -68,6 +68,8 @@ def reassign(claim_id: str, body: AssignRequest, request: Request, db: Session =
     if doctor is None or not doctor.is_active or doctor.role != needed:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
                             f"Kasus ini untuk {'dokter umum' if level == GP else 'dokter spesialis'}")
+    if rec.excluded_reviewer_id and doctor.id == rec.excluded_reviewer_id:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Banding harus ditelaah dokter yang berbeda dari penelaah awal")
     if level != GP and specialty and doctor.specialty != specialty:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Kasus ini untuk spesialis {specialty}")
     now = now_utc()

@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from mab_api import disputes as dispute_mod
 from mab_api import doc_requests
 from mab_api.access import get_visible_claim, tenant_ids, visible_claims_query
 from mab_api.api_schemas import (
@@ -29,7 +30,7 @@ from mab_api.deps import get_current_user, get_queue, get_storage, require_perm
 from mab_api.models import Claim, ClaimStatus, Insurer, Notification, Recommendation, RecommendationCode, \
     RecommendationState, Role, TenantSettings, User
 from mab_api.notify import doc_label
-from mab_api.rbac import Perm
+from mab_api.rbac import Perm, has_perm
 from mab_api.routers.claims import _current_recommendation, _latest_decision, outcome_summary
 
 router = APIRouter(tags=["portal"])
@@ -50,7 +51,9 @@ _STATUS_LABEL = {
 }
 
 
-def status_label(claim: Claim, user: User) -> str:
+def status_label(claim: Claim, user: User, dispute=None) -> str:
+    if dispute is not None:
+        return "Banding sedang ditelaah ulang" if dispute.status == dispute_mod.IN_REVIEW else "Banding menunggu putusan ulang asuransi"
     if claim.status == ClaimStatus.PENDING_DOCUMENTS.value and user.role == Role.FACILITY_OFFICER.value:
         return "Menunggu dokumen dari Anda"
     return _STATUS_LABEL.get(claim.status, claim.status)
@@ -73,12 +76,17 @@ def _outcome(claim: Claim) -> tuple[Recommendation | None, str | None]:
 def _item(db: Session, claim: Claim, user: User, names: dict[str, str]) -> PortalClaimItem:
     req = doc_requests.open_request_for(db, claim)
     _, outcome = _outcome(claim)
+    dispute = dispute_mod.open_dispute_for(db, claim)
+    blocked = dispute_mod.eligibility(db, claim)
+    can_file = has_perm(user.role, Perm.DISPUTE_FILE)
     return PortalClaimItem(
         id=claim.id, claim_number=claim.claim_number, member_id=claim.member_id, patient_name=claim.patient_name,
         hospital_name=claim.hospital_name, insurer_name=names.get(claim.insurer_id),
         admission_date=claim.admission_date, discharge_date=claim.discharge_date, billed_amount=claim.billed_amount,
-        status=claim.status, status_label=status_label(claim, user),
+        status=claim.status, status_label=status_label(claim, user, dispute),
         open_request=doc_requests.to_out(req, claim) if req else None, outcome=outcome, updated_at=claim.updated_at,
+        open_dispute=dispute_mod.to_out(dispute, db) if dispute else None,
+        can_dispute=can_file and blocked is None, dispute_blocked_reason=blocked if can_file else None,
     )
 
 
@@ -92,6 +100,8 @@ def timeline(db: Session, claim: Claim) -> list[TimelineEvent]:
     first = len([d for d in claim.documents if d.id not in late])
     ev: list[TimelineEvent] = [TimelineEvent(at=claim.created_at, title="Klaim diterima", detail=f"{first} dokumen")]
     for r in claim.recommendations:
+        if r.dispute_id:
+            continue  # telaah banding tampil sebagai peristiwa banding di bawah
         if r.state == RecommendationState.DRAFT.value:
             ev.append(TimelineEvent(at=r.created_at, title="Dokumen selesai diperiksa sistem",
                                     detail="Pemeriksaan ulang setelah dokumen susulan" if r.version > 1 else None))
@@ -107,6 +117,19 @@ def timeline(db: Session, claim: Claim) -> list[TimelineEvent]:
                                     detail=q.fulfilled_by.full_name if q.fulfilled_by else None))
         if q.status == doc_requests.CANCELLED:
             ev.append(TimelineEvent(at=q.created_at, title="Permintaan dokumen dibatalkan asuransi"))
+    for disp in dispute_mod.disputes_for(db, claim):
+        who = "faskes" if disp.raised_by_role == Role.FACILITY_OFFICER.value else "peserta"
+        ev.append(TimelineEvent(at=disp.created_at, title=f"Banding diajukan {who}",
+                                detail=dispute_mod.CATEGORY_LABEL.get(disp.category)))
+        if disp.reviewed_at:
+            ev.append(TimelineEvent(at=disp.reviewed_at, title="Banding ditelaah ulang dokter lain",
+                                    detail=f"{disp.reviewer.full_name if disp.reviewer else ''} · "
+                                           f"{dispute_mod.OUTCOME_LABEL.get(disp.review_outcome or '', '')}"))
+        if disp.status == dispute_mod.WITHDRAWN and disp.resolved_at:
+            ev.append(TimelineEvent(at=disp.resolved_at, title="Banding ditarik"))
+        if disp.status == dispute_mod.RESOLVED and disp.resolved_at:
+            ev.append(TimelineEvent(at=disp.resolved_at, title="Banding selesai",
+                                    detail=f"keputusan awal {dispute_mod.OUTCOME_LABEL.get(disp.outcome or '', '')}"))
     for d in claim.decisions:
         rec = next((r for r in claim.recommendations if r.id == d.recommendation_id), None)
         if rec is not None and rec.recommendation == RecommendationCode.PEND.value and d.decision == "AGREE":
@@ -116,14 +139,25 @@ def timeline(db: Session, claim: Claim) -> list[TimelineEvent]:
     return sorted(ev, key=lambda e: _aware(e.at))
 
 
-def explanation(claim: Claim) -> str | None:
+def explanation(claim: Claim, db: Session | None = None) -> str | None:
     rec, outcome = _outcome(claim)
+    dispute = dispute_mod.open_dispute_for(db, claim) if db is not None else None
+    if dispute is not None:
+        return ("Banding Anda sedang ditelaah ulang oleh dokter yang berbeda dari penelaah awal. Setelah itu "
+                "asuransi memutus ulang klaim ini. Target penyelesaian: " + dispute.due_at.strftime("%d-%m-%Y") + ".")
     if rec is None:
         if claim.status == ClaimStatus.PENDING_DOCUMENTS.value:
             return "Klaim ditunda sementara sampai dokumen yang diminta asuransi diterima, lalu diperiksa ulang."
         return None
     dec = _latest_decision(claim)
     parts = [f"Hasil klaim: {outcome}."]
+    if rec.dispute_id and db is not None:
+        from mab_api.models import Dispute
+
+        disp = db.get(Dispute, rec.dispute_id)
+        if disp is not None and disp.outcome:
+            parts.append(f"Hasil banding: keputusan awal {dispute_mod.OUTCOME_LABEL[disp.outcome]}."
+                         + (f" Catatan dokter penelaah banding: {disp.review_notes}" if disp.review_notes else ""))
     if dec.decision == "DIFFER" and dec.reason:
         parts.append(f"Alasan asuransi: {dec.reason}")
     if rec.recommendation == RecommendationCode.PAY_FULL.value and rec.state != RecommendationState.SIGNED.value:
@@ -156,11 +190,12 @@ def portal_claim(claim_id: str, db: Session = Depends(get_db), user: User = Depe
         **base.model_dump(),
         documents=[DocumentOut.model_validate(d) for d in claim.documents],
         timeline=timeline(db, claim),
-        explanation=explanation(claim),
+        explanation=explanation(claim, db),
         recommended_amount=rec.recommended_amount if rec else None,
         decision=dec.decision if rec and dec else None,
         reviewer=rec.signed_by.full_name if rec and rec.signed_by else None,
         document_requests=[doc_requests.to_out(r, claim) for r in doc_requests.requests_for(db, claim)],
+        disputes=[dispute_mod.to_out(d, db) for d in dispute_mod.disputes_for(db, claim)],
     )
 
 

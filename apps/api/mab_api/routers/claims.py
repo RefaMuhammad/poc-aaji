@@ -56,7 +56,7 @@ from mab_api.rbac import Perm, can_see_draft, has_perm
 from mab_api.webhooks import current_decision, dispatch, queue_event
 from mab_api.batch import BatchError, import_zip, queue_claim
 from mab_api.routers.policies import policy_out
-from mab_api import doc_requests, notify
+from mab_api import disputes, doc_requests, notify
 
 router = APIRouter(prefix="/claims", tags=["klaim"])
 
@@ -149,9 +149,13 @@ def outcome_summary(rec: Recommendation, decision: str) -> str:
 
 
 def _record_decision(db: Session, claim: Claim, rec: Recommendation, user: User, decision: str, reason: str | None) -> None:
-    db.add(InsurerDecision(claim_id=claim.id, recommendation_id=rec.id, decision=decision, reason=reason, decided_by_id=user.id))
+    dec = InsurerDecision(claim_id=claim.id, recommendation_id=rec.id, decision=decision, reason=reason, decided_by_id=user.id)
+    db.add(dec)
     claim.status = ClaimStatus.COMPLETED.value
     notify.decision_recorded(db, claim, outcome_summary(rec, decision))
+    if rec.dispute_id:  # U5: putusan ulang atas hasil telaah banding
+        db.flush()
+        disputes.on_decided(db, claim, rec, dec, user)
 
 
 # ----------------------------------------------------------------------------- buat & lihat
@@ -329,6 +333,7 @@ def get_claim(claim_id: str, db: Session = Depends(get_db), user: User = Depends
         decision=dec.decision if dec else None,
         policy=policy_out(claim.policy) if claim.policy is not None and has_perm(user.role, Perm.CLAIM_DETAIL) else None,
         document_requests=[doc_requests.to_out(r, claim) for r in doc_requests.requests_for(db, claim)],
+        disputes=[disputes.to_out(d, db) for d in disputes.disputes_for(db, claim)],
     )
 
 
@@ -415,7 +420,8 @@ def record_decision(
         raise HTTPException(status.HTTP_409_CONFLICT, "Klaim menunggu dokumen susulan dari faskes")
     reason = (body.reason or "").strip() or None
     wants_docs = bool(body.doc_types) or bool(missing_documents(claim))
-    if rec.recommendation == RecommendationCode.PEND.value and body.decision == DecisionCode.AGREE.value and wants_docs:
+    if (rec.recommendation == RecommendationCode.PEND.value and body.decision == DecisionCode.AGREE.value and wants_docs
+            and not rec.dispute_id):
         # U4: setuju menunda = minta dokumen ke faskes; klaim belum selesai.
         # Tunda untuk klarifikasi tanpa dokumen yang kurang tetap dicatat sebagai keputusan biasa.
         doc_requests.open_request(db, claim, rec, user, doc_types=body.doc_types, message=body.message or reason)
@@ -425,8 +431,9 @@ def record_decision(
     else:
         _record_decision(db, claim, rec, user, body.decision, reason)
         hook = queue_event(db, claim, "claim.decision_recorded")
+    hooks = [hook, queue_event(db, claim, "claim.dispute_resolved") if rec.dispute_id else None]
     db.commit()
-    dispatch(queue, [hook])
+    dispatch(queue, hooks)
     db.refresh(claim)
     return build_recommendation_view(claim, rec)
 

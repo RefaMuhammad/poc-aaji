@@ -13,6 +13,7 @@ import { DecisionForm } from "@/components/DecisionForm";
 import { DocumentViewer, type ViewerTarget } from "@/components/DocumentViewer";
 import { FraudClaimCard } from "@/components/FraudClaimCard";
 import { DocumentRequestList, LateUploadForm, RequestDocumentsForm } from "@/components/DocumentRequests";
+import { DisputeList } from "@/components/Disputes";
 
 const STEPS: { status: ClaimStatus[]; label: string }[] = [
   { status: ["RECEIVED", "QUEUED"], label: "Diterima & antre" },
@@ -219,6 +220,20 @@ export default function ClaimDetailPage() {
                   )}
                 </div>
               )}
+              {claim.disputes.length > 0 && (
+                <div className="card border-rose-200">
+                  <h3 className="mb-1 font-medium">Banding</h3>
+                  {claim.disputes.some((d) => d.status === "AWAITING_DECISION") && isInsurer && (
+                    <p className="mb-2 text-sm text-rose-800">
+                      Dokter lain sudah menelaah ulang banding ini. Catat keputusan ulang atas rekomendasi baru di bawah.
+                    </p>
+                  )}
+                  {claim.disputes.some((d) => d.status === "IN_REVIEW") && (
+                    <p className="mb-2 text-sm text-slate-600">Banding sedang ditelaah ulang oleh dokter yang berbeda dari penelaah awal.</p>
+                  )}
+                  <DisputeList disputes={claim.disputes} internal />
+                </div>
+              )}
               {claim.document_requests.length > 0 && (
                 <div className="card">
                   <h3 className="mb-2 font-medium">Permintaan dokumen susulan</h3>
@@ -229,7 +244,8 @@ export default function ClaimDetailPage() {
               {isInsurer && !(openRequest && !rec.insurer_decision) && (
                 <DecisionForm rec={rec} missing={claim.missing_documents} onSaved={(r) => { setRec(r); load(); }} />
               )}
-              {isInsurer && claim.status === "AWAITING_DECISION" && !rec.insurer_decision && rec.recommendation !== "PEND" && (
+              {isInsurer && claim.status === "AWAITING_DECISION" && !rec.insurer_decision && rec.recommendation !== "PEND"
+                && !claim.disputes.some((d) => d.status === "AWAITING_DECISION") && (
                 <RequestDocumentsForm claimId={id} missing={claim.missing_documents} onDone={load} />
               )}
             </>

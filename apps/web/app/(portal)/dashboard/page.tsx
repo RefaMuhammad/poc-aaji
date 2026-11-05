@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { apiJson } from "@/lib/api";
 import type { ClaimStatus, CountItem, Dashboard } from "@/lib/types";
-import { REASON_LABEL, RECOMMENDATION_LABEL, STATUS_LABEL, durasi, rupiah } from "@/lib/format";
+import { DISPUTE_OUTCOME_LABEL, REASON_LABEL, RECOMMENDATION_LABEL, STATUS_LABEL, desimal, durasi, rupiah } from "@/lib/format";
 
 const TRIAGE_STYLE: Record<string, { label: string; bar: string }> = {
   GREEN: { label: "Hijau", bar: "bg-emerald-500" },
@@ -125,6 +125,42 @@ export default function DashboardPage() {
           <Bars items={d.top_hospitals} label={(i) => i.key} color="bg-rose-400" />
         </div>
       </div>
+
+      {d.disputes && (
+        <div className="card">
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="font-medium">Banding (sengketa)</h2>
+            <span className="text-xs text-slate-500">telaah ulang oleh dokter yang berbeda · SLA 14 hari</span>
+          </div>
+          {d.disputes.total === 0 ? (
+            <p className="text-sm text-slate-500">Belum ada banding.</p>
+          ) : (
+            <div className="grid gap-4 lg:grid-cols-3">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div><div className="text-xs text-slate-500">Terbuka</div><div className="text-xl font-semibold">{d.disputes.open}</div>
+                  <div className="text-xs text-slate-500">{d.disputes.in_review} telaah ulang · {d.disputes.awaiting_decision} menunggu putusan</div></div>
+                <div><div className="text-xs text-slate-500">Lewat SLA</div>
+                  <div className={`text-xl font-semibold ${d.disputes.overdue ? "text-rose-700" : ""}`}>{d.disputes.overdue}</div></div>
+                <div><div className="text-xs text-slate-500">Selesai</div><div className="text-xl font-semibold">{d.disputes.resolved}</div>
+                  <div className="text-xs text-slate-500">{d.disputes.resolved_on_time} tepat waktu · {d.disputes.withdrawn} ditarik</div></div>
+                <div><div className="text-xs text-slate-500">Keputusan berubah</div>
+                  <div className="text-xl font-semibold">{d.disputes.overturn_rate === null ? "-" : `${desimal(d.disputes.overturn_rate)}%`}</div>
+                  <div className="text-xs text-slate-500">
+                    rata-rata {d.disputes.avg_resolution_days === null ? "-" : `${desimal(d.disputes.avg_resolution_days)} hari`}
+                  </div></div>
+              </div>
+              <div>
+                <h3 className="mb-2 text-sm text-slate-600">Hasil banding</h3>
+                <Bars items={d.disputes.by_outcome} label={(i) => DISPUTE_OUTCOME_LABEL[i.key] ?? i.label ?? i.key} color="bg-violet-500" />
+              </div>
+              <div>
+                <h3 className="mb-2 text-sm text-slate-600">Yang dipersoalkan</h3>
+                <Bars items={d.disputes.by_category} label={(i) => i.label ?? i.key} color="bg-slate-500" />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

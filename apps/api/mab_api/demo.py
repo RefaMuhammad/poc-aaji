@@ -20,5 +20,7 @@ DEMO_ACCOUNTS: list[tuple[str, str]] = [
     ("faskes@demo.test", "9. Petugas faskes: status klaim RS-nya"),
     ("peserta@demo.test", "10. Peserta: status klaimnya"),
     ("underwriter@demo.test", "11. Underwriter (modul menyusul di U7)"),
+    # U5
+    ("dokter.spesialis2@mab.test", "12. Dokter spesialis kedua: telaah banding"),
 ]
 DEMO_EMAILS = {email for email, _ in DEMO_ACCOUNTS}

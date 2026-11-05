@@ -213,4 +213,21 @@ export const NOTIFICATION_EVENT_LABEL: Record<string, string> = {
   "claim.documents_received": "Dokumen diterima",
   "claim.recommendation_released": "Rekomendasi dirilis",
   "claim.decision_recorded": "Keputusan klaim",
+  "claim.dispute_filed": "Banding diajukan",
+  "claim.dispute_reviewed": "Banding ditelaah",
+  "claim.dispute_resolved": "Banding diputus",
 };
+
+export const DISPUTE_STATUS_LABEL: Record<string, string> = {
+  IN_REVIEW: "Telaah ulang dokter",
+  AWAITING_DECISION: "Menunggu putusan ulang asuransi",
+  RESOLVED: "Selesai",
+  WITHDRAWN: "Ditarik",
+};
+export const DISPUTE_OUTCOME_LABEL: Record<string, string> = { UPHELD: "Dikuatkan", MODIFIED: "Diubah", OVERTURNED: "Dibatalkan" };
+export const DISPUTE_CATEGORIES: { value: string; label: string }[] = [
+  { value: "CLINICAL", label: "Penilaian medis" },
+  { value: "COVERAGE", label: "Penjaminan / polis" },
+  { value: "BILLING", label: "Nilai pembayaran" },
+  { value: "OTHER", label: "Lainnya" },
+];

@@ -19,6 +19,9 @@ Langkah:
 9. (U4) SYN-TIF-10 (rincian tagihan tidak dikirim): dokter umum menunda, asuransi setuju menunda dan
    meminta rincian tagihan ke RS. Klaim berhenti di "menunggu dokumen susulan" supaya saat demo akun
    faskes mengunggah data/synthetic_output/SYN-TIF-10/susulan/rincian_tagihan.pdf lewat Portal Faskes.
+10. (U5) SYN-GEA-06 (RSU Harapan Bunda, rawat inap dehidrasi ringan-sedang): spesialis menandatangani
+   "tidak dijamin" dan asuransi setuju. Saat demo akun faskes mengajukan banding, lalu
+   dokter.spesialis2@mab.test (bukan penelaah awal) menelaah ulang dan asuransi memutus ulang.
 
 Butuh: `make up` dan `make synthetic` sudah dijalankan. Jalankan di container api:
     docker compose exec api python infra/scripts/seed_demo.py
@@ -57,6 +60,8 @@ SECOND_TENANT_CLAIMS = ["SYN-DEN-02", "SYN-GEA-02", "SYN-DEN-08", "SYN-DEN-09", 
 LATE_DOCS_CLAIM = "SYN-TIF-10"  # U4: alur "tunda: minta dokumen" (rincian tagihan menyusul)
 FACILITY_FROM = LATE_DOCS_CLAIM  # akun faskes = RS klaim ini
 MEMBER_FROM = LATE_DOCS_CLAIM    # akun peserta = peserta klaim ini (U4: ikut memantau klaim yang ditunda)
+DISPUTE_CLAIM = "SYN-GEA-06"     # U5: "tidak dijamin" di RS akun faskes, siap dibanding saat demo
+SECOND_SPECIALIST = "dokter.spesialis2@mab.test"
 
 # --- U2: polis, webhook, kanal integrasi ---
 ADMIN = "admin@mab.test"
@@ -298,7 +303,7 @@ def doctor_reviews() -> None:
     # Dokter umum: eskalasi satu kasus, setujui draf sisanya kecuali dua kasus terakhir (tetap di antrean).
     # SYN-TIF-10 ditangani tersendiri di langkah U4 (late_documents_demo).
     gp_queue = [i for i in gp.get("/review/queue")
-                if i["insurer_name"] == "Asuransi Sehat Demo" and i["claim_number"] != LATE_DOCS_CLAIM]
+                if i["insurer_name"] == "Asuransi Sehat Demo" and i["claim_number"] not in (LATE_DOCS_CLAIM, DISPUTE_CLAIM)]
     for i, item in enumerate(gp_queue[:-2] if len(gp_queue) > 2 else []):
         if i == 0:
             gp.post(f"/review/{item['id']}/start")
@@ -310,7 +315,8 @@ def doctor_reviews() -> None:
         print(f"  dokter umum menyetujui draf {item['claim_number']}")
 
     # Spesialis: kasus merah selain eskalasi; satu diubah, dua terakhir dibiarkan di antrean.
-    sp_queue = [i for i in sp.get("/review/queue") if not i["escalated"] and i["insurer_name"] == "Asuransi Sehat Demo"]
+    sp_queue = [i for i in sp.get("/review/queue") if not i["escalated"] and i["insurer_name"] == "Asuransi Sehat Demo"
+                and i["claim_number"] != DISPUTE_CLAIM]
     for i, item in enumerate(sp_queue[:-2] if len(sp_queue) > 2 else []):
         ws = sp.get(f"/review/{item['id']}")
         sugg = dict(ws["suggestion"])
@@ -328,7 +334,7 @@ def doctor_reviews() -> None:
 
 def insurer_decisions(staf: Api) -> None:
     ready = [c for c in staf.get("/claims", params={"limit": 500, "status": "AWAITING_DECISION"})
-             if c["claim_number"] != LATE_DOCS_CLAIM]
+             if c["claim_number"] not in (LATE_DOCS_CLAIM, DISPUTE_CLAIM)]
     greens = [c for c in ready if c["triage_status"] == "GREEN" and c["recommendation"] == "PAY_FULL"]
     others = [c for c in ready if c not in greens]
     to_agree = [c["id"] for c in greens[:-3]] if len(greens) > 3 else []
@@ -391,9 +397,42 @@ def late_documents_demo(staf: Api) -> None:
         print("  PERINGATAN: dokumen susulan belum ada. Jalankan ulang `docker compose run --rm --build synthetic`.")
 
 
+def dispute_demo(staf: Api) -> None:
+    """U5: SYN-GEA-06 diputus "tidak dijamin" (spesialis + asuransi setuju). Faskes membandingnya saat demo."""
+    claim = next((c for c in staf.get("/claims", params={"limit": 500}) if c["claim_number"] == DISPUTE_CLAIM), None)
+    if claim is None:
+        print(f"  {DISPUTE_CLAIM} tidak ditemukan; langkah U5 dilewati")
+        return
+    sp = Api("dokter.spesialis@mab.test")
+    if claim["status"] == "AWAITING_DOCTOR":
+        ws = sp.get(f"/review/{claim['id']}")
+        if not ws.get("can_start") and ws.get("level") == "GP":
+            gp = Api("dokter.umum@mab.test")
+            gp.post(f"/review/{claim['id']}/start")
+            gp.post(f"/review/{claim['id']}/escalate", json={"notes": "Indikasi rawat inap perlu dinilai spesialis."})
+            ws = sp.get(f"/review/{claim['id']}")
+        if not ws.get("can_start"):
+            print(f"  PERINGATAN: {DISPUTE_CLAIM} tidak bisa ditelaah spesialis ({ws.get('blocked_reason')})")
+            return
+        sign(sp, claim["id"], {
+            "recommendation": "NOT_COVERED",
+            "reason_code": "ADMISSION_NOT_INDICATED",
+            "notes": "Dehidrasi ringan-sedang tanpa tanda bahaya; rawat inap tidak diindikasikan, perawatan tidak dijamin.",
+        })
+        print(f"  spesialis menandatangani {DISPUTE_CLAIM}: tidak dijamin")
+    detail = staf.get(f"/claims/{claim['id']}")
+    if detail["status"] == "AWAITING_DECISION" and not detail["decision"]:
+        staf.post(f"/claims/{claim['id']}/decision", json={"decision": "AGREE"})
+        print(f"  asuransi setuju: {DISPUTE_CLAIM} tidak dijamin. Siap dibanding faskes saat demo")
+    if seed_users():
+        print(f"  akun {SECOND_SPECIALIST} dibuat (spesialis kedua untuk telaah banding)")
+
+
 def main() -> None:
     print("1. Akun demo")
-    created = seed_users()
+    # Spesialis kedua baru dibuat di langkah U5, supaya penugasan otomatis kasus merah di langkah awal
+    # tetap ke satu spesialis (seperti seed sebelumnya).
+    created = seed_users(skip=frozenset({SECOND_SPECIALIST}))
     print(f"  {len(created)} akun baru" if created else "  akun sudah ada")
 
     staf = Api("staf@demo.test")
@@ -422,6 +461,8 @@ def main() -> None:
     fraud_history()
     print("8. Portal faskes & peserta: minta dokumen susulan (U4)")
     late_documents_demo(staf)
+    print("9. Banding atas keputusan (U5)")
+    dispute_demo(staf)
     print(f"\nSelesai. Buka http://localhost:3000 (staf@demo.test / {PASSWORD}).")
     print(f"Klaim {LIVE_DEMO_CLAIM} sengaja belum diunggah ke tenant DEMO untuk diunggah langsung saat demo.")
     print(f"Tenant kedua: {SECOND_TENANT_STAFF} melihat {len(pelita_ids)} klaim Asuransi Pelita (ambang merah 20).")

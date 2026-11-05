@@ -111,6 +111,7 @@ export default function QueuePage() {
                   {LEVEL_LABEL[i.level]}
                   {i.level === "SPECIALIST" && i.specialty ? ` · ${i.specialty}` : ""}
                   {i.escalated && <span className="ml-1 rounded bg-violet-100 px-1.5 py-0.5 text-xs text-violet-800">eskalasi</span>}
+                  {i.dispute && <span className="ml-1 rounded bg-rose-100 px-1.5 py-0.5 text-xs text-rose-800">banding</span>}
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums">{rupiah(i.billed_amount)}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-slate-600">
