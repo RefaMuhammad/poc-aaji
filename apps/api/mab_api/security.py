@@ -5,6 +5,7 @@ import base64
 import hashlib
 import hmac
 import os
+import secrets
 from datetime import datetime, timedelta, timezone
 
 import jwt
@@ -49,3 +50,26 @@ def create_access_token(user_id: str, role: str, insurer_id: str | None) -> str:
 def decode_access_token(token: str) -> dict:
     """Melempar jwt.PyJWTError bila token tidak valid atau kedaluwarsa."""
     return jwt.decode(token, get_settings().jwt_secret, algorithms=["HS256"])
+
+
+API_KEY_PREFIX = "mab"
+
+
+def generate_api_key() -> tuple[str, str, str]:
+    """(kunci lengkap, prefix untuk pencarian, hash SHA-256). Kunci lengkap hanya ditampilkan sekali."""
+    prefix = secrets.token_hex(4)
+    key = f"{API_KEY_PREFIX}_{prefix}_{secrets.token_urlsafe(32)}"
+    return key, prefix, hash_api_key(key)
+
+
+def hash_api_key(key: str) -> str:
+    # Kunci acak 256-bit: SHA-256 cukup (tidak perlu PBKDF2 seperti password manusia).
+    return hashlib.sha256(key.encode()).hexdigest()
+
+
+def split_api_key(key: str) -> str | None:
+    """Prefix dari kunci berformat mab_<prefix>_<rahasia>, atau None bila formatnya salah."""
+    parts = key.split("_", 2)
+    if len(parts) != 3 or parts[0] != API_KEY_PREFIX or len(parts[1]) != 8:
+        return None
+    return parts[1]

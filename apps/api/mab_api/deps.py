@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from mab_api.db import get_db
 from mab_api.models import Role, User
+from mab_api.rbac import Perm, has_perm
 from mab_api.security import decode_access_token
 
 _bearer = HTTPBearer(auto_error=False)
@@ -37,6 +38,17 @@ def require_roles(*roles: Role) -> Callable[[User], User]:
 
     def checker(user: User = Depends(get_current_user)) -> User:
         if user.role not in allowed:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Peran Anda tidak diizinkan melakukan aksi ini")
+        return user
+
+    return checker
+
+
+def require_perm(*perms: Perm) -> Callable[[User], User]:
+    """Pengguna harus punya SEMUA izin yang disebut (lihat matriks di rbac.py)."""
+
+    def checker(user: User = Depends(get_current_user)) -> User:
+        if not all(has_perm(user.role, p) for p in perms):
             raise HTTPException(status.HTTP_403_FORBIDDEN, "Peran Anda tidak diizinkan melakukan aksi ini")
         return user
 

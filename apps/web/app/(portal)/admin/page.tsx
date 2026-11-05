@@ -3,16 +3,8 @@
 import { useEffect, useState } from "react";
 import { apiJson } from "@/lib/api";
 import type { RulesetInfo, RulesetRule, User } from "@/lib/types";
-import { REASON_LABEL, RECOMMENDATION_LABEL, SEVERITY_LABEL } from "@/lib/format";
+import { REASON_LABEL, RECOMMENDATION_LABEL, ROLE_LABEL, SEVERITY_LABEL } from "@/lib/format";
 import { TriageBadge } from "@/components/Badges";
-
-const ROLE_LABEL: Record<string, string> = {
-  insurer_staff: "Staf klaim",
-  insurer_manager: "Manajer klaim",
-  doctor_gp: "Dokter umum",
-  doctor_specialist: "Dokter spesialis",
-  admin: "Admin",
-};
 
 function RuleTable({ rules }: { rules: RulesetRule[] }) {
   return (
@@ -57,7 +49,10 @@ export default function AdminPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-lg font-semibold">Aturan & pengguna</h1>
-        <p className="text-sm text-slate-500">Baca saja. Aturan klinis diubah lewat file konfigurasi YAML, bukan dari layar ini.</p>
+        <p className="text-sm text-slate-500">
+          Baca saja. Aturan klinis diubah lewat file konfigurasi YAML, bukan dari layar ini. Penyesuaian per asuransi
+          (ambang triase, aturan yang dimatikan, SLA) diatur di halaman <a href="/admin/tenant" className="text-sky-800 hover:underline">Tenant &amp; API key</a>.
+        </p>
       </div>
       {error && <div className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</div>}
 
@@ -105,7 +100,7 @@ export default function AdminPage() {
           <h2 className="mb-2 font-medium">Pengguna ({users.length})</h2>
           <table className="w-full text-sm">
             <thead className="text-left text-xs text-slate-500">
-              <tr><th className="py-1 pr-3">Nama</th><th className="py-1 pr-3">Email</th><th className="py-1 pr-3">Peran</th><th className="py-1">Spesialisasi</th></tr>
+              <tr><th className="py-1 pr-3">Nama</th><th className="py-1 pr-3">Email</th><th className="py-1 pr-3">Peran</th><th className="py-1">Keterangan</th></tr>
             </thead>
             <tbody>
               {users.map((u) => (
@@ -113,7 +108,7 @@ export default function AdminPage() {
                   <td className="py-1.5 pr-3">{u.full_name}</td>
                   <td className="py-1.5 pr-3">{u.email}</td>
                   <td className="py-1.5 pr-3">{ROLE_LABEL[u.role] ?? u.role}</td>
-                  <td className="py-1.5">{u.specialty ?? "-"}</td>
+                  <td className="py-1.5">{u.specialty ?? u.facility_name ?? u.member_ref ?? "-"}</td>
                 </tr>
               ))}
             </tbody>

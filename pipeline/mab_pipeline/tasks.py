@@ -53,9 +53,11 @@ def _overlapping_claims(db, claim) -> list[dict]:
 def process_claim(claim_id: str, session_factory=None, storage=None, llm=None, ocr=None, ruleset=None) -> str:
     from sqlalchemy import delete, select
 
+    from mab_api.assignment import auto_assign, close_active
     from mab_api.audit import record
     from mab_api.db import make_session_factory
-    from mab_api.models import Claim, ClaimStatus, ExtractedField, Finding, Recommendation, RecommendationCode
+    from mab_api.models import (AssignmentStatus, Claim, ClaimStatus, ExtractedField, Finding, Recommendation,
+                                RecommendationCode)
     from mab_pipeline.extraction.derived_fields import DEFAULT_REQUIRED_DOCS
     from mab_pipeline.llm.client import get_llm_client
     from mab_pipeline.ocr.engine import get_ocr_engine
@@ -75,7 +77,10 @@ def process_claim(claim_id: str, session_factory=None, storage=None, llm=None, o
             storage = storage or _default_storage()
             llm = llm or get_llm_client()
             ocr = ocr or get_ocr_engine()
-            ruleset = ruleset or _default_ruleset()
+            from mab_api.tenancy import tenant_ruleset
+
+            # aturan dasar + penyesuaian tenant (ambang triase, aturan yang dimatikan)
+            ruleset, tenant_cfg = tenant_ruleset(db, ruleset or _default_ruleset(), claim.insurer_id)
             documents = list(claim.documents)
             if not documents:
                 raise ValueError("Klaim belum punya dokumen")
@@ -133,6 +138,9 @@ def process_claim(claim_id: str, session_factory=None, storage=None, llm=None, o
 
             claim.status = (ClaimStatus.AWAITING_DECISION if draft.recommendation == RecommendationCode.PAY_FULL.value
                             else ClaimStatus.AWAITING_DOCTOR).value
+            # proses ulang: penugasan lama tidak berlaku lagi
+            close_active(db, claim, AssignmentStatus.CANCELLED)
+            claim.assigned_doctor_id = None
             record(db, "PIPELINE_COMPLETED", claim_id=claim.id, detail={
                 "recommendation_id": rec.id,
                 "triage_status": draft.triage_status,
@@ -140,6 +148,12 @@ def process_claim(claim_id: str, session_factory=None, storage=None, llm=None, o
                 "model_version": assessment.model_version,
                 "prompt_version": assessment.prompt_version,
                 "ruleset_version": assessment.ruleset_version,
+                "tenant_overrides": {
+                    "settings_version": tenant_cfg.version,
+                    "triage_red_min_score": tenant_cfg.triage_red_min_score,
+                    "triage_yellow_min_score": tenant_cfg.triage_yellow_min_score,
+                    "disabled_rules": list(tenant_cfg.disabled_rules),
+                } if tenant_cfg.has_rule_overrides else None,
                 "ocr_engine": read.ocr_engine,
                 "documents": {
                     d.document_id: {"doc_type": d.doc_type, "method": read.classification.get(d.document_id),
@@ -154,6 +168,9 @@ def process_claim(claim_id: str, session_factory=None, storage=None, llm=None, o
                 "quality_flags": [q["code"] for q in draft.quality_flags],
                 "warnings": (read.warnings + assessment.reasoning.warnings)[:50],
             })
+            db.flush()
+            db.refresh(claim)
+            auto_assign(db, claim)
             db.commit()
             log.info("Klaim %s: %s / %s", claim.claim_number, draft.triage_status, draft.recommendation)
             return claim.status

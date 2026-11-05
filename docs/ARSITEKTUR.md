@@ -229,6 +229,8 @@ Setiap aturan: `id`, `nama`, `kondisi`, `kode_alasan`, `keparahan`, `pesan` (bol
 
 **Evaluator ekspresi aman** (`rules/engine.py`): `kondisi` di-parse dengan `ast` dan hanya node yang diizinkan yang boleh dipakai: akses `kelompok.field`, konstanta dan daftar, `and/or/not`, perbandingan (`== != < <= > >=`, `in`, `not in`, `is None`), dan `len()`. Tidak ada `eval`, pemanggilan fungsi lain, atau akses atribut bebas. Saat file dimuat (`rules/loader.py`), semua kesalahan dikumpulkan sekaligus: kunci wajib, id unik, field ada di kamus data, kode alasan dan keparahan dikenal, tabel triase diakhiri baris default. Aturan yang field-nya bernilai null dilewati dan dicatat (`RULE_SKIPPED`), bukan dianggap lolos.
 
+**Penyesuaian per tenant (U1):** tenant tidak menulis aturan, hanya menyesuaikan: ambang skor merah/kuning (mengganti `skor_min` baris merah/kuning) dan mematikan aturan tertentu. `mab_api/tenancy.py` membuat salinan RuleSet dengan penyesuaian itu tepat sebelum pipeline menilai klaim, dan versinya diberi akhiran tenant (`+KODE.vN`).
+
 Uji aturan dari baris perintah:
 
 ```bash
@@ -263,16 +265,21 @@ Kode di `apps/api/mab_api/`. Dokumentasi interaktif otomatis di http://localhost
 | `claims` | `POST /claims`, `POST /claims/{id}/documents`, `POST /claims/batch` (ZIP + `manifest.xlsx`), `GET /claims` (filter `status`, `triage`), `GET /claims/{id}`, `GET /claims/{id}/status`, `GET /claims/{id}/fields`, `GET /claims/{id}/recommendation`, `GET /claims/{id}/recommendation.pdf`, `POST /claims/{id}/decision`, `POST /claims/decisions/bulk-agree`, `GET /claims/export.csv` | asuransi (tulis), semua (baca sesuai akses) |
 | `documents` | `GET /documents/{id}/pages/{n}.png?dpi=`, `GET /documents/{id}/download` | sesuai akses klaim |
 | `review` | `GET /review/queue`, `GET /review/{id}`, `POST /review/{id}/start`, `POST /review/{id}/release`, `PATCH /review/{id}/fields/{field_id}`, `POST /review/{id}/escalate`, `POST /review/{id}/sign` | dokter (admin: baca) |
-| `dashboard` | `GET /dashboard` | asuransi, admin |
-| `admin` | `GET /admin/ruleset` | admin, dokter |
+| `dashboard` | `GET /dashboard` | asuransi, TPA, auditor, admin |
+| `admin` | `GET /admin/ruleset`, `POST /admin/claims/{id}/assign` | lihat aturan: admin, dokter, auditor; pindah penugasan: admin |
 | `users` | `GET /users` | admin |
+| `tenants` (U1) | `GET /tenants/current` (logo/nama untuk header), `GET /tenants`, `POST /tenants`, `PUT /tenants/{id}/settings`, `GET/POST /tenants/{id}/api-clients`, `POST /tenants/{id}/api-clients/{cid}/revoke` | lihat: peran tenant; ubah: admin |
+| `integrations` (U1) | `GET /integrations/v1/whoami`, `GET /integrations/v1/claims`, `GET /integrations/v1/claims/{nomor}` | akun layanan, header `X-API-Key`, cakupan `claims:read` |
 
-Modul pendukung: `access.py` (query klaim yang boleh dilihat), `deps.py` (pengguna saat ini, `require_roles`), `documents.py` (validasi file, sniff magic bytes PDF/JPG/PNG, nama file aman, sha256), `storage.py` (`S3Storage` untuk MinIO, `MemoryStorage` untuk tes), `job_queue.py` (RQ), `rendering.py` (PNG halaman, PDF rekomendasi), `audit.py` (middleware + pencatat manual), `ruleset.py` (aturan aktif, di-cache per proses).
+Hak akses per peran ada di satu tempat, `rbac.py` (matriks izin, `require_perm`); cakupan data di `access.py`. Matriks lengkap di [u1-fondasi-platform.md](u1-fondasi-platform.md#3-matriks-hak-akses).
+
+Modul pendukung: `access.py` (query klaim yang boleh dilihat per peran dan tenant), `rbac.py` (matriks izin), `tenancy.py` (pengaturan tenant dan penerapannya ke aturan), `assignment.py` (routing, penugasan otomatis, SLA), `deps.py` (pengguna saat ini, `require_perm`), `documents.py` (validasi file, sniff magic bytes PDF/JPG/PNG, nama file aman, sha256), `storage.py` (`S3Storage` untuk MinIO, `MemoryStorage` untuk tes), `job_queue.py` (RQ), `rendering.py` (PNG halaman, PDF rekomendasi), `audit.py` (middleware + pencatat manual), `ruleset.py` (aturan aktif, di-cache per proses).
 
 Alur dokter di `routers/review.py`:
 
 - **Routing antrean:** level `GP` untuk kuning, `SPECIALIST` untuk merah atau yang sudah dieskalasi; spesialisasi dari `diagnosis[].spesialisasi` di file aturan (atau spesialisasi tujuan eskalasi). Urut skor risiko lalu lama menunggu.
-- **Kunci kasus:** `start` mengisi `claims.assigned_doctor_id` dan membuat baris `reviews` (waktu mulai). Dokter lain tidak lagi melihat kasus itu.
+- **Penugasan (U1):** setelah draf dibuat, kasus ditugaskan otomatis ke dokter berhak dengan beban aktif paling sedikit (`assignments`, `claims.assigned_doctor_id`), kecuali tenant mematikannya. Dokter lain tidak melihat kasus yang sudah ditugaskan. Lepas kasus → dokter lain; eskalasi → spesialis. Antrean menampilkan batas SLA dan mengurutkan kasus lewat SLA lebih dulu.
+- **Kunci kasus:** `start` membuat baris `reviews` (waktu mulai); bila kasus diambil dari antrean bersama, `start` juga membuat penugasan `CLAIMED`.
 - **Koreksi field:** nilai asli tetap di `value`; koreksi di `corrected_value/by/at`; riwayat lengkap (lama, baru, catatan) di audit `FIELD_CORRECTED`.
 - **Usulan final dari draf AI:** ada koreksi item → bayar sebagian; tidak ada → tunda/klarifikasi; tidak pernah tidak dijamin.
 - **Tanda tangan:** cek PIN (salah → 403 + audit `SIGN_PIN_FAILED`); kode alasan wajib bila keputusan berbeda dari usulan; membuat versi rekomendasi baru `SIGNED` dengan temuan dan bukti disalin; `reviews.action` = `APPROVE`/`MODIFY`, `agrees_with_ai`, waktu selesai.
@@ -284,7 +291,11 @@ Tabel utama (`apps/api/mab_api/models.py`, migrasi `apps/api/alembic/versions/`)
 | Tabel | Kolom penting | Keterangan |
 |---|---|---|
 | `insurers` | `code`, `name` | Perusahaan asuransi (tenant) |
-| `users` | `email`, `role`, `insurer_id`, `specialty`, `password_hash`, `pin_hash`, `is_active` | Peran: `insurer_staff`, `insurer_manager`, `doctor_gp`, `doctor_specialist`, `admin` |
+| `users` | `email`, `role`, `insurer_id`, `specialty`, `facility_name`, `member_ref`, `password_hash`, `pin_hash`, `is_active` | Peran: `insurer_staff`, `insurer_manager`, `tpa_operator`, `doctor_gp`, `doctor_specialist`, `auditor`, `facility_officer`, `member`, `underwriter`, `admin` |
+| `user_tenants` (U1) | `user_id`, `insurer_id` | Tenant tambahan yang dilayani operator TPA |
+| `tenant_settings` (U1) | `display_name`, `logo_data_url`, `primary_color`, `triage_red_min_score`, `triage_yellow_min_score`, `disabled_rules[]`, `sla_gp_hours`, `sla_specialist_hours`, `auto_assign`, `version` | Pengaturan per asuransi |
+| `api_clients` (U1) | `insurer_id`, `name`, `key_prefix`, `key_hash` (SHA-256), `scopes[]`, `is_active`, `last_used_at`, `revoked_at` | Akun layanan integrasi |
+| `assignments` (U1) | `claim_id`, `recommendation_id`, `doctor_id`, `level`, `specialty`, `method`, `status`, `assigned_at`, `due_at`, `closed_at` | Penugasan kasus ke dokter dan batas SLA |
 | `claims` | `claim_number`, `policy_number`, `member_id`, `hospital_name`, tanggal rawat, `billed_amount`, `primary_icd10`, `status`, `processing_error`, `assigned_doctor_id` | Satu klaim rawat inap |
 | `documents` | `filename`, `content_type`, `size_bytes`, `sha256`, `storage_key`, `doc_type`, `page_count` | Metadata file; isi file di MinIO |
 | `extracted_fields` | `field_path`, `value`, `source`, `confidence`, `status`, `evidence[]`, `corrected_value/by/at` | Satu baris per field kamus data |
@@ -329,8 +340,12 @@ Kode di `apps/web/` (Next.js App Router, semua halaman client component).
 | `/klaim/[id]` | semua | Progres proses, dokumen, rekomendasi format PRD, bukti → pratinjau tersorot, keputusan, unduh PDF |
 | `/telaah` | dokter | Antrean (urut risiko, filter diagnosis), tab "sudah saya tanda tangani" |
 | `/telaah/[id]` | dokter, admin (baca) | Layar dua panel: dokumen asli (kiri), temuan/draf/data ekstraksi/riwayat (kanan), aksi + PIN |
-| `/dashboard` | asuransi, admin | Ringkasan pilot |
+| `/dashboard` | asuransi, TPA, auditor, admin | Ringkasan pilot |
 | `/admin` | admin | Aturan aktif dan pengguna (baca saja) |
+| `/admin/tenant` | admin | Tenant: tampilan, ambang triase, aturan aktif, SLA, penugasan otomatis; akun layanan (API key) |
+| `/underwriting` | underwriter | Penanda modul U7 |
+
+Header portal menampilkan logo dan nama tenant pengguna (`GET /tenants/current`). Menu mengikuti cerminan matriks izin di `lib/auth.tsx`; keputusan akses tetap di API.
 
 Komponen utama di `components/`: `DocumentViewer` (`DocumentPane` inline + modal; memuat PNG halaman lewat blob URL bertoken lalu menggambar kotak sorotan dari bbox proporsional), `FindingCard`, `RecommendationView`, `ExtractedFields` (koreksi field per tipe kamus data), `ReviewActions` (setujui/ubah/eskalasi/lepas + dialog PIN), `DecisionForm`, `Badges`.
 
@@ -342,17 +357,19 @@ Komponen utama di `components/`: `DocumentViewer` (`DocumentPane` inline + modal
 
 - **Autentikasi:** JWT HS256 (`JWT_SECRET`), kedaluwarsa 8 jam. Password dan PIN di-hash PBKDF2-SHA256 240.000 iterasi dengan salt acak.
 - **Ganti peran (demo):** akun demo (`mab_api/demo.py`) bisa berpindah ke akun demo lain tanpa password lewat `POST /auth/demo-switch`, untuk menjalankan seluruh alur dari satu jendela. Bukan peran super: token baru membawa peran akun tujuan, jadi semua batasan peran tetap berlaku, dan perpindahan dicatat sebagai `DEMO_SWITCH` di log audit. Hanya aktif bila `DEMO_MODE=true`; wajib dimatikan sebelum memakai data sungguhan.
-- **Isolasi tenant:** staf/manajer hanya melihat klaim `insurer_id` miliknya. Klaim di luar akses menjawab **404**, bukan 403, supaya keberadaannya tidak bocor.
+- **Isolasi tenant:** staf/manajer/auditor tenant hanya melihat klaim `insurer_id` miliknya; operator TPA hanya tenant di `user_tenants`; petugas faskes hanya klaim RS-nya; peserta hanya klaim atas nomor pesertanya. Peran tanpa aturan cakupan tidak melihat klaim apa pun. Klaim di luar akses menjawab **404**, bukan 403, supaya keberadaannya tidak bocor.
+- **Draf AI:** hanya dokter dan admin yang melihat draf sebelum ditandatangani; peran lain hanya rekomendasi yang sudah dirilis.
+- **Akun layanan (U1):** kunci API acak 256-bit, hanya hash SHA-256 yang disimpan, ditampilkan sekali, bisa dicabut; terikat ke satu tenant dan cakupan izin. Setiap panggilan tercatat `INTEGRATION_ACCESS`.
 - **Akses dokter:** klaim yang ditugaskan kepadanya, atau yang menunggu dokter dan belum dikunci dokter lain; antrean memfilter level dan spesialisasi.
-- **Pemisahan peran:** hanya asuransi yang bisa membuat klaim dan memutuskan; hanya dokter yang bisa menelaah dan menandatangani; hanya dokter umum yang bisa mengeskalasi; admin baca saja.
+- **Pemisahan peran:** hanya asuransi/TPA yang bisa membuat klaim dan memutuskan; hanya dokter yang bisa menelaah dan menandatangani; hanya dokter umum yang bisa mengeskalasi; auditor, faskes, dan peserta hanya-baca; admin mengatur tenant dan penugasan tetapi tidak memutuskan klaim.
 - **Validasi unggahan:** tipe file dari magic bytes (bukan ekstensi), maksimum 20 MB per file dan 500 MB per ZIP, nama file disanitasi, sha256 disimpan.
-- **Audit:** middleware mencatat setiap aksi tulis dan akses dokumen; endpoint mencatat kejadian penting (`LOGIN_*`, `PIPELINE_COMPLETED/FAILED`, `REVIEW_STARTED/ESCALATED/RELEASED`, `FIELD_CORRECTED`, `SIGN_PIN_FAILED`, `RECOMMENDATION_SIGNED`). Di PostgreSQL, trigger `audit_logs_no_change` menolak UPDATE dan DELETE.
+- **Audit:** middleware mencatat setiap aksi tulis dan akses dokumen; endpoint mencatat kejadian penting (`LOGIN_*`, `PIPELINE_COMPLETED/FAILED`, `REVIEW_STARTED/ESCALATED/RELEASED`, `FIELD_CORRECTED`, `SIGN_PIN_FAILED`, `RECOMMENDATION_SIGNED`, dan sejak U1 `CASE_ASSIGNED`, `TENANT_CREATED`, `TENANT_SETTINGS_UPDATED`, `API_CLIENT_CREATED/REVOKED`, `INTEGRATION_ACCESS`). Di PostgreSQL, trigger `audit_logs_no_change` menolak UPDATE dan DELETE.
 - **Rahasia:** hanya di `.env` (diabaikan git). Nilai di `.env.example` khusus lokal.
 - **Data:** hanya data sintetis di Tahap 0. Sebelum memakai data nyata, cek ulang lokasi pemrosesan data penyedia LLM dan terapkan penyamaran.
 
 ## 13. Keterlacakan dan versi
 
-Setiap rekomendasi menyimpan `model_version` (mis. `mock-llm-1` atau nama model), `prompt_version` (`extract_v1+clinical_v1`), dan `ruleset_version` (`rules-2026.11-demo`). Tanda tangan dokter membuat versi baru dan menyalin ketiga versi itu, sehingga selalu bisa dijawab: rekomendasi ini dibuat oleh model apa, prompt apa, aturan versi berapa, siapa yang menandatangani, dan apa yang diubah dari draf AI.
+Setiap rekomendasi menyimpan `model_version` (mis. `mock-llm-1` atau nama model), `prompt_version` (`extract_v1+clinical_v1`), dan `ruleset_version` (`rules-2026.11-demo`, atau dengan akhiran tenant bila tenant menyesuaikan ambang/aturan, mis. `rules-2026.11-demo+PELITA.v1`). Tanda tangan dokter membuat versi baru dan menyalin ketiga versi itu, sehingga selalu bisa dijawab: rekomendasi ini dibuat oleh model apa, prompt apa, aturan versi berapa, siapa yang menandatangani, dan apa yang diubah dari draf AI.
 
 ## 14. Data sintetis dan evaluasi
 
@@ -374,6 +391,8 @@ Setiap rekomendasi menyimpan `model_version` (mis. `mock-llm-1` atau nama model)
 | `tests/test_reasoning.py` | Cek bukti, penalaran klinis, rekomendasi, job worker, pratinjau halaman, PDF |
 | `tests/test_review.py` | Antrean dokter, kunci kasus, koreksi + riwayat, eskalasi, PIN, versi SIGNED, rilis ke asuransi |
 | `tests/test_dashboard.py` | Dashboard hanya menghitung rekomendasi yang boleh dilihat |
+| `tests/test_rbac.py` | (U1) Matriks peran × endpoint, isolasi antar tenant dan antar peran, draf tersembunyi, TPA multi-tenant |
+| `tests/test_tenants.py` | (U1) Ambang triase & aturan per tenant, versi aturan bertenant, audit pengaturan, API key, penugasan otomatis, SLA |
 
 Frontend dicek dengan `npm run build` (TypeScript strict) dan uji alur di browser (Playwright) selama pengembangan.
 

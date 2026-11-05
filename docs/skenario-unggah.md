@@ -16,7 +16,8 @@ Di kanan atas portal ada pemilih kuning **Ganti peran (demo)**. Pilih peran dan 
 | 2. Dokter umum | `dokter.umum@mab.test` | Telaah kasus kuning, tanda tangan (PIN `123456`) |
 | 3. Dokter spesialis | `dokter.spesialis@mab.test` | Telaah kasus merah dan eskalasi |
 | 4. Manajer klaim | `manajer@demo.test` | Dashboard |
-| 5. Admin MAB | `admin@mab.test` | Aturan klinis, pengguna, semua data |
+| 5. Admin MAB | `admin@mab.test` | Aturan klinis, pengguna, tenant & API key, semua data |
+| 6–11 (U1) | `staf@pelita.test`, `tpa@mab.test`, `auditor@demo.test`, `faskes@demo.test`, `peserta@demo.test`, `underwriter@demo.test` | Tenant kedua dan peran baru; lihat [u1-fondasi-platform.md](u1-fondasi-platform.md) |
 
 Bila sedang membuka sebuah klaim, ganti peran tetap membuka klaim yang sama di tampilan peran baru (misalnya dari detail klaim staf ke ruang kerja dokter).
 

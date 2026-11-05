@@ -46,9 +46,10 @@ def test_queue_routes_red_to_specialist_and_yellow_to_gp(client, login, processe
     assert client.get("/review/queue?icd=A91", headers=login("dokter_umum")).json() == []
     # staf asuransi tidak boleh membuka antrean dokter
     assert client.get("/review/queue", headers=login("staf")).status_code == 403
-    # dokter umum tidak boleh mengambil kasus merah
+    # kasus merah sudah ditugaskan otomatis ke spesialis (U1): dokter umum tidak melihatnya
+    assert sp[0]["assigned_to_me"] and gp[0]["assigned_to_me"]
     r = client.post(f"/review/{red}/start", headers=login("dokter_umum"))
-    assert r.status_code == 403 and "spesialis" in r.json()["detail"]
+    assert r.status_code == 404
 
 
 def test_specialist_signs_red_case_and_insurer_sees_it(client, login, processed, session_factory):

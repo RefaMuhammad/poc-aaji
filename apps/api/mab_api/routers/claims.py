@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from mab_api.access import get_visible_claim, visible_claims_query
+from mab_api.access import get_visible_claim, resolve_target_tenant, visible_claims_query
 from mab_api.api_schemas import (
     BatchResult,
     BatchRowResult,
@@ -36,26 +36,31 @@ from mab_api.api_schemas import (
 )
 from mab_api.config import get_settings
 from mab_api.db import get_db
-from mab_api.deps import get_current_user, get_queue, get_storage, require_roles
+from mab_api.deps import get_queue, get_storage, require_perm
 from mab_api.rendering import recommendation_pdf
 from mab_api.documents import InvalidFile, missing_documents, store_document, validate_file
 from mab_api.models import (
-    INSURER_ROLES,
     Claim,
     ClaimStatus,
     DecisionCode,
     ExtractedField,
+    Insurer,
     InsurerDecision,
     Recommendation,
     RecommendationCode,
     RecommendationState,
-    Role,
+    TenantSettings,
     User,
 )
+from mab_api.rbac import Perm, can_see_draft, has_perm
 
 router = APIRouter(prefix="/claims", tags=["klaim"])
 
-insurer_only = require_roles(Role.INSURER_STAFF, Role.INSURER_MANAGER)
+can_list = require_perm(Perm.CLAIM_LIST)
+can_detail = require_perm(Perm.CLAIM_DETAIL)
+can_submit = require_perm(Perm.CLAIM_SUBMIT)
+can_decide = require_perm(Perm.CLAIM_DECIDE)
+can_export = require_perm(Perm.CLAIM_EXPORT)
 
 
 # ----------------------------------------------------------------------------- bantuan
@@ -136,8 +141,10 @@ def _record_decision(db: Session, claim: Claim, rec: Recommendation, user: User,
 
 
 @router.post("", response_model=ClaimOut, status_code=status.HTTP_201_CREATED)
-def create_claim(body: ClaimCreate, db: Session = Depends(get_db), user: User = Depends(insurer_only)) -> Claim:
-    claim = Claim(insurer_id=user.insurer_id, created_by_id=user.id, **body.model_dump())
+def create_claim(body: ClaimCreate, db: Session = Depends(get_db), user: User = Depends(can_submit)) -> Claim:
+    """Staf asuransi membuat klaim untuk asuransinya; operator TPA memilih asuransi lewat `insurer_id`."""
+    insurer_id = resolve_target_tenant(db, user, body.insurer_id)
+    claim = Claim(insurer_id=insurer_id, created_by_id=user.id, **body.model_dump(exclude={"insurer_id"}))
     db.add(claim)
     try:
         db.commit()
@@ -148,8 +155,11 @@ def create_claim(body: ClaimCreate, db: Session = Depends(get_db), user: User = 
 
 
 def _visible_rec(claim: Claim, user: User) -> Recommendation | None:
+    """Rekomendasi yang boleh dilihat: draf hanya untuk dokter/admin; peran tanpa akses detail tidak melihatnya."""
     rec = _current_recommendation(claim)
-    if rec is None or (Role(user.role) in INSURER_ROLES and not _released_to_insurer(rec)):
+    if rec is None or not has_perm(user.role, Perm.CLAIM_DETAIL):
+        return None
+    if not can_see_draft(user.role) and not _released_to_insurer(rec):
         return None
     return rec
 
@@ -161,12 +171,14 @@ def list_claims(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     triage: str | None = Query(default=None, description="GREEN / YELLOW / RED"),
-    user: User = Depends(get_current_user),
+    user: User = Depends(can_list),
 ) -> list[ClaimListItem]:
-    q = visible_claims_query(user)
+    q = visible_claims_query(user, db)
     if status_filter:
         q = q.where(Claim.status == status_filter)
     out = []
+    display = {t.insurer_id: t.display_name for t in db.scalars(select(TenantSettings)) if t.display_name}
+    insurer_names = {i.id: display.get(i.id, i.name) for i in db.scalars(select(Insurer))}
     for c in db.scalars(q.order_by(Claim.created_at.desc()).limit(limit).offset(offset)):
         rec = _visible_rec(c, user)
         if triage and (rec is None or rec.triage_status != triage):
@@ -178,6 +190,7 @@ def list_claims(
             risk_score=rec.risk_score if rec else None,
             recommendation=rec.recommendation if rec else None,
             decision=dec.decision if dec else None,
+            insurer_name=insurer_names.get(c.insurer_id),
         ))
     return out
 
@@ -193,8 +206,8 @@ EXPORT_COLUMNS = [
 
 
 @router.get("/export.csv")
-def export_csv(db: Session = Depends(get_db), user: User = Depends(insurer_only)) -> StreamingResponse:
-    claims = list(db.scalars(visible_claims_query(user).order_by(Claim.created_at)))
+def export_csv(db: Session = Depends(get_db), user: User = Depends(can_export)) -> StreamingResponse:
+    claims = list(db.scalars(visible_claims_query(user, db).order_by(Claim.created_at)))
     buf = io.StringIO()
     buf.write("﻿")  # BOM supaya Excel membaca UTF-8
     writer = csv.writer(buf)
@@ -226,11 +239,11 @@ def export_csv(db: Session = Depends(get_db), user: User = Depends(insurer_only)
 
 
 @router.post("/decisions/bulk-agree", response_model=BulkAgreeResult)
-def bulk_agree_green(body: BulkAgreeRequest, db: Session = Depends(get_db), user: User = Depends(insurer_only)) -> BulkAgreeResult:
+def bulk_agree_green(body: BulkAgreeRequest, db: Session = Depends(get_db), user: User = Depends(can_decide)) -> BulkAgreeResult:
     """Setujui massal klaim hijau (PAY_FULL) yang belum diputuskan."""
     agreed, skipped = [], []
     for claim_id in dict.fromkeys(body.claim_ids):
-        claim = db.scalar(visible_claims_query(user).where(Claim.id == claim_id))
+        claim = db.scalar(visible_claims_query(user, db).where(Claim.id == claim_id))
         rec = _current_recommendation(claim) if claim else None
         if claim is None:
             skipped.append({"claim_id": claim_id, "reason": "Klaim tidak ditemukan"})
@@ -298,12 +311,14 @@ def _read_manifest(data: bytes) -> list[dict]:
 @router.post("/batch", response_model=BatchResult)
 def upload_batch(
     file: UploadFile = File(..., description="ZIP berisi manifest.xlsx dan satu folder per klaim"),
+    insurer_id: str | None = Query(default=None, description="Wajib untuk operator TPA: asuransi pemilik klaim"),
     db: Session = Depends(get_db),
-    user: User = Depends(insurer_only),
+    user: User = Depends(can_submit),
     storage=Depends(get_storage),
     queue=Depends(get_queue),
 ) -> BatchResult:
     settings = get_settings()
+    target_insurer = resolve_target_tenant(db, user, insurer_id)
     raw = file.file.read(settings.max_zip_mb * 1024 * 1024 + 1)
     if len(raw) > settings.max_zip_mb * 1024 * 1024:
         raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, f"ZIP melebihi {settings.max_zip_mb} MB")
@@ -364,7 +379,7 @@ def upload_batch(
 
         savepoint = db.begin_nested()
         try:
-            claim = Claim(insurer_id=user.insurer_id, created_by_id=user.id, **body.model_dump())
+            claim = Claim(insurer_id=target_insurer, created_by_id=user.id, **body.model_dump(exclude={"insurer_id"}))
             db.add(claim)
             db.flush()
             for f in valid:
@@ -393,7 +408,7 @@ def upload_batch(
 
 
 @router.get("/{claim_id}", response_model=ClaimDetail)
-def get_claim(claim_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> ClaimDetail:
+def get_claim(claim_id: str, db: Session = Depends(get_db), user: User = Depends(can_list)) -> ClaimDetail:
     claim = get_visible_claim(db, user, claim_id)
     current = _current_recommendation(claim)
     rec = _visible_rec(claim, user)
@@ -410,13 +425,13 @@ def get_claim(claim_id: str, db: Session = Depends(get_db), user: User = Depends
 
 
 @router.get("/{claim_id}/status", response_model=ClaimStatusOut)
-def get_claim_status(claim_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> ClaimStatusOut:
+def get_claim_status(claim_id: str, db: Session = Depends(get_db), user: User = Depends(can_list)) -> ClaimStatusOut:
     claim = get_visible_claim(db, user, claim_id)
     return ClaimStatusOut(id=claim.id, status=claim.status, processing_error=claim.processing_error, updated_at=claim.updated_at)
 
 
 @router.get("/{claim_id}/fields", response_model=list[ExtractedFieldOut])
-def get_extracted_fields(claim_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> list[ExtractedFieldOut]:
+def get_extracted_fields(claim_id: str, db: Session = Depends(get_db), user: User = Depends(can_detail)) -> list[ExtractedFieldOut]:
     """Field hasil baca dokumen beserta bukti (dokumen, halaman, bbox, kutipan)."""
     claim = get_visible_claim(db, user, claim_id)
     rows = db.scalars(select(ExtractedField).where(ExtractedField.claim_id == claim.id).order_by(ExtractedField.field_path))
@@ -429,7 +444,7 @@ def upload_documents(
     files: list[UploadFile] = File(...),
     submit: bool = Query(default=True, description="Kirim klaim ke antrean proses setelah unggah"),
     db: Session = Depends(get_db),
-    user: User = Depends(insurer_only),
+    user: User = Depends(can_submit),
     storage=Depends(get_storage),
     queue=Depends(get_queue),
 ) -> UploadResult:
@@ -451,18 +466,18 @@ def upload_documents(
 
 
 @router.get("/{claim_id}/recommendation", response_model=RecommendationOut)
-def get_recommendation(claim_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> RecommendationOut:
+def get_recommendation(claim_id: str, db: Session = Depends(get_db), user: User = Depends(can_detail)) -> RecommendationOut:
     claim = get_visible_claim(db, user, claim_id)
     rec = _current_recommendation(claim)
     if rec is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Rekomendasi belum tersedia")
-    if Role(user.role) in INSURER_ROLES and not _released_to_insurer(rec):
+    if not can_see_draft(user.role) and not _released_to_insurer(rec):
         raise HTTPException(status.HTTP_409_CONFLICT, "Rekomendasi menunggu telaah dan tanda tangan dokter")
     return build_recommendation_view(claim, rec)
 
 
 @router.get("/{claim_id}/recommendation.pdf")
-def get_recommendation_pdf(claim_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> Response:
+def get_recommendation_pdf(claim_id: str, db: Session = Depends(get_db), user: User = Depends(can_detail)) -> Response:
     """Rekomendasi sebagai PDF sederhana (isi sama dengan tampilan portal)."""
     view = get_recommendation(claim_id, db, user)
     claim = get_visible_claim(db, user, claim_id)
@@ -473,7 +488,7 @@ def get_recommendation_pdf(claim_id: str, db: Session = Depends(get_db), user: U
 
 @router.post("/{claim_id}/decision", response_model=RecommendationOut, status_code=status.HTTP_201_CREATED)
 def record_decision(
-    claim_id: str, body: DecisionCreate, db: Session = Depends(get_db), user: User = Depends(insurer_only)
+    claim_id: str, body: DecisionCreate, db: Session = Depends(get_db), user: User = Depends(can_decide)
 ) -> RecommendationOut:
     claim = get_visible_claim(db, user, claim_id)
     rec = _current_recommendation(claim)

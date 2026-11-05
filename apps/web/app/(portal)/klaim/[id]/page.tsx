@@ -41,6 +41,7 @@ export default function ClaimDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const isInsurer = !!user && INSURER_ROLES.includes(user.role);
+  const statusOnly = user?.role === "facility_officer" || user?.role === "member";
   const [claim, setClaim] = useState<ClaimDetail | null>(null);
   const [rec, setRec] = useState<Recommendation | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -126,7 +127,11 @@ export default function ClaimDetailPage() {
             <ul className="space-y-1.5 text-sm">
               {claim.documents.map((d) => (
                 <li key={d.id}>
-                  <button className="w-full text-left hover:text-sky-800" onClick={() => setViewer({ documentId: d.id, page: 1 })}>
+                  <button
+                    className="w-full text-left hover:text-sky-800 disabled:cursor-default disabled:hover:text-inherit"
+                    disabled={statusOnly}
+                    onClick={() => setViewer({ documentId: d.id, page: 1 })}
+                  >
                     <div className="truncate">{d.filename}</div>
                     <div className="text-xs text-slate-500">
                       {DOC_TYPE_LABEL[d.doc_type] ?? d.doc_type}
@@ -146,7 +151,12 @@ export default function ClaimDetailPage() {
         </aside>
 
         <div className="space-y-5">
-          {rec ? (
+          {statusOnly ? (
+            <div className="card text-sm text-slate-600">
+              Status klaim: <span className="font-medium">{claim.decision ? "sudah diputuskan asuransi" : "sedang diproses"}</span>.
+              Rincian rekomendasi dan penjelasan keputusan akan tersedia di portal {user?.role === "member" ? "peserta" : "faskes"} (fase U4).
+            </div>
+          ) : rec ? (
             <>
               <RecommendationView rec={rec} documents={claim.documents} />
               {isInsurer && <DecisionForm rec={rec} onSaved={(r) => { setRec(r); load(); }} />}
