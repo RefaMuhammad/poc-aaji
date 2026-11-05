@@ -85,6 +85,8 @@ export function ReviewActions({ ws, isGp, onDone }: { ws: Workspace; isGp: boole
     code !== suggestion.recommendation ||
     amount !== suggestion.recommended_amount ||
     (code === "PAY_PARTIAL" && kept.length !== adjustments.length);
+  // U5: membatalkan keputusan yang dibanding cukup dengan pertimbangan di catatan, tanpa kode alasan
+  const overturn = !!ws.dispute && code === "PAY_FULL";
 
   const sign = async (pin: string) => {
     const r = await apiFetch(`/review/${claimId}/sign`, {
@@ -109,7 +111,10 @@ export function ReviewActions({ ws, isGp, onDone }: { ws: Workspace; isGp: boole
 
   const submitModify = () => {
     setError(null);
-    if (changed && !reason) return setError("Pilih kode alasan perubahan");
+    if (changed && !reason) {
+      if (!overturn) return setError("Pilih kode alasan perubahan");
+      if (!notes.trim()) return setError("Tuliskan pertimbangan telaah ulang di catatan dokter");
+    }
     if (code === "PAY_PARTIAL" && (amount === null || amount >= draft.billed_amount)) return setError("Nilai bayar sebagian harus lebih kecil dari tagihan");
     setPending({
       recommendation: code,
@@ -214,7 +219,7 @@ export function ReviewActions({ ws, isGp, onDone }: { ws: Workspace; isGp: boole
           )}
 
           <label className="block text-sm">
-            <span className="text-slate-600">Kode alasan {changed ? <span className="text-rose-600">(wajib karena berbeda dari draf)</span> : "(opsional)"}</span>
+            <span className="text-slate-600">Kode alasan {changed && !overturn ? <span className="text-rose-600">(wajib karena berbeda dari draf)</span> : "(opsional)"}</span>
             <select className="input mt-1" value={reason} onChange={(e) => setReason(e.target.value)}>
               <option value="">— pilih —</option>
               {Object.entries(ws.reason_codes).map(([k, v]) => (
@@ -232,7 +237,11 @@ export function ReviewActions({ ws, isGp, onDone }: { ws: Workspace; isGp: boole
             />
           </label>
           <label className="block text-sm">
-            <span className="text-slate-600">Catatan internal dokter (opsional)</span>
+            <span className="text-slate-600">
+              {ws.dispute
+                ? <>Pertimbangan telaah ulang {overturn && changed ? <span className="text-rose-600">(wajib)</span> : "(opsional)"}; dibaca pengaju setelah banding diputus</>
+                : "Catatan internal dokter (opsional)"}
+            </span>
             <textarea className="input mt-1 h-16" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </label>
           <div className="flex gap-2">

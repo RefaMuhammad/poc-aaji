@@ -50,6 +50,9 @@ def open_request(db: Session, claim: Claim, rec: Recommendation, user: User, *, 
         raise HTTPException(status.HTTP_409_CONFLICT, "Dokumen hanya bisa diminta saat klaim menunggu keputusan asuransi")
     if open_request_for(db, claim) is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Masih ada permintaan dokumen yang terbuka untuk klaim ini")
+    if rec.dispute_id:
+        # U5: proses ulang akan membuat draf baru di luar banding; dokumen banding sudah dikirim pengaju.
+        raise HTTPException(status.HTTP_409_CONFLICT, "Klaim sedang diputus ulang atas banding; dokumen tidak bisa diminta")
     types = list(dict.fromkeys(t.strip() for t in (doc_types or []) if t and t.strip())) or missing_documents(claim)
     if not types:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Pilih minimal satu jenis dokumen yang diminta")

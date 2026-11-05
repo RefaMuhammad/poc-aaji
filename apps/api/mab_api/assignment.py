@@ -63,7 +63,9 @@ def routing(claim: Claim, rec: Recommendation | None, reviews: list[Review]) -> 
     dx = active_ruleset().match_diagnosis(claim.primary_icd10)
     esc = escalation(reviews, rec)
     specialty = (esc.escalated_specialty if esc and esc.escalated_specialty else None) or (dx.specialty if dx else None)
-    level = SPECIALIST if (rec is not None and rec.triage_status == "RED") or esc else GP
+    # U5: banding selalu ditelaah ulang dokter spesialis (yang berbeda dari penelaah awal)
+    dispute = rec is not None and rec.dispute_id is not None
+    level = SPECIALIST if (rec is not None and rec.triage_status == "RED") or esc or dispute else GP
     return level, specialty, esc is not None, dx.name if dx else None
 
 
@@ -155,7 +157,8 @@ def auto_assign(db: Session, claim: Claim, *, exclude: set[str] | None = None, r
         return None
     reviews = claim_reviews(db, claim)
     level, specialty, _, _ = routing(claim, rec, reviews)
-    doctors = [d for d in eligible_doctors(db, level, specialty) if d.id not in (exclude or set())]
+    exclude = set(exclude or ()) | ({rec.excluded_reviewer_id} if rec.excluded_reviewer_id else set())
+    doctors = [d for d in eligible_doctors(db, level, specialty) if d.id not in exclude]
     if not doctors:
         return None
     load = _load(db, [d.id for d in doctors])

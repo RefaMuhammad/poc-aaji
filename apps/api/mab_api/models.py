@@ -419,6 +419,9 @@ class Recommendation(Base):
     prompt_version: Mapped[str] = mapped_column(String(50))
     ruleset_version: Mapped[str] = mapped_column(String(50))
     benefit_ruleset_version: Mapped[str | None] = mapped_column(String(50), nullable=True)  # U2
+    # U5: rekomendasi telaah ulang sengketa (banding) dan dokter yang tidak boleh menelaahnya (penelaah awal)
+    dispute_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    excluded_reviewer_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     signed_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     signed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -499,6 +502,46 @@ class DocumentRequest(Base):
 
     requested_by: Mapped[User] = relationship(foreign_keys=[requested_by_id])
     fulfilled_by: Mapped[User | None] = relationship(foreign_keys=[fulfilled_by_id])
+
+
+class Dispute(Base):
+    """U5: sengketa (banding) atas keputusan klaim oleh faskes atau peserta.
+
+    Alur: OPEN/IN_REVIEW (telaah ulang dokter yang BERBEDA dari penandatangan rekomendasi yang dibanding)
+    -> AWAITING_DECISION (dokter sudah tanda tangan) -> RESOLVED (asuransi memutus ulang). WITHDRAWN bila
+    pengaju menarik banding sebelum dokter menandatangani.
+    Hasil: UPHELD (dikuatkan), MODIFIED (diubah), OVERTURNED (dibatalkan, klaim dibayar penuh).
+    """
+
+    __tablename__ = "disputes"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    claim_id: Mapped[str] = mapped_column(ForeignKey("claims.id"), index=True)
+    insurer_id: Mapped[str] = mapped_column(ForeignKey("insurers.id"), index=True)
+    decision_id: Mapped[str] = mapped_column(String(36))                 # keputusan yang dibanding
+    disputed_recommendation_id: Mapped[str] = mapped_column(String(36))  # rekomendasi yang dibanding
+    original_reviewer_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    raised_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    raised_by_role: Mapped[str] = mapped_column(String(32))
+    category: Mapped[str] = mapped_column(String(32))   # CLINICAL / COVERAGE / BILLING / OTHER
+    reason: Mapped[str] = mapped_column(Text)
+    document_ids: Mapped[list] = mapped_column(JSON, default=list)
+    status: Mapped[str] = mapped_column(String(20), default="IN_REVIEW", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    review_recommendation_id: Mapped[str | None] = mapped_column(String(36), nullable=True)  # draf telaah ulang
+    reviewer_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    review_outcome: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    review_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    new_recommendation_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    final_decision_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    outcome: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    resolved_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+
+    raised_by: Mapped[User] = relationship(foreign_keys=[raised_by_id])
+    reviewer: Mapped[User | None] = relationship(foreign_keys=[reviewer_id])
+    resolved_by: Mapped[User | None] = relationship(foreign_keys=[resolved_by_id])
 
 
 class Notification(Base):

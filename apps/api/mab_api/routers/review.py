@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from mab_api import audit, notify
+from mab_api import audit, disputes, notify
 from mab_api.access import get_visible_claim, visible_claims_query
 from mab_api.assignment import (
     auto_assign,
@@ -111,6 +111,8 @@ def _blocked_reason(user: User, claim: Claim, rec: Recommendation | None, level:
     """None bila dokter ini boleh menelaah klaim; selain itu alasannya."""
     if claim.status != ClaimStatus.AWAITING_DOCTOR.value or rec is None or rec.state != RecommendationState.DRAFT.value:
         return "Klaim tidak sedang menunggu telaah dokter"
+    if rec.excluded_reviewer_id and rec.excluded_reviewer_id == user.id:
+        return "Banding ditelaah dokter yang berbeda dari penelaah awal"
     if claim.assigned_doctor_id and claim.assigned_doctor_id != user.id:
         return "Klaim sedang ditelaah dokter lain"
     if user.role == Role.DOCTOR_GP.value and level == SPECIALIST:
@@ -135,6 +137,8 @@ def final_explanation(draft_text: str | None, code: str, amount: int | None) -> 
     for line in (draft_text or "").splitlines():
         if line.startswith("Ini draf dari sistem") or line.startswith("Usulan koreksi tagihan untuk ditinjau dokter"):
             continue
+        if line.startswith("Rekomendasi dokter:") or line.startswith("Hasil telaah banding:"):
+            continue  # telaah ulang banding: putusan lama diganti putusan baru
         if line.startswith("Sistem menemukan") and "perlu ditelaah dokter" in line:
             line = "Hasil telaah dokter atas klaim ini:"
         lines.append(line)
@@ -154,6 +158,15 @@ def suggest_final(rec: Recommendation) -> Suggestion:
         return Suggestion(recommendation=RecommendationCode.PAY_PARTIAL.value, recommended_amount=rec.recommended_amount)
     # Ada temuan klinis tanpa koreksi nilai: usulannya klarifikasi dulu, bukan menolak.
     return Suggestion(recommendation=RecommendationCode.PEND.value, recommended_amount=None)
+
+
+def _dispute_out(db: Session, rec: Recommendation | None):
+    if rec is None or not rec.dispute_id:
+        return None
+    from mab_api.models import Dispute
+
+    d = db.get(Dispute, rec.dispute_id)
+    return disputes.to_out(d, db) if d else None
 
 
 def _review_out(r: Review, names: dict[str, User]) -> ReviewOut:
@@ -241,6 +254,7 @@ def queue(
             sla_hours=cfg.sla_hours(level), sla_due_at=due,
             sla_state=None if done else sla_state(due, level, cfg, now),
             sla_met=(signed_at <= due) if done and signed_at else None,
+            dispute=rec.dispute_id is not None,
         ))
     if done:
         items.sort(key=lambda i: i.signed_at or i.waiting_since, reverse=True)
@@ -314,6 +328,7 @@ def workspace(claim_id: str, db: Session = Depends(get_db), user: User = Depends
             for h in history_rows
         ],
         reason_codes=active_ruleset().reason_codes,
+        dispute=_dispute_out(db, rec),
     )
 
 
@@ -461,8 +476,13 @@ def sign(claim_id: str, body: SignRequest, request: Request, db: Session = Depen
     )
     reason_code = (body.reason_code or "").strip() or None
     reason_codes = active_ruleset().reason_codes
-    if not agrees and not reason_code:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Kode alasan wajib diisi bila mengubah draf AI")
+    # U5: membatalkan keputusan yang dibanding (jadi bayar penuh) tidak punya kode alasan penolakan;
+    # cukup pertimbangan dokter di catatan.
+    overturn = bool(rec.dispute_id) and code == "PAY_FULL"
+    if not agrees and not reason_code and not (overturn and (body.notes or "").strip()):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            "Tuliskan pertimbangan telaah ulang di catatan" if overturn
+                            else "Kode alasan wajib diisi bila mengubah draf AI")
     if reason_code and reason_code not in reason_codes:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Kode alasan '{reason_code}' tidak dikenal")
 
@@ -488,6 +508,8 @@ def sign(claim_id: str, body: SignRequest, request: Request, db: Session = Depen
         benefit_ruleset_version=rec.benefit_ruleset_version,
         signed_by_id=user.id,
         signed_at=now,
+        dispute_id=rec.dispute_id,
+        excluded_reviewer_id=rec.excluded_reviewer_id,
     )
     rec.is_current = False
     db.add(signed)
@@ -498,7 +520,8 @@ def sign(claim_id: str, body: SignRequest, request: Request, db: Session = Depen
                        guideline_refs=list(f.guideline_refs or [])))
 
     review.action = APPROVE if agrees else MODIFY
-    review.agrees_with_ai = agrees
+    # telaah banding membandingkan dengan putusan dokter sebelumnya, bukan draf AI: tidak masuk metrik setuju-AI
+    review.agrees_with_ai = None if rec.dispute_id else agrees
     review.reason_code = reason_code
     review.notes = (body.notes or "").strip() or None
     review.finished_at = now
@@ -509,6 +532,8 @@ def sign(claim_id: str, body: SignRequest, request: Request, db: Session = Depen
                  detail={"recommendation_id": signed.id, "version": signed.version, "recommendation": code,
                          "recommended_amount": amount, "agrees_with_ai": agrees, "reason_code": reason_code,
                          "review_seconds": int((now - started).total_seconds())})
+    if rec.dispute_id:
+        disputes.on_signed(db, claim, signed, user, review.notes, request=request)
     hook = queue_event(db, claim, "claim.recommendation_released")
     notify.recommendation_released(db, claim)
     db.commit()

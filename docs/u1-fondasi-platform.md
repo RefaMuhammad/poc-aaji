@@ -73,6 +73,9 @@ Sumber kebenaran: `apps/api/mab_api/rbac.py`. Cakupan data (tenant mana, RS mana
 | (U4) Unggah dokumen susulan | ✓ | ✓ | | | ✓ | | | |
 | (U4) Ringkasan TPA per asuransi | | ✓ | | | | | | ✓ |
 | (U4) Kotak masuk notifikasi sendiri | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| (U5) Ajukan / tarik banding | | | | | ✓ | ✓ | | |
+| (U5) Daftar sengketa, metrik banding | ✓ | ✓ | | ✓ | | | | ✓ |
+| (U5) Telaah ulang banding (bukan penelaah awal) | | | ✓ | | | | | |
 
 Prinsip yang tidak berubah:
 

@@ -9,10 +9,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from mab_api.access import visible_claims_query
-from mab_api.api_schemas import CountItem, DashboardOut
+from mab_api import disputes as dispute_mod
+from mab_api.api_schemas import CountItem, DashboardOut, DisputeMetrics
 from mab_api.db import get_db
 from mab_api.deps import require_perm
-from mab_api.models import ClaimStatus, Review, User
+from mab_api.models import ClaimStatus, Dispute, Review, User
 from mab_api.rbac import Perm, can_see_draft
 from mab_api.routers.claims import _current_recommendation, _latest_decision, _released_to_insurer
 from mab_api.ruleset import active_ruleset
@@ -88,4 +89,30 @@ def dashboard(db: Session = Depends(get_db),
         doctor_reviews=len(decided),
         doctor_agreement_pct=round(100 * sum(r.agrees_with_ai for r in decided) / len(decided), 1) if decided else None,
         avg_review_seconds=round(sum(durations) / len(durations), 1) if durations else None,
+        disputes=dispute_metrics(db, claim_ids),
+    )
+
+
+def dispute_metrics(db: Session, claim_ids: list[str]) -> DisputeMetrics:
+    """U5: metrik sengketa untuk klaim dalam cakupan pengguna."""
+    rows = list(db.scalars(select(Dispute).where(Dispute.claim_id.in_(claim_ids)))) if claim_ids else []
+    now = dispute_mod._now()
+    status = Counter(d.status for d in rows)
+    open_rows = [d for d in rows if d.status in dispute_mod.OPEN_STATUSES]
+    resolved = [d for d in rows if d.status == dispute_mod.RESOLVED]
+    outcomes = Counter(d.outcome for d in resolved)
+    days = [(_utc(d.resolved_at) - _utc(d.created_at)).total_seconds() / 86400 for d in resolved if d.resolved_at]
+    return DisputeMetrics(
+        total=len(rows), open=len(open_rows), in_review=status[dispute_mod.IN_REVIEW],
+        awaiting_decision=status[dispute_mod.AWAITING_DECISION],
+        overdue=sum(1 for d in open_rows if _utc(d.due_at) < now),
+        resolved=len(resolved), withdrawn=status[dispute_mod.WITHDRAWN],
+        by_outcome=[CountItem(key=k, label=dispute_mod.OUTCOME_LABEL[k], count=outcomes[k])
+                    for k in (dispute_mod.UPHELD, dispute_mod.MODIFIED, dispute_mod.OVERTURNED)],
+        by_category=[CountItem(key=k, label=v, count=sum(1 for d in rows if d.category == k))
+                     for k, v in dispute_mod.CATEGORY_LABEL.items()],
+        overturn_rate=round(100 * (outcomes[dispute_mod.MODIFIED] + outcomes[dispute_mod.OVERTURNED]) / len(resolved), 1)
+        if resolved else None,
+        avg_resolution_days=round(sum(days) / len(days), 1) if days else None,
+        resolved_on_time=sum(1 for d in resolved if d.resolved_at and _utc(d.resolved_at) <= _utc(d.due_at)),
     )
