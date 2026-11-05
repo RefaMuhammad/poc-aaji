@@ -76,19 +76,19 @@ Password semua akun: `demo12345`. PIN tanda tangan dokter: `123456`.
 | Peran | Email | Halaman awal |
 |---|---|---|
 | Staf klaim asuransi | `staf@demo.test` | Daftar klaim |
-| Manajer klaim asuransi | `manajer@demo.test` | Daftar klaim, Dashboard |
+| Manajer klaim asuransi | `manajer@demo.test` | Daftar klaim, Dashboard, Laporan & Audit (buat laporan) |
 | Dokter umum | `dokter.umum@mab.test` | Antrean telaah (kasus kuning) |
 | Dokter spesialis (Penyakit Dalam) | `dokter.spesialis@mab.test` | Antrean telaah (kasus merah + eskalasi) |
 | Dokter spesialis kedua (Penyakit Dalam) | `dokter.spesialis2@mab.test` | Telaah ulang banding (U5) |
 | Admin MAB | `admin@mab.test` | Aturan & pengguna, Tenant & API key, Dashboard |
 | Staf klaim tenant kedua (Asuransi Pelita) | `staf@pelita.test` | Daftar klaim Pelita |
 | Operator TPA (DEMO + Pelita) | `tpa@mab.test` | Daftar klaim dua asuransi |
-| Auditor internal / regulator | `auditor@demo.test` / `auditor@ojk.test` | Daftar klaim (hanya-baca), Dashboard |
+| Auditor internal / regulator | `auditor@demo.test` / `auditor@ojk.test` | Daftar klaim (hanya-baca), Dashboard, Laporan & Audit (U6) |
 | Petugas faskes | `faskes@demo.test` | Status klaim RS-nya, dokumen susulan (U4), banding (U5) |
 | Peserta | `peserta@demo.test` | Portal peserta: status dan penjelasan klaimnya (U4) |
 | Underwriter | `underwriter@demo.test` | Penanda modul U7 |
 
-Peran baru dan dua tenant demo dijelaskan di [docs/u1-fondasi-platform.md](docs/u1-fondasi-platform.md). Polis, aturan benefit, API klaim masuk, FHIR, SFTP (port 2222, login `demo`/`pelita` + `demo12345`), dan webhook dijelaskan di [docs/u2-integrasi-benefit.md](docs/u2-integrasi-benefit.md). Fraud analytics dan Fraud Monitor dijelaskan di [docs/u3-fraud-analytics.md](docs/u3-fraud-analytics.md). Portal faskes, portal peserta, Ringkasan TPA, kotak masuk, dan alur "tunda: minta dokumen" dijelaskan di [docs/u4-portal-faskes-peserta.md](docs/u4-portal-faskes-peserta.md). Banding atas keputusan dan telaah ulang oleh dokter lain dijelaskan di [docs/u5-manajemen-sengketa.md](docs/u5-manajemen-sengketa.md).
+Peran baru dan dua tenant demo dijelaskan di [docs/u1-fondasi-platform.md](docs/u1-fondasi-platform.md). Polis, aturan benefit, API klaim masuk, FHIR, SFTP (port 2222, login `demo`/`pelita` + `demo12345`), dan webhook dijelaskan di [docs/u2-integrasi-benefit.md](docs/u2-integrasi-benefit.md). Fraud analytics dan Fraud Monitor dijelaskan di [docs/u3-fraud-analytics.md](docs/u3-fraud-analytics.md). Portal faskes, portal peserta, Ringkasan TPA, kotak masuk, dan alur "tunda: minta dokumen" dijelaskan di [docs/u4-portal-faskes-peserta.md](docs/u4-portal-faskes-peserta.md). Banding atas keputusan dan telaah ulang oleh dokter lain dijelaskan di [docs/u5-manajemen-sengketa.md](docs/u5-manajemen-sengketa.md). Halaman Laporan & Audit (jejak keputusan, log audit, laporan bulanan, penjadwal) dijelaskan di [docs/u6-audit-pelaporan.md](docs/u6-audit-pelaporan.md).
 
 **Ganti peran (demo).** Setelah login dengan akun demo mana saja, pemilih kuning **Ganti peran (demo)** di kanan atas memindahkan Anda ke akun demo lain tanpa logout. Dengan begitu seluruh alur, dari unggah, telaah dokter, keputusan, sampai dashboard, bisa dijalankan dari satu jendela browser. Setiap aksi tetap tercatat atas nama peran yang benar, jadi aturan "hanya dokter yang menandatangani" tetap berlaku. Matikan dengan `DEMO_MODE=false` di `.env`. Penjelasan lengkap ada di [docs/skenario-unggah.md](docs/skenario-unggah.md).
 
@@ -232,6 +232,6 @@ data/                    (diabaikan git) output data sintetis
 - [x] U3 Fraud analytics: statistik sejawat, graf relasi, Fraud Monitor ([docs/u3-fraud-analytics.md](docs/u3-fraud-analytics.md))
 - [x] U4 Portal faskes, peserta, TPA, notifikasi, "tunda: minta dokumen" ([docs/u4-portal-faskes-peserta.md](docs/u4-portal-faskes-peserta.md))
 - [x] U5 Manajemen sengketa: banding, telaah ulang dokter lain, putusan ulang ([docs/u5-manajemen-sengketa.md](docs/u5-manajemen-sengketa.md))
-- [ ] U6 Audit dan pelaporan OJK
+- [x] U6 Audit dan pelaporan: penampil log audit, jejak keputusan, laporan bulanan POJK 36/2025 ([docs/u6-audit-pelaporan.md](docs/u6-audit-pelaporan.md))
 - [ ] U7 Medical underwriting
 - [ ] U8 Infrastruktur cloud dan kesiapan data sungguhan

@@ -76,6 +76,8 @@ Sumber kebenaran: `apps/api/mab_api/rbac.py`. Cakupan data (tenant mana, RS mana
 | (U5) Ajukan / tarik banding | | | | | ✓ | ✓ | | |
 | (U5) Daftar sengketa, metrik banding | ✓ | ✓ | | ✓ | | | | ✓ |
 | (U5) Telaah ulang banding (bukan penelaah awal) | | | ✓ | | | | | |
+| (U6) Log audit, jejak keputusan, lihat & unduh laporan | manajer saja | | | ✓ | | | | ✓ |
+| (U6) Buat / buat ulang laporan bulanan | manajer saja | | | | | | | ✓ |
 
 Prinsip yang tidak berubah:
 
@@ -112,7 +114,7 @@ Halaman **Tenant & API key** (`/admin/tenant`, admin) atau `PUT /tenants/{insure
 - Riwayat penugasan di tabel `assignments` (AUTO / CLAIMED / MANUAL; ACTIVE, COMPLETED, RELEASED, ESCALATED, CANCELLED)
   dan audit `CASE_ASSIGNED`.
 
-Pengingat SLA otomatis (email/notifikasi) belum ada; dijadwalkan bersama penjadwal laporan di U6.
+Pengingat SLA otomatis (email/notifikasi) belum ada. Penjadwal laporan U6 (`report-scheduler`) baru membuat laporan bulanan; pengingat SLA belum ditambahkan ke sana.
 
 ## 6. Akun layanan dan API key
 

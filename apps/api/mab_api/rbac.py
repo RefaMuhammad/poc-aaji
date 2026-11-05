@@ -33,6 +33,9 @@ class Perm(str, Enum):
     TPA_OVERVIEW = "tpa.overview"          # U4: ringkasan klaim per asuransi yang dilayani TPA
     DISPUTE_FILE = "dispute.file"          # U5: faskes / peserta mengajukan dan menarik banding
     DISPUTE_VIEW = "dispute.view"          # U5: daftar sengketa lintas klaim (asuransi, TPA, auditor, admin)
+    AUDIT_VIEW = "audit.view"              # U6: penampil log audit dan jejak keputusan klaim
+    REPORT_VIEW = "report.view"            # U6: lihat dan unduh laporan bulanan
+    REPORT_GENERATE = "report.generate"    # U6: buat / buat ulang laporan bulanan
 
 
 _OPERATOR = {Perm.CLAIM_LIST, Perm.CLAIM_DETAIL, Perm.CLAIM_SUBMIT, Perm.CLAIM_DECIDE, Perm.CLAIM_EXPORT,
@@ -43,13 +46,14 @@ _DOCTOR = {Perm.CLAIM_LIST, Perm.CLAIM_DETAIL, Perm.REVIEW, Perm.RULESET_VIEW}
 ROLE_PERMS: dict[Role, frozenset[Perm]] = {
     Role.INSURER_STAFF: frozenset(_OPERATOR),
     # Manajer klaim juga investigator fraud tenant-nya: impor riwayat, jalankan analisis, telaah sinyal.
-    Role.INSURER_MANAGER: frozenset(_OPERATOR | {Perm.FRAUD_MANAGE}),
+    Role.INSURER_MANAGER: frozenset(_OPERATOR | {Perm.FRAUD_MANAGE, Perm.AUDIT_VIEW, Perm.REPORT_VIEW,
+                                                 Perm.REPORT_GENERATE}),
     Role.TPA_OPERATOR: frozenset(_OPERATOR | {Perm.TPA_OVERVIEW}),
     Role.DOCTOR_GP: frozenset(_DOCTOR),
     Role.DOCTOR_SPECIALIST: frozenset(_DOCTOR),
     Role.AUDITOR: frozenset({Perm.CLAIM_LIST, Perm.CLAIM_DETAIL, Perm.CLAIM_EXPORT, Perm.DASHBOARD,
                              Perm.RULESET_VIEW, Perm.TENANT_VIEW, Perm.POLICY_VIEW, Perm.FRAUD_VIEW,
-                             Perm.DISPUTE_VIEW}),
+                             Perm.DISPUTE_VIEW, Perm.AUDIT_VIEW, Perm.REPORT_VIEW}),
     # Portal faskes & peserta (U4): klaimnya sendiri, status, penjelasan keputusan. Faskes juga
     # menjawab permintaan dokumen. Keduanya tidak melihat draf AI, field hasil baca, atau skor risiko.
     Role.FACILITY_OFFICER: frozenset({Perm.CLAIM_LIST, Perm.PORTAL_VIEW, Perm.FACILITY_UPLOAD, Perm.DISPUTE_FILE}),
@@ -59,7 +63,8 @@ ROLE_PERMS: dict[Role, frozenset[Perm]] = {
     Role.ADMIN: frozenset({Perm.CLAIM_LIST, Perm.CLAIM_DETAIL, Perm.DASHBOARD, Perm.RULESET_VIEW,
                            Perm.TENANT_VIEW, Perm.TENANT_ADMIN, Perm.USER_ADMIN, Perm.ASSIGN_ADMIN,
                            Perm.POLICY_VIEW, Perm.POLICY_MANAGE, Perm.FRAUD_VIEW, Perm.FRAUD_MANAGE,
-                           Perm.TPA_OVERVIEW, Perm.DISPUTE_VIEW}),
+                           Perm.TPA_OVERVIEW, Perm.DISPUTE_VIEW, Perm.AUDIT_VIEW, Perm.REPORT_VIEW,
+                           Perm.REPORT_GENERATE}),
 }
 
 # Peran yang boleh melihat draf AI sebelum ditandatangani dokter. Selain ini hanya melihat

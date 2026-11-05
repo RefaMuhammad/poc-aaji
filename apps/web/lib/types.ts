@@ -677,3 +677,92 @@ export interface DisputeMetrics {
   avg_resolution_days: number | null;
   resolved_on_time: number;
 }
+
+// ----------------------------------------------------------------------------- U6: laporan & audit
+
+export interface AuditEntry {
+  id: number;
+  occurred_at: string;
+  action: string;
+  label: string;
+  group: string;
+  user_id: string | null;
+  user_name: string | null;
+  user_email: string | null;
+  user_role: string | null;
+  claim_id: string | null;
+  claim_number: string | null;
+  document_id: string | null;
+  document_name: string | null;
+  method: string | null;
+  path: string | null;
+  status_code: number | null;
+  ip_address: string | null;
+  detail: Record<string, unknown>;
+}
+
+export interface AuditPage {
+  total: number;
+  limit: number;
+  offset: number;
+  items: AuditEntry[];
+  groups: Record<string, string>;
+}
+
+export interface TraceStep {
+  at: string;
+  stage: string;
+  title: string;
+  actor: string | null;
+  detail: string | null;
+  ref: string | null;
+}
+
+export interface ClaimTrace {
+  claim: {
+    id: string; claim_number: string; insurer_name: string | null; hospital_name: string; member_id: string;
+    status: ClaimStatus; source: string; billed_amount: number; created_at: string;
+  };
+  chain: string[];
+  steps: TraceStep[];
+  documents: { id: string; filename: string; doc_type: string; sha256: string; size_bytes: number; created_at: string }[];
+  audit: AuditEntry[];
+  stages: string[];
+  generated_at: string;
+  label: string;
+}
+
+export interface ReportRow { label: string; value: string | number | null; unit: string | null; note: string | null }
+export interface ReportTable { title: string; columns: string[]; rows: (string | number | null)[][] }
+export interface ReportSection { id: string; title: string; basis: string | null; rows: ReportRow[]; tables: ReportTable[] }
+
+export interface ReportSummary {
+  id: string;
+  kind: string;
+  period: string;
+  insurer_id: string | null;
+  insurer_name: string | null;
+  template_version: string;
+  revision: number;
+  trigger: "SCHEDULED" | "MANUAL";
+  partial: boolean;
+  generated_at: string;
+  generated_by: string | null;
+}
+
+export interface ReportDetail extends ReportSummary {
+  data: {
+    title: string; period: string; insurer_name: string | null; template_version: string; template_note: string;
+    label: string; partial: boolean; computed_at: string; sections: ReportSection[];
+  };
+}
+
+export interface ReportList {
+  items: ReportSummary[];
+  insurers: { id: string; name: string }[];
+  can_platform: boolean;
+  can_generate: boolean;
+  template_version: string;
+  template_note: string;
+  next_scheduled: string;
+}

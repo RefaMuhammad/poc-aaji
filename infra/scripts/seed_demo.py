@@ -22,6 +22,8 @@ Langkah:
 10. (U5) SYN-GEA-06 (RSU Harapan Bunda, rawat inap dehidrasi ringan-sedang): spesialis menandatangani
    "tidak dijamin" dan asuransi setuju. Saat demo akun faskes mengajukan banding, lalu
    dokter.spesialis2@mab.test (bukan penelaah awal) menelaah ulang dan asuransi memutus ulang.
+11. (U6) Penjadwal laporan dijalankan sekali (laporan bulan lalu untuk tiap tenant + seluruh platform), lalu
+   manajer DEMO membuat laporan bulan berjalan supaya halaman Laporan & Audit langsung berisi.
 
 Butuh: `make up` dan `make synthetic` sudah dijalankan. Jalankan di container api:
     docker compose exec api python infra/scripts/seed_demo.py
@@ -428,6 +430,17 @@ def dispute_demo(staf: Api) -> None:
         print(f"  akun {SECOND_SPECIALIST} dibuat (spesialis kedua untuk telaah banding)")
 
 
+def reports_demo() -> None:
+    """U6: penjadwal (bulan lalu) + laporan bulan berjalan untuk tenant DEMO."""
+    from datetime import datetime, timezone
+
+    made = Api(ADMIN).post("/reports/run-schedule")["created"]
+    print(f"  penjadwal: {len(made)} laporan bulan lalu dibuat (tiap tenant + seluruh platform)")
+    now = datetime.now(timezone.utc)
+    rep = Api("manajer@demo.test").post("/reports", json={"period": f"{now.year:04d}-{now.month:02d}"})
+    print(f"  laporan {rep['period']} {rep['insurer_name']} dibuat (periode berjalan, revisi {rep['revision']})")
+
+
 def main() -> None:
     print("1. Akun demo")
     # Spesialis kedua baru dibuat di langkah U5, supaya penugasan otomatis kasus merah di langkah awal
@@ -463,6 +476,8 @@ def main() -> None:
     late_documents_demo(staf)
     print("9. Banding atas keputusan (U5)")
     dispute_demo(staf)
+    print("10. Laporan bulanan dan audit (U6)")
+    reports_demo()
     print(f"\nSelesai. Buka http://localhost:3000 (staf@demo.test / {PASSWORD}).")
     print(f"Klaim {LIVE_DEMO_CLAIM} sengaja belum diunggah ke tenant DEMO untuk diunggah langsung saat demo.")
     print(f"Tenant kedua: {SECOND_TENANT_STAFF} melihat {len(pelita_ids)} klaim Asuransi Pelita (ambang merah 20).")
