@@ -2,6 +2,8 @@
 
 Pemakaian: python -m synthetic.render_pdf [folder_output]
 Membaca data/synthetic_output/<claim_id>/case.json, menulis <jenis>.pdf.
+Dokumen yang sengaja tidak dilampirkan (skenario dokumen tidak lengkap) dirender ke
+<claim_id>/susulan/<jenis>.pdf: dokumen yang "dikirim faskes belakangan" untuk demo U4.
 """
 from __future__ import annotations
 
@@ -69,6 +71,20 @@ def render_case(case_dir: Path) -> list[Path]:
             sys.exit(f"Tidak bisa menulis {out}: file sedang dibuka atau terkunci. "
                      "Tutup penampil PDF/pratinjau File Explorer, atau hapus folder "
                      "data/synthetic_output, lalu jalankan ulang.")
+        written.append(out)
+    return written + render_late(case_dir)
+
+
+def render_late(case_dir: Path) -> list[Path]:
+    """Render hanya dokumen susulan (tanpa menimpa PDF yang sudah ada / sudah dipindai)."""
+    from weasyprint import HTML
+
+    case = json.loads((case_dir / "case.json").read_text(encoding="utf-8"))
+    written = []
+    for doc_type in [d for d in DOC_TEMPLATES if d not in case["documents"]]:
+        (case_dir / "susulan").mkdir(exist_ok=True)
+        out = case_dir / "susulan" / f"{doc_type}.pdf"
+        out.write_bytes(HTML(string=render_html(case, doc_type), base_url=str(TEMPLATES)).write_pdf())
         written.append(out)
     return written
 

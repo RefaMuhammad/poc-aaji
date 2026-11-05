@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiJson, downloadFile } from "@/lib/api";
 import { INSURER_ROLES, useAuth } from "@/lib/auth";
-import type { ClaimListItem, ClaimStatus, Triage } from "@/lib/types";
+import type { ClaimListItem, ClaimStatus, Tenant, Triage } from "@/lib/types";
 import { IN_PROGRESS, RECOMMENDATION_LABEL, STATUS_LABEL, rupiah, tanggal } from "@/lib/format";
 import { StatusBadge, TriageBadge } from "@/components/Badges";
 
@@ -29,6 +29,14 @@ export default function ClaimListPage() {
   const [claims, setClaims] = useState<ClaimListItem[] | null>(null);
   const [status, setStatus] = useState<"" | ClaimStatus>("");
   const [triage, setTriage] = useState<"" | Triage>("");
+  // U4: operator TPA menyaring per asuransi yang dilayani (?insurer_id= dari Ringkasan TPA)
+  const isTpa = user?.role === "tpa_operator";
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [insurerId, setInsurerId] = useState<string>(() =>
+    typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("insurer_id") ?? "");
+  useEffect(() => {
+    if (isTpa) apiJson<Tenant[]>("/tenants").then(setTenants).catch(() => setTenants([]));
+  }, [isTpa]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -38,13 +46,14 @@ export default function ClaimListPage() {
     const params = new URLSearchParams({ limit: "500" });
     if (status) params.set("status", status);
     if (triage) params.set("triage", triage);
+    if (insurerId) params.set("insurer_id", insurerId);
     try {
       setClaims(await apiJson<ClaimListItem[]>(`/claims?${params}`));
       setError(null);
     } catch (e) {
       setError((e as Error).message);
     }
-  }, [status, triage]);
+  }, [status, triage, insurerId]);
 
   useEffect(() => {
     load();
@@ -111,6 +120,14 @@ export default function ClaimListPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        {isTpa && tenants.length > 0 && (
+          <select className="input w-auto" value={insurerId} onChange={(e) => setInsurerId(e.target.value)}>
+            <option value="">Semua asuransi</option>
+            {tenants.map((t) => (
+              <option key={t.insurer_id} value={t.insurer_id}>{t.display_name ?? t.name}</option>
+            ))}
+          </select>
+        )}
         <select className="input w-auto" value={status} onChange={(e) => setStatus(e.target.value as "" | ClaimStatus)}>
           <option value="">Semua status</option>
           {(Object.keys(STATUS_LABEL) as ClaimStatus[]).map((s) => (

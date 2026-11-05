@@ -29,8 +29,8 @@ class Role(str, Enum):
     # U1: peran baru
     TPA_OPERATOR = "tpa_operator"          # operator TPA, bekerja untuk beberapa asuransi (tenant)
     AUDITOR = "auditor"                    # auditor internal/OJK, hanya-baca
-    FACILITY_OFFICER = "facility_officer"  # petugas faskes/RS (portal faskes menyusul di U4)
-    MEMBER = "member"                      # peserta asuransi (portal peserta menyusul di U4)
+    FACILITY_OFFICER = "facility_officer"  # petugas faskes/RS (portal faskes, U4)
+    MEMBER = "member"                      # peserta asuransi (portal peserta, U4)
     UNDERWRITER = "underwriter"            # underwriter (modul underwriting menyusul di U7)
 
 
@@ -46,6 +46,7 @@ class ClaimStatus(str, Enum):
     PROCESSING = "PROCESSING"                # diproses
     AWAITING_DOCTOR = "AWAITING_DOCTOR"      # menunggu dokter
     AWAITING_DECISION = "AWAITING_DECISION"  # menunggu keputusan asuransi
+    PENDING_DOCUMENTS = "PENDING_DOCUMENTS"  # U4: ditunda, menunggu dokumen susulan dari faskes
     COMPLETED = "COMPLETED"                  # selesai
     FAILED = "FAILED"
 
@@ -471,6 +472,50 @@ class InsurerDecision(Base):
 
     claim: Mapped[Claim] = relationship(back_populates="decisions")
     decided_by: Mapped[User] = relationship()
+
+
+class DocumentRequest(Base):
+    """U4: permintaan dokumen susulan ke faskes ("tunda: minta dokumen").
+
+    Selama permintaan OPEN, klaim berstatus PENDING_DOCUMENTS dan tidak bisa diputuskan.
+    Permintaan tertutup (FULFILLED) saat faskes atau asuransi mengunggah dokumen; klaim lalu diproses ulang.
+    """
+
+    __tablename__ = "document_requests"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    claim_id: Mapped[str] = mapped_column(ForeignKey("claims.id"), index=True)
+    insurer_id: Mapped[str] = mapped_column(ForeignKey("insurers.id"), index=True)
+    recommendation_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    doc_types: Mapped[list] = mapped_column(JSON, default=list)
+    message: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(16), default="OPEN", index=True)  # OPEN / FULFILLED / CANCELLED
+    requested_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    fulfilled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    fulfilled_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    document_ids: Mapped[list] = mapped_column(JSON, default=list)
+    response_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    requested_by: Mapped[User] = relationship(foreign_keys=[requested_by_id])
+    fulfilled_by: Mapped[User | None] = relationship(foreign_keys=[fulfilled_by_id])
+
+
+class Notification(Base):
+    """U4: notifikasi ke pengguna. Email disimulasikan (disimpan, tidak dikirim) selama demo."""
+
+    __tablename__ = "notifications"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    insurer_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    claim_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    event: Mapped[str] = mapped_column(String(64))
+    email: Mapped[str] = mapped_column(String(200))
+    subject: Mapped[str] = mapped_column(String(300))
+    body: Mapped[str] = mapped_column(Text)
+    delivery: Mapped[str] = mapped_column(String(16), default="SIMULATED")  # SIMULATED / SENT / FAILED
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class AuditLog(Base):

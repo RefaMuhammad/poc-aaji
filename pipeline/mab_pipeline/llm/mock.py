@@ -241,7 +241,9 @@ class MockLLMClient:
         out: dict[str, Any] = {}
         for path in paths:
             if path == "bill.items_without_clinical_note":
-                if "rincian_tagihan" not in case["documents"]:
+                # rincian tagihan bisa menyusul (U4): cek juga apakah baris tagihannya ada di dokumen
+                has_bill = "rincian_tagihan" in case["documents"] or any("rinciantagihan" in n for n, _ in compact)
+                if not has_bill:
                     out[path] = {"value": None}
                 else:
                     out[path] = {"value": [{"item": i, "quote": quote(i)} for i in case["undocumented_billed_items"]]}

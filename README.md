@@ -84,10 +84,10 @@ Password semua akun: `demo12345`. PIN tanda tangan dokter: `123456`.
 | Operator TPA (DEMO + Pelita) | `tpa@mab.test` | Daftar klaim dua asuransi |
 | Auditor internal / regulator | `auditor@demo.test` / `auditor@ojk.test` | Daftar klaim (hanya-baca), Dashboard |
 | Petugas faskes | `faskes@demo.test` | Status klaim RS-nya |
-| Peserta | `peserta@demo.test` | Status klaimnya |
+| Peserta | `peserta@demo.test` | Portal peserta: status dan penjelasan klaimnya (U4) |
 | Underwriter | `underwriter@demo.test` | Penanda modul U7 |
 
-Peran baru dan dua tenant demo dijelaskan di [docs/u1-fondasi-platform.md](docs/u1-fondasi-platform.md). Polis, aturan benefit, API klaim masuk, FHIR, SFTP (port 2222, login `demo`/`pelita` + `demo12345`), dan webhook dijelaskan di [docs/u2-integrasi-benefit.md](docs/u2-integrasi-benefit.md). Fraud analytics dan Fraud Monitor dijelaskan di [docs/u3-fraud-analytics.md](docs/u3-fraud-analytics.md).
+Peran baru dan dua tenant demo dijelaskan di [docs/u1-fondasi-platform.md](docs/u1-fondasi-platform.md). Polis, aturan benefit, API klaim masuk, FHIR, SFTP (port 2222, login `demo`/`pelita` + `demo12345`), dan webhook dijelaskan di [docs/u2-integrasi-benefit.md](docs/u2-integrasi-benefit.md). Fraud analytics dan Fraud Monitor dijelaskan di [docs/u3-fraud-analytics.md](docs/u3-fraud-analytics.md). Portal faskes, portal peserta, Ringkasan TPA, kotak masuk, dan alur "tunda: minta dokumen" dijelaskan di [docs/u4-portal-faskes-peserta.md](docs/u4-portal-faskes-peserta.md).
 
 **Ganti peran (demo).** Setelah login dengan akun demo mana saja, pemilih kuning **Ganti peran (demo)** di kanan atas memindahkan Anda ke akun demo lain tanpa logout. Dengan begitu seluruh alur, dari unggah, telaah dokter, keputusan, sampai dashboard, bisa dijalankan dari satu jendela browser. Setiap aksi tetap tercatat atas nama peran yang benar, jadi aturan "hanya dokter yang menandatangani" tetap berlaku. Matikan dengan `DEMO_MODE=false` di `.env`. Penjelasan lengkap ada di [docs/skenario-unggah.md](docs/skenario-unggah.md).
 
@@ -97,7 +97,8 @@ Peran baru dan dua tenant demo dijelaskan di [docs/u1-fondasi-platform.md](docs/
 |---|---|---|
 | Hijau, sudah disetujui massal | 12 klaim (SYN-DEN-04/05, SYN-GEA-01..05, SYN-TIF-01..05) | Daftar klaim, ekspor CSV |
 | Hijau, belum diputuskan | SYN-DEN-01, SYN-DEN-02, SYN-DEN-03 | Setujui massal |
-| Kuning di antrean dokter umum | SYN-DEN-06, SYN-TIF-10 (dokumen tidak lengkap) | Ruang kerja dokter umum |
+| Kuning di antrean dokter umum | SYN-DEN-06 | Ruang kerja dokter umum |
+| Ditunda, menunggu dokumen susulan (U4) | SYN-TIF-10 (rincian tagihan tidak dikirim; dokter menunda, asuransi meminta tagihan ke RS) | Portal Faskes: unggah `susulan/rincian_tagihan.pdf`, proses ulang, telaah dokter, keputusan; Portal Peserta |
 | Merah / eskalasi di antrean spesialis | SYN-GEA-10 (tumpang tindih dengan KLM-RIWAYAT-0001), SYN-TIF-08, SYN-DEN-08 (hasil eskalasi dokter umum) | Ruang kerja spesialis |
 | Sudah ditandatangani, menunggu keputusan asuransi | SYN-DEN-07 (spesialis mengubah draf jadi bayar sebagian) | Rekomendasi final, PDF, keputusan |
 | Sudah ditandatangani dan diputuskan | SYN-DEN-10, SYN-GEA-06..09, SYN-TIF-06, SYN-TIF-07, SYN-TIF-09 ("berbeda") | Dashboard |
@@ -227,7 +228,7 @@ data/                    (diabaikan git) output data sintetis
 - [x] U1 Fondasi platform: tenant, peran baru, API key, penugasan dokter + SLA ([docs/u1-fondasi-platform.md](docs/u1-fondasi-platform.md))
 - [x] U2 Integrasi data (REST, SFTP, FHIR) dan benefit polis ([docs/u2-integrasi-benefit.md](docs/u2-integrasi-benefit.md))
 - [x] U3 Fraud analytics: statistik sejawat, graf relasi, Fraud Monitor ([docs/u3-fraud-analytics.md](docs/u3-fraud-analytics.md))
-- [ ] U4 Portal faskes, peserta, TPA
+- [x] U4 Portal faskes, peserta, TPA, notifikasi, "tunda: minta dokumen" ([docs/u4-portal-faskes-peserta.md](docs/u4-portal-faskes-peserta.md))
 - [ ] U5 Manajemen sengketa
 - [ ] U6 Audit dan pelaporan OJK
 - [ ] U7 Medical underwriting

@@ -5,7 +5,7 @@ import csv
 import io
 from datetime import date
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -22,6 +22,8 @@ from mab_api.api_schemas import (
     ClaimOut,
     ClaimStatusOut,
     DecisionCreate,
+    DocumentRequestCreate,
+    DocumentRequestOut,
     DocumentOut,
     EvidenceOut,
     ExtractedFieldOut,
@@ -51,9 +53,10 @@ from mab_api.models import (
     User,
 )
 from mab_api.rbac import Perm, can_see_draft, has_perm
-from mab_api.webhooks import dispatch, queue_event
+from mab_api.webhooks import current_decision, dispatch, queue_event
 from mab_api.batch import BatchError, import_zip, queue_claim
 from mab_api.routers.policies import policy_out
+from mab_api import doc_requests, notify
 
 router = APIRouter(prefix="/claims", tags=["klaim"])
 
@@ -77,7 +80,8 @@ def _released_to_insurer(rec: Recommendation) -> bool:
 
 
 def _latest_decision(claim: Claim) -> InsurerDecision | None:
-    return claim.decisions[-1] if claim.decisions else None
+    """Keputusan atas rekomendasi yang berlaku (keputusan lama hilang saat klaim diproses ulang, U4)."""
+    return current_decision(claim)
 
 
 _queue_claim = queue_claim
@@ -130,9 +134,24 @@ def build_recommendation_view(claim: Claim, rec: Recommendation) -> Recommendati
     )
 
 
+OUTCOME_LABEL = {"PAY_FULL": "dibayar penuh", "PAY_PARTIAL": "dibayar sebagian", "PEND": "ditunda",
+                 "NOT_COVERED": "tidak dijamin"}
+
+
+def outcome_summary(rec: Recommendation, decision: str) -> str:
+    """Ringkasan hasil untuk peserta dan faskes (keputusan asuransi atas rekomendasi)."""
+    if decision == DecisionCode.DIFFER.value:
+        return "asuransi memutuskan berbeda dari rekomendasi medis; lihat alasan di portal"
+    text = OUTCOME_LABEL.get(rec.recommendation, rec.recommendation)
+    if rec.recommendation == "PAY_PARTIAL" and rec.recommended_amount is not None:
+        text += ", Rp" + f"{rec.recommended_amount:,}".replace(",", ".")
+    return text
+
+
 def _record_decision(db: Session, claim: Claim, rec: Recommendation, user: User, decision: str, reason: str | None) -> None:
     db.add(InsurerDecision(claim_id=claim.id, recommendation_id=rec.id, decision=decision, reason=reason, decided_by_id=user.id))
     claim.status = ClaimStatus.COMPLETED.value
+    notify.decision_recorded(db, claim, outcome_summary(rec, decision))
 
 
 # ----------------------------------------------------------------------------- buat & lihat
@@ -170,9 +189,12 @@ def list_claims(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     triage: str | None = Query(default=None, description="GREEN / YELLOW / RED"),
+    insurer_id: str | None = Query(default=None, description="Operator TPA: saring per asuransi"),
     user: User = Depends(can_list),
 ) -> list[ClaimListItem]:
     q = visible_claims_query(user, db)
+    if insurer_id:
+        q = q.where(Claim.insurer_id == insurer_id)
     if status_filter:
         q = q.where(Claim.status == status_filter)
     out = []
@@ -306,6 +328,7 @@ def get_claim(claim_id: str, db: Session = Depends(get_db), user: User = Depends
         awaiting_doctor=current is not None and not _released_to_insurer(current),
         decision=dec.decision if dec else None,
         policy=policy_out(claim.policy) if claim.policy is not None and has_perm(user.role, Perm.CLAIM_DETAIL) else None,
+        document_requests=[doc_requests.to_out(r, claim) for r in doc_requests.requests_for(db, claim)],
     )
 
 
@@ -328,12 +351,18 @@ def upload_documents(
     claim_id: str,
     files: list[UploadFile] = File(...),
     submit: bool = Query(default=True, description="Kirim klaim ke antrean proses setelah unggah"),
+    request: Request = None,
+    doc_types: list[str] | None = Form(default=None, description="U4: jenis tiap file dokumen susulan (urutan sama)"),
     db: Session = Depends(get_db),
     user: User = Depends(can_submit),
     storage=Depends(get_storage),
     queue=Depends(get_queue),
 ) -> UploadResult:
     claim = get_visible_claim(db, user, claim_id)
+    if claim.status == ClaimStatus.PENDING_DOCUMENTS.value:
+        # U4: asuransi mengunggah sendiri dokumen susulan yang diminta
+        docs, _, job_id = doc_requests.upload_late(db, storage, queue, claim, user, files, doc_types, None, request=request)
+        return UploadResult(documents=[DocumentOut.model_validate(d) for d in docs], job_id=job_id, status=claim.status)
     if claim.status not in (ClaimStatus.RECEIVED.value, ClaimStatus.QUEUED.value, ClaimStatus.FAILED.value):
         raise HTTPException(status.HTTP_409_CONFLICT, "Klaim sudah diproses; dokumen tidak bisa ditambah")
     max_bytes = get_settings().max_upload_mb * 1024 * 1024
@@ -382,9 +411,61 @@ def record_decision(
         raise HTTPException(status.HTTP_409_CONFLICT, "Belum ada rekomendasi final untuk diputuskan")
     if _latest_decision(claim) is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Keputusan untuk klaim ini sudah dicatat")
-    _record_decision(db, claim, rec, user, body.decision, (body.reason or "").strip() or None)
-    hook = queue_event(db, claim, "claim.decision_recorded")
+    if claim.status == ClaimStatus.PENDING_DOCUMENTS.value:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Klaim menunggu dokumen susulan dari faskes")
+    reason = (body.reason or "").strip() or None
+    wants_docs = bool(body.doc_types) or bool(missing_documents(claim))
+    if rec.recommendation == RecommendationCode.PEND.value and body.decision == DecisionCode.AGREE.value and wants_docs:
+        # U4: setuju menunda = minta dokumen ke faskes; klaim belum selesai.
+        # Tunda untuk klarifikasi tanpa dokumen yang kurang tetap dicatat sebagai keputusan biasa.
+        doc_requests.open_request(db, claim, rec, user, doc_types=body.doc_types, message=body.message or reason)
+        db.add(InsurerDecision(claim_id=claim.id, recommendation_id=rec.id, decision=body.decision, reason=reason,
+                               decided_by_id=user.id))
+        hook = queue_event(db, claim, "claim.documents_requested")
+    else:
+        _record_decision(db, claim, rec, user, body.decision, reason)
+        hook = queue_event(db, claim, "claim.decision_recorded")
     db.commit()
     dispatch(queue, [hook])
     db.refresh(claim)
     return build_recommendation_view(claim, rec)
+
+
+# --- U4: permintaan dokumen susulan ------------------------------------------------------
+
+
+@router.get("/{claim_id}/document-requests", response_model=list[DocumentRequestOut])
+def list_document_requests(claim_id: str, db: Session = Depends(get_db), user: User = Depends(can_list)) -> list[DocumentRequestOut]:
+    claim = get_visible_claim(db, user, claim_id)
+    return [doc_requests.to_out(r, claim) for r in doc_requests.requests_for(db, claim)]
+
+
+@router.post("/{claim_id}/document-requests", response_model=DocumentRequestOut, status_code=status.HTTP_201_CREATED)
+def create_document_request(claim_id: str, body: DocumentRequestCreate, request: Request, db: Session = Depends(get_db),
+                            user: User = Depends(can_decide), queue=Depends(get_queue)) -> DocumentRequestOut:
+    """Tunda klaim dan minta dokumen susulan ke faskes (tanpa mencatat keputusan)."""
+    claim = get_visible_claim(db, user, claim_id)
+    rec = _current_recommendation(claim)
+    if rec is None or not _released_to_insurer(rec):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Belum ada rekomendasi final untuk klaim ini")
+    if _latest_decision(claim) is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Keputusan untuk klaim ini sudah dicatat")
+    req = doc_requests.open_request(db, claim, rec, user, doc_types=body.doc_types, message=body.message,
+                                    due_days=body.due_days, request=request)
+    hook = queue_event(db, claim, "claim.documents_requested")
+    db.commit()
+    dispatch(queue, [hook])
+    db.refresh(req)
+    return doc_requests.to_out(req, claim)
+
+
+@router.post("/{claim_id}/document-requests/cancel", response_model=DocumentRequestOut)
+def cancel_document_request(claim_id: str, request: Request, db: Session = Depends(get_db),
+                            user: User = Depends(can_decide)) -> DocumentRequestOut:
+    claim = get_visible_claim(db, user, claim_id)
+    if _latest_decision(claim) is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Permintaan ini bagian dari keputusan tunda; tidak bisa dibatalkan")
+    req = doc_requests.cancel_request(db, claim, user, request=request)
+    db.commit()
+    db.refresh(req)
+    return doc_requests.to_out(req, claim)

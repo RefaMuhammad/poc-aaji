@@ -12,11 +12,12 @@ import { RecommendationView } from "@/components/RecommendationView";
 import { DecisionForm } from "@/components/DecisionForm";
 import { DocumentViewer, type ViewerTarget } from "@/components/DocumentViewer";
 import { FraudClaimCard } from "@/components/FraudClaimCard";
+import { DocumentRequestList, LateUploadForm, RequestDocumentsForm } from "@/components/DocumentRequests";
 
 const STEPS: { status: ClaimStatus[]; label: string }[] = [
   { status: ["RECEIVED", "QUEUED"], label: "Diterima & antre" },
   { status: ["PROCESSING"], label: "Membaca dokumen & menilai" },
-  { status: ["AWAITING_DOCTOR", "AWAITING_DECISION", "COMPLETED"], label: "Rekomendasi siap" },
+  { status: ["AWAITING_DOCTOR", "AWAITING_DECISION", "PENDING_DOCUMENTS", "COMPLETED"], label: "Rekomendasi siap" },
 ];
 
 function Progress({ status }: { status: ClaimStatus }) {
@@ -80,6 +81,7 @@ export default function ClaimDetailPage() {
 
   if (error && !claim) return <div className="rounded border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{error}</div>;
   if (!claim) return <div className="text-sm text-slate-500">Memuat…</div>;
+  const openRequest = claim.document_requests?.find((r) => r.status === "OPEN") ?? null;
 
   return (
     <div className="space-y-5">
@@ -189,13 +191,47 @@ export default function ClaimDetailPage() {
         <div className="space-y-5">
           {statusOnly ? (
             <div className="card text-sm text-slate-600">
-              Status klaim: <span className="font-medium">{claim.decision ? "sudah diputuskan asuransi" : "sedang diproses"}</span>.
-              Rincian rekomendasi dan penjelasan keputusan akan tersedia di portal {user?.role === "member" ? "peserta" : "faskes"} (fase U4).
+              Status, linimasa, dan penjelasan keputusan klaim ini ada di{" "}
+              <Link className="text-sky-800 hover:underline" href={`/${user?.role === "member" ? "peserta" : "faskes"}/${id}`}>
+                portal {user?.role === "member" ? "peserta" : "faskes"}
+              </Link>.
             </div>
           ) : rec ? (
             <>
+              {openRequest && (
+                <div className="card border-amber-200 bg-amber-50">
+                  <h3 className="font-medium text-amber-900">Menunggu dokumen susulan dari rumah sakit</h3>
+                  <p className="mt-1 text-sm text-amber-900">
+                    Klaim tidak bisa diputuskan sampai dokumen diterima. Setelah lengkap, klaim diproses ulang dan ditelaah dokter lagi.
+                  </p>
+                  {isInsurer && (
+                    <details className="mt-3 text-sm">
+                      <summary className="cursor-pointer text-sky-800">Dokumen sudah ada di asuransi? Unggah di sini</summary>
+                      <div className="mt-2">
+                        <LateUploadForm claimId={id} request={openRequest} endpoint={`/claims/${id}/documents`} withNote={false} onDone={() => load()} />
+                      </div>
+                    </details>
+                  )}
+                  {isInsurer && !rec.insurer_decision && (
+                    <button className="btn-secondary mt-3" onClick={() => apiJson(`/claims/${id}/document-requests/cancel`, { method: "POST" }).then(load).catch((e) => setError(e.message))}>
+                      Batalkan permintaan
+                    </button>
+                  )}
+                </div>
+              )}
+              {claim.document_requests.length > 0 && (
+                <div className="card">
+                  <h3 className="mb-2 font-medium">Permintaan dokumen susulan</h3>
+                  <DocumentRequestList requests={claim.document_requests} />
+                </div>
+              )}
               <RecommendationView rec={rec} documents={claim.documents} />
-              {isInsurer && <DecisionForm rec={rec} onSaved={(r) => { setRec(r); load(); }} />}
+              {isInsurer && !(openRequest && !rec.insurer_decision) && (
+                <DecisionForm rec={rec} missing={claim.missing_documents} onSaved={(r) => { setRec(r); load(); }} />
+              )}
+              {isInsurer && claim.status === "AWAITING_DECISION" && !rec.insurer_decision && rec.recommendation !== "PEND" && (
+                <RequestDocumentsForm claimId={id} missing={claim.missing_documents} onDone={load} />
+              )}
             </>
           ) : claim.awaiting_doctor ? (
             <div className="card border-violet-200 bg-violet-50 text-sm text-violet-900">

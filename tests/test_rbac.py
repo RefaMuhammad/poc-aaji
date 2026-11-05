@@ -43,6 +43,8 @@ ENDPOINTS = [
     ("POST", "/claims/decisions/bulk-agree", Perm.CLAIM_DECIDE),
     ("GET", "/fraud/overview", Perm.FRAUD_VIEW),
     ("POST", "/fraud/runs", Perm.FRAUD_MANAGE),
+    ("GET", "/portal/claims", Perm.PORTAL_VIEW),
+    ("GET", "/tpa/summary", Perm.TPA_OVERVIEW),
 ]
 
 

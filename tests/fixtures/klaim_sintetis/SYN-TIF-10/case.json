@@ -1,0 +1,401 @@
+{
+  "claim_id": "SYN-TIF-10",
+  "label": "DATA REKAAN UNTUK DEMONSTRASI",
+  "scenario": {
+    "claim_id": "SYN-TIF-10",
+    "icd10": "A01.0",
+    "kategori": "dokumen_tidak_lengkap",
+    "deskripsi": "Rincian tagihan tidak dilampirkan",
+    "pasien": {
+      "usia": 27,
+      "jk": "L"
+    },
+    "lama_rawat": 5,
+    "lab": {
+      "kultur": "pos",
+      "widal": [
+        160
+      ]
+    },
+    "terapi": {
+      "seftriakson_hari": 5
+    },
+    "dokumen_tidak_ada": [
+      "rincian_tagihan"
+    ],
+    "harapan": {
+      "status": "YELLOW",
+      "aturan": [
+        "GEN-03"
+      ]
+    }
+  },
+  "dx_group": "tifoid",
+  "icd10": "A01.0",
+  "secondary_icd10": [],
+  "hospital": {
+    "key": "rs_b",
+    "name": "RSU Harapan Bunda",
+    "city": "Kabupaten Contoh",
+    "style": "b",
+    "date_format": "%d-%m-%Y",
+    "labels": {
+      "plt": "PLT",
+      "hct": "HCT",
+      "hb": "HGB",
+      "wbc": "WBC"
+    }
+  },
+  "doctor": "dr. Hasan Basri, Sp.PD",
+  "patient": {
+    "name": "Bayu Rahayu",
+    "sex": "L",
+    "age": 27,
+    "mrn": "RM-444810",
+    "member_id": "PST-98634220",
+    "policy_no": "POL-DEMO-1431"
+  },
+  "admission_date": "2026-04-28",
+  "discharge_date": "2026-05-03",
+  "documents": [
+    "resume_medis",
+    "hasil_laboratorium",
+    "cppt"
+  ],
+  "labs": [
+    {
+      "type": "darah_lengkap",
+      "day": 1,
+      "date": "2026-04-28",
+      "time": "07:00",
+      "values": {
+        "hb": 13.2,
+        "hct": 39.5,
+        "wbc": 4.2,
+        "plt": 168000
+      }
+    },
+    {
+      "type": "widal",
+      "day": 1,
+      "date": "2026-04-28",
+      "time": "08:00",
+      "values": {
+        "o": 160,
+        "h": 80
+      }
+    },
+    {
+      "type": "kultur",
+      "day": 1,
+      "date": "2026-04-28",
+      "time": "08:00",
+      "values": {
+        "result": "pos"
+      }
+    }
+  ],
+  "treatment": {
+    "iv_days": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "meds": [
+      {
+        "name": "Seftriakson 2 g IV",
+        "kind": "seftriakson",
+        "days": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "name": "Parasetamol 500 mg",
+        "kind": "parasetamol",
+        "days": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      }
+    ]
+  },
+  "clinical": {
+    "comorbidities": [],
+    "days_after_discharge_criteria": 0,
+    "complication_documented": false
+  },
+  "cppt": [
+    {
+      "day": 1,
+      "date": "2026-04-28",
+      "S": "Demam naik turun 7 hari, terutama sore-malam, mual, nyeri perut, sulit BAB",
+      "O": "TD 110/70 mmHg, nadi 96x/menit, suhu 38.6 C; Lidah kotor, nyeri tekan epigastrium",
+      "A": "Demam tifoid",
+      "P": "Terapi: Seftriakson 2 g IV; diet lunak",
+      "meds": [
+        "Seftriakson 2 g IV"
+      ]
+    },
+    {
+      "day": 2,
+      "date": "2026-04-29",
+      "S": "Tidak ada keluhan baru",
+      "O": "TD 110/70 mmHg, nadi 96x/menit, suhu 38.6 C",
+      "A": "Demam tifoid",
+      "P": "Terapi: Seftriakson 2 g IV; diet lunak",
+      "meds": [
+        "Seftriakson 2 g IV"
+      ]
+    },
+    {
+      "day": 3,
+      "date": "2026-04-30",
+      "S": "Tidak ada keluhan baru",
+      "O": "TD 110/70 mmHg, nadi 96x/menit, suhu 36.8 C",
+      "A": "Demam tifoid",
+      "P": "Terapi: Seftriakson 2 g IV; diet lunak",
+      "meds": [
+        "Seftriakson 2 g IV"
+      ]
+    },
+    {
+      "day": 4,
+      "date": "2026-05-01",
+      "S": "Tidak ada keluhan baru",
+      "O": "TD 110/70 mmHg, nadi 96x/menit, suhu 36.8 C",
+      "A": "Demam tifoid",
+      "P": "Terapi: Seftriakson 2 g IV; diet lunak",
+      "meds": [
+        "Seftriakson 2 g IV"
+      ]
+    },
+    {
+      "day": 5,
+      "date": "2026-05-02",
+      "S": "Tidak ada keluhan baru",
+      "O": "TD 110/70 mmHg, nadi 96x/menit, suhu 36.8 C",
+      "A": "Kondisi membaik",
+      "P": "Bebas demam > 48 jam, nafsu makan baik. Pasien layak pulang.",
+      "meds": []
+    }
+  ],
+  "billing": [
+    {
+      "date": "2026-04-28",
+      "time": "00:00",
+      "name": "Kamar rawat inap kelas 1",
+      "qty": 1,
+      "price": 450000
+    },
+    {
+      "date": "2026-04-28",
+      "time": "07:00",
+      "name": "Pemeriksaan Darah Lengkap",
+      "qty": 1,
+      "price": 95000
+    },
+    {
+      "date": "2026-04-28",
+      "time": "08:00",
+      "name": "Cairan infus Ringer Laktat 500 ml",
+      "qty": 3,
+      "price": 65000
+    },
+    {
+      "date": "2026-04-28",
+      "time": "08:00",
+      "name": "Kultur Darah",
+      "qty": 1,
+      "price": 450000
+    },
+    {
+      "date": "2026-04-28",
+      "time": "08:00",
+      "name": "Parasetamol 500 mg",
+      "qty": 1,
+      "price": 8000
+    },
+    {
+      "date": "2026-04-28",
+      "time": "08:00",
+      "name": "Seftriakson 2 g IV",
+      "qty": 1,
+      "price": 120000
+    },
+    {
+      "date": "2026-04-28",
+      "time": "08:00",
+      "name": "Tes Widal",
+      "qty": 1,
+      "price": 85000
+    },
+    {
+      "date": "2026-04-28",
+      "time": "09:00",
+      "name": "Visite dokter spesialis",
+      "qty": 1,
+      "price": 150000
+    },
+    {
+      "date": "2026-04-29",
+      "time": "00:00",
+      "name": "Kamar rawat inap kelas 1",
+      "qty": 1,
+      "price": 450000
+    },
+    {
+      "date": "2026-04-29",
+      "time": "08:00",
+      "name": "Cairan infus Ringer Laktat 500 ml",
+      "qty": 3,
+      "price": 65000
+    },
+    {
+      "date": "2026-04-29",
+      "time": "08:00",
+      "name": "Parasetamol 500 mg",
+      "qty": 1,
+      "price": 8000
+    },
+    {
+      "date": "2026-04-29",
+      "time": "08:00",
+      "name": "Seftriakson 2 g IV",
+      "qty": 1,
+      "price": 120000
+    },
+    {
+      "date": "2026-04-29",
+      "time": "09:00",
+      "name": "Visite dokter spesialis",
+      "qty": 1,
+      "price": 150000
+    },
+    {
+      "date": "2026-04-30",
+      "time": "00:00",
+      "name": "Kamar rawat inap kelas 1",
+      "qty": 1,
+      "price": 450000
+    },
+    {
+      "date": "2026-04-30",
+      "time": "08:00",
+      "name": "Cairan infus Ringer Laktat 500 ml",
+      "qty": 3,
+      "price": 65000
+    },
+    {
+      "date": "2026-04-30",
+      "time": "08:00",
+      "name": "Parasetamol 500 mg",
+      "qty": 1,
+      "price": 8000
+    },
+    {
+      "date": "2026-04-30",
+      "time": "08:00",
+      "name": "Seftriakson 2 g IV",
+      "qty": 1,
+      "price": 120000
+    },
+    {
+      "date": "2026-04-30",
+      "time": "09:00",
+      "name": "Visite dokter spesialis",
+      "qty": 1,
+      "price": 150000
+    },
+    {
+      "date": "2026-05-01",
+      "time": "00:00",
+      "name": "Kamar rawat inap kelas 1",
+      "qty": 1,
+      "price": 450000
+    },
+    {
+      "date": "2026-05-01",
+      "time": "08:00",
+      "name": "Cairan infus Ringer Laktat 500 ml",
+      "qty": 3,
+      "price": 65000
+    },
+    {
+      "date": "2026-05-01",
+      "time": "08:00",
+      "name": "Parasetamol 500 mg",
+      "qty": 1,
+      "price": 8000
+    },
+    {
+      "date": "2026-05-01",
+      "time": "08:00",
+      "name": "Seftriakson 2 g IV",
+      "qty": 1,
+      "price": 120000
+    },
+    {
+      "date": "2026-05-01",
+      "time": "09:00",
+      "name": "Visite dokter spesialis",
+      "qty": 1,
+      "price": 150000
+    },
+    {
+      "date": "2026-05-02",
+      "time": "00:00",
+      "name": "Kamar rawat inap kelas 1",
+      "qty": 1,
+      "price": 450000
+    },
+    {
+      "date": "2026-05-02",
+      "time": "08:00",
+      "name": "Parasetamol 500 mg",
+      "qty": 1,
+      "price": 8000
+    },
+    {
+      "date": "2026-05-02",
+      "time": "08:00",
+      "name": "Seftriakson 2 g IV",
+      "qty": 1,
+      "price": 120000
+    },
+    {
+      "date": "2026-05-02",
+      "time": "09:00",
+      "name": "Visite dokter spesialis",
+      "qty": 1,
+      "price": 150000
+    }
+  ],
+  "billing_total": 5050000,
+  "resume": {
+    "chief_complaint": "Demam lebih dari 7 hari",
+    "primary_dx": "A01.0 Demam tifoid",
+    "secondary_dx": [],
+    "supporting_findings": [
+      "Trombosit terendah 168.000/uL",
+      "Widal O 1/160 (hari ke-1)",
+      "kultur darah: Salmonella typhi tumbuh"
+    ],
+    "therapy": [
+      "infus RL 4 hari",
+      "Parasetamol 500 mg",
+      "Seftriakson 2 g IV"
+    ],
+    "discharge_condition": "Membaik, diizinkan pulang"
+  },
+  "undocumented_billed_items": [],
+  "overlapping_claims": [],
+  "scanned": true
+}

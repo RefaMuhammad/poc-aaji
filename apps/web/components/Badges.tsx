@@ -29,6 +29,8 @@ export function StatusBadge({ status }: { status: ClaimStatus }) {
         ? "bg-slate-100 text-slate-700"
         : status === "AWAITING_DECISION"
           ? "bg-sky-50 text-sky-800"
+          : status === "PENDING_DOCUMENTS"
+            ? "bg-amber-50 text-amber-800"
           : status === "AWAITING_DOCTOR"
             ? "bg-violet-50 text-violet-800"
             : "bg-slate-50 text-slate-600";
