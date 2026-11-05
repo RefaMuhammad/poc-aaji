@@ -43,7 +43,7 @@ Password semua akun `demo12345`. Semua akun ada di pemilih **Ganti peran (demo)*
 | Auditor regulator | `auditor@ojk.test` | Hanya-baca semua tenant |
 | Petugas faskes | `faskes@demo.test` | Portal faskes: klaim dari RS-nya (RSU Harapan Bunda) lintas asuransi, unggah dokumen susulan (U4) |
 | Peserta | `peserta@demo.test` | Portal peserta: status dan penjelasan klaim atas nomor pesertanya (peserta SYN-TIF-10 di DEMO, U4) |
-| Underwriter | `underwriter@demo.test` | Belum ada akses data klaim; modul underwriting di U7 |
+| Underwriter | `underwriter@demo.test` | Underwriting medis tenant sendiri (U7); tidak melihat data klaim |
 
 Portal faskes dan peserta (dokumen susulan, linimasa, penjelasan keputusan) dijelaskan di
 [u4-portal-faskes-peserta.md](u4-portal-faskes-peserta.md).
@@ -78,6 +78,9 @@ Sumber kebenaran: `apps/api/mab_api/rbac.py`. Cakupan data (tenant mana, RS mana
 | (U5) Telaah ulang banding (bukan penelaah awal) | | | ✓ | | | | | |
 | (U6) Log audit, jejak keputusan, lihat & unduh laporan | manajer saja | | | ✓ | | | | ✓ |
 | (U6) Buat / buat ulang laporan bulanan | manajer saja | | | | | | | ✓ |
+| (U7) Lihat pengajuan underwriting | | | ✓ (antrean dokter) | ✓ | | | ✓ | ✓ |
+| (U7) Ajukan dan putuskan underwriting | | | | | | | ✓ | |
+| (U7) Telaah dan tanda tangan underwriting | | | ✓ | | | | | |
 
 Prinsip yang tidak berubah:
 
@@ -159,6 +162,6 @@ SFTP, dan FHIR dibangun di U2.
 - Pipeline (`tasks.py`): aturan dasar + penyesuaian tenant; penugasan otomatis setelah draf dibuat;
   penugasan lama dibatalkan saat klaim diproses ulang.
 - Web: logo tenant di header, menu per peran, halaman `/admin/tenant`, kolom SLA di antrean, pilihan asuransi untuk TPA,
-  halaman `/underwriting` (penanda U7).
+  halaman `/underwriting` (diisi modul underwriting medis di U7).
 - Tes: `tests/test_rbac.py` (matriks peran × endpoint, isolasi tenant/peran), `tests/test_tenants.py`
   (pengaturan tenant, API key, penugasan, SLA).

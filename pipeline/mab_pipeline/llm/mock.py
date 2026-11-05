@@ -268,6 +268,10 @@ class MockLLMClient:
 
     def complete_json(self, system: str, user: str, *, task: str, context: dict[str, Any]) -> str:
         lines: list[dict] = context.get("lines") or []
+        if task.startswith("uw_"):  # U7: dokumen pengajuan underwriting
+            from mab_pipeline.underwriting.mock import answer
+
+            return answer(self.fixtures_dir, task, context)
         if task == "classify":
             return json.dumps({"doc_type": "unknown"})
         if task == "reason":

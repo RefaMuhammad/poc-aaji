@@ -1,0 +1,12 @@
+{% extends "uw/_base.html" %}
+{% block content %}
+<p>Yang bertanda tangan di bawah ini menerangkan bahwa:</p>
+<p>Nama pasien: {{ case.applicant.name }}</p>
+<p>Diagnosis: {{ case.letter.diagnosis }}</p>
+<p>Diketahui sejak tahun: {{ case.letter.since_year }}</p>
+<p>Terapi saat ini: {{ case.letter.treatment }}</p>
+<p>Kondisi saat ini: {{ case.letter.condition_text }}</p>
+<p>Kontrol terakhir: {{ fmt(case.letter.date) }}</p>
+<p>Surat keterangan ini dibuat untuk keperluan pengajuan asuransi.</p>
+<div class="sign">{{ case.applicant.city }}, {{ fmt(case.letter.date) }}<br>Dokter yang merawat<br><br><br>{{ case.letter.doctor }}</div>
+{% endblock %}

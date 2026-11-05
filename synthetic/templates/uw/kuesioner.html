@@ -1,0 +1,11 @@
+{% extends "uw/_base.html" %}
+{% block content %}
+<p>Jawab setiap pertanyaan dengan Ya atau Tidak. Bila Ya, tuliskan keterangan.</p>
+<table>
+  <tr><th style="width:6%">No</th><th style="width:52%">Pertanyaan</th><th style="width:10%">Jawaban</th><th>Keterangan</th></tr>
+  {% for q in questions %}
+  <tr><td>{{ loop.index }}</td><td>{{ q.text }}</td><td>{{ 'Ya' if q.answer else 'Tidak' }}</td><td>{{ q.detail or '-' }}</td></tr>
+  {% endfor %}
+</table>
+<div class="sign">{{ case.applicant.city }}, {{ fmt(case.spaj_date) }}<br>Calon tertanggung<br><br><br>{{ case.applicant.name }}</div>
+{% endblock %}

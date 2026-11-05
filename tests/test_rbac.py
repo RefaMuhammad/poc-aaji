@@ -48,6 +48,8 @@ ENDPOINTS = [
     ("GET", "/disputes", Perm.DISPUTE_VIEW),
     ("GET", "/audit/logs", Perm.AUDIT_VIEW),
     ("GET", "/reports", Perm.REPORT_VIEW),
+    ("GET", "/underwriting/applications", Perm.UW_VIEW),
+    ("GET", "/underwriting/rules", Perm.UW_VIEW),
 ]
 
 

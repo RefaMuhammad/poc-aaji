@@ -1,0 +1,9 @@
+{
+  "risk_class": "SUB1",
+  "decision": "ACCEPT_CONDITIONAL",
+  "loading_pct": 25,
+  "exclusions": [
+    "HBSAG_POSITIVE"
+  ],
+  "notes": []
+}

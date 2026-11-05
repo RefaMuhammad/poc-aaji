@@ -21,6 +21,7 @@ const GROUP_STYLE: Record<string, string> = {
   FRAUD: "bg-orange-50 text-orange-800",
   REPORT: "bg-indigo-50 text-indigo-800",
   ADMIN: "bg-slate-100 text-slate-700",
+  UNDERWRITING: "bg-teal-50 text-teal-800",
   OTHER: "bg-slate-50 text-slate-600",
 };
 

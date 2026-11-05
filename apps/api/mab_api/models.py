@@ -31,7 +31,7 @@ class Role(str, Enum):
     AUDITOR = "auditor"                    # auditor internal/OJK, hanya-baca
     FACILITY_OFFICER = "facility_officer"  # petugas faskes/RS (portal faskes, U4)
     MEMBER = "member"                      # peserta asuransi (portal peserta, U4)
-    UNDERWRITER = "underwriter"            # underwriter (modul underwriting menyusul di U7)
+    UNDERWRITER = "underwriter"            # underwriter (U7: underwriting medis)
 
 
 INSURER_ROLES = {Role.INSURER_STAFF, Role.INSURER_MANAGER}
@@ -603,3 +603,132 @@ class Report(Base):
 
     insurer: Mapped[Insurer | None] = relationship()
     generated_by: Mapped[User | None] = relationship()
+
+
+# ----------------------------------------------------------------------------- U7: underwriting medis
+
+
+class UwStatus(str, Enum):
+    QUEUED = "QUEUED"                            # dokumen masuk, menunggu worker
+    PROCESSING = "PROCESSING"
+    AWAITING_DOCTOR = "AWAITING_DOCTOR"          # draf selain terima standar / data kurang: wajib ditelaah dokter
+    AWAITING_UNDERWRITER = "AWAITING_UNDERWRITER"  # siap diputuskan underwriter
+    DECIDED = "DECIDED"
+    FAILED = "FAILED"
+
+
+class UwApplication(Base):
+    """U7: pengajuan calon peserta (SPAJ + dokumen kesehatan) untuk underwriting medis."""
+
+    __tablename__ = "uw_applications"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    application_number: Mapped[str] = mapped_column(String(64), unique=True)
+    insurer_id: Mapped[str] = mapped_column(ForeignKey("insurers.id"), index=True)
+    status: Mapped[str] = mapped_column(String(32), default=UwStatus.QUEUED.value, index=True)
+    # dari SPAJ hasil ekstraksi (kosong sampai diproses)
+    spaj_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    applicant_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    applicant_sex: Mapped[str | None] = mapped_column(String(1), nullable=True)
+    applicant_birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    product_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    sum_assured: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    base_premium: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    processing_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    submitted_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    insurer: Mapped[Insurer] = relationship()
+    submitted_by: Mapped[User | None] = relationship()
+    documents: Mapped[list[UwDocument]] = relationship(back_populates="application", order_by="UwDocument.created_at")
+    assessments: Mapped[list[UwAssessment]] = relationship(back_populates="application", order_by="UwAssessment.version")
+    reviews: Mapped[list[UwReview]] = relationship(back_populates="application", order_by="UwReview.signed_at")
+    decisions: Mapped[list[UwDecision]] = relationship(back_populates="application", order_by="UwDecision.decided_at")
+
+
+class UwDocument(Base):
+    __tablename__ = "uw_documents"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    application_id: Mapped[str] = mapped_column(ForeignKey("uw_applications.id"), index=True)
+    filename: Mapped[str] = mapped_column(String(255))
+    content_type: Mapped[str] = mapped_column(String(100))
+    size_bytes: Mapped[int] = mapped_column(BigInteger)
+    sha256: Mapped[str] = mapped_column(String(64), index=True)
+    storage_key: Mapped[str] = mapped_column(String(500))
+    doc_type: Mapped[str] = mapped_column(String(50), default="unknown")
+    page_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    uploaded_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    application: Mapped[UwApplication] = relationship(back_populates="documents")
+
+
+class UwAssessment(Base):
+    """Hasil pipeline underwriting (DRAF sistem). Satu versi per pemrosesan; isi dibekukan."""
+
+    __tablename__ = "uw_assessments"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    application_id: Mapped[str] = mapped_column(ForeignKey("uw_applications.id"), index=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    fields: Mapped[dict] = mapped_column(JSON, default=dict)        # path -> {value, line_ids, source}
+    profile: Mapped[dict] = mapped_column(JSON, default=dict)
+    findings: Mapped[list] = mapped_column(JSON, default=list)
+    skipped: Mapped[list] = mapped_column(JSON, default=list)
+    evidence: Mapped[dict] = mapped_column(JSON, default=dict)      # id baris -> {doc, halaman, teks, bbox}
+    missing_docs: Mapped[list] = mapped_column(JSON, default=list)
+    missing_fields: Mapped[list] = mapped_column(JSON, default=list)
+    debit_total: Mapped[int] = mapped_column(Integer, default=0)
+    risk_class: Mapped[str] = mapped_column(String(16))
+    loading_pct: Mapped[int] = mapped_column(Integer, default=0)
+    exclusions: Mapped[list] = mapped_column(JSON, default=list)
+    recommendation: Mapped[str] = mapped_column(String(24))
+    needs_doctor: Mapped[bool] = mapped_column(Boolean, default=True)
+    doctor_reasons: Mapped[list] = mapped_column(JSON, default=list)
+    rules_version: Mapped[str] = mapped_column(String(64))
+    model_version: Mapped[str] = mapped_column(String(100))
+    prompt_version: Mapped[str] = mapped_column(String(64))
+    ocr_engine: Mapped[str] = mapped_column(String(64), default="none")
+    warnings: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    application: Mapped[UwApplication] = relationship(back_populates="assessments")
+
+
+class UwReview(Base):
+    """Telaah dan tanda tangan dokter atas draf underwriting (wajib untuk selain terima standar)."""
+
+    __tablename__ = "uw_reviews"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    application_id: Mapped[str] = mapped_column(ForeignKey("uw_applications.id"), index=True)
+    assessment_id: Mapped[str] = mapped_column(ForeignKey("uw_assessments.id"))
+    doctor_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    action: Mapped[str] = mapped_column(String(16))                 # AGREE | MODIFY
+    recommendation: Mapped[str] = mapped_column(String(24))
+    risk_class: Mapped[str] = mapped_column(String(16))
+    loading_pct: Mapped[int] = mapped_column(Integer, default=0)
+    exclusions: Mapped[list] = mapped_column(JSON, default=list)    # teks pengecualian final
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    signed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    application: Mapped[UwApplication] = relationship(back_populates="reviews")
+    doctor: Mapped[User] = relationship()
+
+
+class UwDecision(Base):
+    """Keputusan underwriter (akhir). Selain terima standar harus sama dengan rekomendasi bertanda tangan dokter."""
+
+    __tablename__ = "uw_decisions"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    application_id: Mapped[str] = mapped_column(ForeignKey("uw_applications.id"), index=True)
+    review_id: Mapped[str | None] = mapped_column(ForeignKey("uw_reviews.id"), nullable=True)
+    decision: Mapped[str] = mapped_column(String(24))
+    risk_class: Mapped[str] = mapped_column(String(16))
+    loading_pct: Mapped[int] = mapped_column(Integer, default=0)
+    exclusions: Mapped[list] = mapped_column(JSON, default=list)
+    final_premium: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    decided_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    application: Mapped[UwApplication] = relationship(back_populates="decisions")
+    decided_by: Mapped[User] = relationship()

@@ -1,0 +1,294 @@
+# =============================================================================
+# ATURAN UNDERWRITING MEDIS DEMO - PLATFORM MAB INDONESIA (U7)
+# =============================================================================
+# Versi      : uw-2026.11-demo
+# Status     : DRAF UNTUK DEMO. Angka debit, kelas risiko, dan loading premi di
+#              file ini adalah CONTOH. Pada pemakaian sungguhan nilainya diambil
+#              dari tabel underwriting/aktuaria klien (reasuradur) dan ditelaah
+#              dokter serta aktuaris klien. Sistem hanya menerapkan tabel itu.
+#
+# CARA MEMBACA FILE INI
+# - Setiap aturan punya "kondisi" (ekspresi atas data calon peserta hasil
+#   ekstraksi dokumen) dan satu atau lebih akibat:
+#     debit        : poin risiko (sistem rating numerik). Total debit menentukan
+#                    kelas risiko dan loading premi (lihat "kelas_risiko").
+#     pengecualian : penyakit yang dikecualikan dari pertanggungan.
+#     keputusan    : "tunda" (ditangguhkan, ajukan ulang setelah syarat terpenuhi)
+#                    atau "tolak" (usulan tolak).
+#     catatan      : temuan informatif tanpa akibat langsung (mis. dugaan
+#                    ketidaksesuaian jawaban kuesioner).
+# - Mesin aturan TIDAK PERNAH menolak sendiri. Semua rekomendasi selain
+#   "terima standar" (bersyarat, tunda, tolak) adalah DRAF yang wajib ditelaah
+#   dan ditandatangani dokter sebelum underwriter boleh memutuskannya.
+# - Bila dokumen wajib tidak ada atau data yang dibutuhkan aturan tidak terbaca,
+#   sistem tidak boleh menyimpulkan "terima standar": kasus dikirim ke dokter.
+# =============================================================================
+
+version: uw-2026.11-demo
+status: draft_demo_belum_divalidasi_dokter_aktuaris
+
+# -----------------------------------------------------------------------------
+# KAMUS DATA (diisi modul ekstraksi underwriting dari dokumen pengajuan)
+# sumber: dokumen = dibaca dari dokumen; hitung = dihitung dari field lain.
+# -----------------------------------------------------------------------------
+kamus_data:
+  applicant.age:              {tipe: angka, sumber: hitung, ket: "Usia calon peserta (tahun) pada tanggal SPAJ"}
+  applicant.sex:              {tipe: teks, sumber: dokumen, ket: "'L' atau 'P' (SPAJ)"}
+  applicant.smoker:           {tipe: ya_tidak, sumber: dokumen, ket: "Merokok dalam 12 bulan terakhir (kuesioner)"}
+
+  vital.height_cm:            {tipe: angka, sumber: dokumen, ket: "Tinggi badan (MCU)"}
+  vital.weight_kg:            {tipe: angka, sumber: dokumen, ket: "Berat badan (MCU)"}
+  vital.bmi:                  {tipe: angka, sumber: hitung, ket: "Indeks massa tubuh = BB / (TB/100)^2"}
+  vital.systolic:             {tipe: angka, sumber: dokumen, ket: "Tekanan darah sistolik (MCU, mmHg)"}
+  vital.diastolic:            {tipe: angka, sumber: dokumen, ket: "Tekanan darah diastolik (MCU, mmHg)"}
+  vital.ecg:                  {tipe: teks, sumber: dokumen, ket: "Kesan EKG: 'normal', 'abnormal_ringan', 'iskemia'"}
+
+  lab.fasting_glucose:        {tipe: angka, sumber: dokumen, ket: "Gula darah puasa (mg/dL)"}
+  lab.hba1c:                  {tipe: angka, sumber: dokumen, ket: "HbA1c (%)"}
+  lab.total_cholesterol:      {tipe: angka, sumber: dokumen, ket: "Kolesterol total (mg/dL)"}
+  lab.ldl:                    {tipe: angka, sumber: dokumen, ket: "Kolesterol LDL (mg/dL)"}
+  lab.sgpt:                   {tipe: angka, sumber: dokumen, ket: "SGPT/ALT (U/L)"}
+  lab.creatinine:             {tipe: angka, sumber: dokumen, ket: "Kreatinin serum (mg/dL)"}
+  lab.hbsag:                  {tipe: teks, sumber: dokumen, ket: "HBsAg: 'pos' atau 'neg'"}
+  lab.urine_protein:          {tipe: teks, sumber: dokumen, ket: "Protein urin: 'neg', '+1', '+2', '+3'"}
+
+  history.hypertension:       {tipe: ya_tidak, sumber: dokumen, ket: "Kuesioner: pernah didiagnosis hipertensi"}
+  history.diabetes:           {tipe: ya_tidak, sumber: dokumen, ket: "Kuesioner: pernah didiagnosis diabetes"}
+  history.heart_disease:      {tipe: ya_tidak, sumber: dokumen, ket: "Kuesioner: penyakit jantung koroner / serangan jantung"}
+  history.cancer_5y:          {tipe: ya_tidak, sumber: dokumen, ket: "Kuesioner: kanker/tumor ganas dalam 5 tahun terakhir"}
+  history.asthma:             {tipe: ya_tidak, sumber: dokumen, ket: "Kuesioner: asma atau penyakit paru kronis"}
+  history.liver_disease:      {tipe: ya_tidak, sumber: dokumen, ket: "Kuesioner: hepatitis atau penyakit hati"}
+  history.pending_treatment:  {tipe: ya_tidak, sumber: dokumen, ket: "Kuesioner: sedang menunggu pemeriksaan lanjutan / operasi"}
+  history.pregnant:           {tipe: ya_tidak, sumber: dokumen, ket: "Kuesioner: sedang hamil"}
+
+  doctor.letter:              {tipe: ya_tidak, sumber: hitung, ket: "Ada surat keterangan dokter"}
+  doctor.controlled:          {tipe: ya_tidak, sumber: dokumen, ket: "Surat dokter: kondisi terkontrol dengan pengobatan"}
+
+# Dokumen yang wajib ada sebelum sistem boleh menyimpulkan "terima standar".
+dokumen_wajib: [spaj, kuesioner_kesehatan, hasil_mcu, hasil_lab_uw]
+
+# Field yang wajib terbaca. Bila salah satu kosong, kasus dikirim ke dokter.
+field_wajib: [applicant.age, vital.bmi, vital.systolic, vital.diastolic, lab.fasting_glucose, lab.total_cholesterol,
+              lab.sgpt, lab.creatinine]
+
+# -----------------------------------------------------------------------------
+# KELAS RISIKO DAN LOADING (CONTOH; dari tabel klien)
+# Total debit dibulatkan ke atas ke kelas pertama yang debit_maks-nya cukup.
+# loading_pct = total debit x loading_per_debit (persen dari premi dasar).
+# Total debit di atas batas_debit_tolak -> usulan tolak.
+# -----------------------------------------------------------------------------
+kelas_risiko:
+  - {kode: STANDARD, nama: "Standar", debit_maks: 0}
+  - {kode: SUB1, nama: "Substandar 1", debit_maks: 25}
+  - {kode: SUB2, nama: "Substandar 2", debit_maks: 50}
+  - {kode: SUB3, nama: "Substandar 3", debit_maks: 100}
+  - {kode: SUB4, nama: "Substandar 4", debit_maks: 150}
+batas_debit_tolak: 150
+loading_per_debit: 1
+
+aturan:
+  # --- Berat badan -----------------------------------------------------------
+  - id: UW-BMI-01
+    nama: Obesitas derajat I
+    kondisi: "vital.bmi >= 30 and vital.bmi < 35"
+    debit: 25
+    kode_alasan: BMI_OBESE_1
+    pesan: "IMT {vital.bmi} (TB {vital.height_cm} cm, BB {vital.weight_kg} kg) termasuk obesitas derajat I."
+    referensi: "Tabel rating klien (contoh): IMT 30-34,9 = +25"
+  - id: UW-BMI-02
+    nama: Obesitas derajat II
+    kondisi: "vital.bmi >= 35 and vital.bmi < 40"
+    debit: 50
+    kode_alasan: BMI_OBESE_2
+    pesan: "IMT {vital.bmi} (TB {vital.height_cm} cm, BB {vital.weight_kg} kg) termasuk obesitas derajat II."
+    referensi: "Tabel rating klien (contoh): IMT 35-39,9 = +50"
+  - id: UW-BMI-03
+    nama: Obesitas derajat III
+    kondisi: "vital.bmi >= 40"
+    debit: 100
+    kode_alasan: BMI_OBESE_3
+    pesan: "IMT {vital.bmi} (TB {vital.height_cm} cm, BB {vital.weight_kg} kg) termasuk obesitas derajat III."
+    referensi: "Tabel rating klien (contoh): IMT >= 40 = +100"
+  - id: UW-BMI-04
+    nama: Berat badan kurang
+    kondisi: "vital.bmi < 17"
+    debit: 25
+    kode_alasan: BMI_UNDERWEIGHT
+    pesan: "IMT {vital.bmi} di bawah 17."
+    referensi: "Tabel rating klien (contoh): IMT < 17 = +25"
+
+  # --- Tekanan darah ---------------------------------------------------------
+  - id: UW-BP-01
+    nama: Tekanan darah tinggi derajat 1
+    kondisi: "(vital.systolic >= 140 and vital.systolic < 160 and vital.diastolic < 110) or (vital.diastolic >= 90 and vital.diastolic < 100 and vital.systolic < 160)"
+    debit: 25
+    kode_alasan: BP_STAGE_1
+    pesan: "Tekanan darah saat MCU {vital.systolic}/{vital.diastolic} mmHg (hipertensi derajat 1)."
+    referensi: "Tabel rating klien (contoh): 140-159 / 90-99 = +25"
+  - id: UW-BP-02
+    nama: Tekanan darah tinggi derajat 2
+    kondisi: "(vital.systolic >= 160 and vital.systolic < 180 and vital.diastolic < 110) or (vital.diastolic >= 100 and vital.diastolic < 110 and vital.systolic < 180)"
+    debit: 50
+    kode_alasan: BP_STAGE_2
+    pesan: "Tekanan darah saat MCU {vital.systolic}/{vital.diastolic} mmHg (hipertensi derajat 2)."
+    referensi: "Tabel rating klien (contoh): 160-179 / 100-109 = +50"
+  - id: UW-BP-03
+    nama: Tekanan darah sangat tinggi
+    kondisi: "vital.systolic >= 180 or vital.diastolic >= 110"
+    keputusan: tunda
+    kode_alasan: BP_CRISIS
+    pesan: "Tekanan darah saat MCU {vital.systolic}/{vital.diastolic} mmHg. Tunda sampai terkontrol dan diperiksa ulang."
+    referensi: "Pedoman klien (contoh): >= 180/110 ditunda"
+  - id: UW-BP-04
+    nama: Hipertensi terkontrol dengan obat
+    kondisi: "history.hypertension == True and vital.systolic < 140 and vital.diastolic < 90"
+    debit: 25
+    kode_alasan: HTN_CONTROLLED
+    pesan: "Riwayat hipertensi dengan tekanan darah MCU {vital.systolic}/{vital.diastolic} mmHg (terkontrol)."
+    referensi: "Tabel rating klien (contoh): hipertensi terkontrol = +25"
+
+  # --- Gula darah ------------------------------------------------------------
+  - id: UW-DM-01
+    nama: Diabetes terkontrol baik
+    kondisi: "lab.hba1c >= 6.5 and lab.hba1c < 8"
+    debit: 50
+    kode_alasan: DM_CONTROLLED
+    pesan: "HbA1c {lab.hba1c}% (gula darah puasa {lab.fasting_glucose} mg/dL): diabetes dengan kontrol baik."
+    referensi: "Tabel rating klien (contoh): HbA1c 6,5-7,9 = +50"
+  - id: UW-DM-02
+    nama: Diabetes kontrol sedang
+    kondisi: "lab.hba1c >= 8 and lab.hba1c < 10"
+    debit: 100
+    kode_alasan: DM_FAIR
+    pesan: "HbA1c {lab.hba1c}% (gula darah puasa {lab.fasting_glucose} mg/dL): diabetes dengan kontrol sedang."
+    referensi: "Tabel rating klien (contoh): HbA1c 8,0-9,9 = +100"
+  - id: UW-DM-03
+    nama: Diabetes tidak terkontrol
+    kondisi: "lab.hba1c >= 10"
+    keputusan: tolak
+    kode_alasan: DM_UNCONTROLLED
+    pesan: "HbA1c {lab.hba1c}% (gula darah puasa {lab.fasting_glucose} mg/dL): diabetes tidak terkontrol."
+    referensi: "Pedoman klien (contoh): HbA1c >= 10 diusulkan tolak"
+  - id: UW-DM-04
+    nama: Dugaan jawaban kuesioner tidak sesuai (gula darah)
+    kondisi: "history.diabetes == False and lab.hba1c >= 6.5"
+    catatan: true
+    kode_alasan: NONDISCLOSURE_SUSPECT
+    pesan: "Kuesioner menjawab tidak pernah didiagnosis diabetes, tetapi HbA1c {lab.hba1c}%. Perlu klarifikasi ke calon peserta."
+    referensi: "Prinsip itikad baik (utmost good faith)"
+
+  # --- Lemak darah -----------------------------------------------------------
+  - id: UW-LIP-01
+    nama: Kolesterol tinggi
+    kondisi: "lab.total_cholesterol >= 280 or (lab.ldl is not None and lab.ldl >= 190)"
+    debit: 25
+    kode_alasan: LIPID_HIGH
+    pesan: "Kolesterol total {lab.total_cholesterol} mg/dL, LDL {lab.ldl} mg/dL."
+    referensi: "Tabel rating klien (contoh): kolesterol >= 280 atau LDL >= 190 = +25"
+
+  # --- Hati ------------------------------------------------------------------
+  - id: UW-LIV-01
+    nama: SGPT meningkat ringan
+    kondisi: "lab.sgpt > 55 and lab.sgpt <= 120"
+    debit: 25
+    kode_alasan: ALT_MILD
+    pesan: "SGPT {lab.sgpt} U/L (di atas nilai rujukan, kurang dari 3x batas atas)."
+    referensi: "Tabel rating klien (contoh): ALT 1-3x batas atas = +25"
+  - id: UW-LIV-02
+    nama: SGPT meningkat tinggi
+    kondisi: "lab.sgpt > 120"
+    keputusan: tunda
+    kode_alasan: ALT_HIGH
+    pesan: "SGPT {lab.sgpt} U/L (lebih dari 3x batas atas). Tunda sampai penyebabnya diketahui."
+    referensi: "Pedoman klien (contoh): ALT > 3x batas atas ditunda"
+  - id: UW-LIV-03
+    nama: Hepatitis B (HBsAg positif)
+    kondisi: "lab.hbsag == 'pos'"
+    debit: 25
+    pengecualian: "Penyakit hati dan komplikasinya (hepatitis B kronis, sirosis, kanker hati)"
+    kode_alasan: HBSAG_POSITIVE
+    pesan: "HBsAg positif. Penyakit hati dikecualikan dan debit +25."
+    referensi: "Tabel rating klien (contoh): pembawa hepatitis B = +25 dengan pengecualian hati"
+
+  # --- Ginjal ----------------------------------------------------------------
+  - id: UW-KID-01
+    nama: Fungsi ginjal menurun
+    kondisi: "lab.creatinine >= 1.4 and lab.creatinine <= 2.0"
+    debit: 50
+    kode_alasan: CREATININE_HIGH
+    pesan: "Kreatinin {lab.creatinine} mg/dL."
+    referensi: "Tabel rating klien (contoh): kreatinin 1,4-2,0 = +50"
+  - id: UW-KID-02
+    nama: Gangguan ginjal berat
+    kondisi: "lab.creatinine > 2.0"
+    keputusan: tolak
+    kode_alasan: CREATININE_SEVERE
+    pesan: "Kreatinin {lab.creatinine} mg/dL (gangguan fungsi ginjal berat)."
+    referensi: "Pedoman klien (contoh): kreatinin > 2,0 diusulkan tolak"
+  - id: UW-KID-03
+    nama: Protein urin
+    kondisi: "lab.urine_protein in ('+2', '+3')"
+    debit: 25
+    kode_alasan: PROTEINURIA
+    pesan: "Protein urin {lab.urine_protein}."
+    referensi: "Tabel rating klien (contoh): proteinuria +2 atau lebih = +25"
+
+  # --- Jantung ---------------------------------------------------------------
+  - id: UW-CVD-01
+    nama: Kesan iskemia pada EKG
+    kondisi: "vital.ecg == 'iskemia'"
+    keputusan: tunda
+    kode_alasan: ECG_ISCHEMIA
+    pesan: "EKG saat MCU berkesan iskemia. Tunda sampai ada hasil pemeriksaan jantung lanjutan."
+    referensi: "Pedoman klien (contoh): EKG iskemik ditunda"
+  - id: UW-CVD-02
+    nama: Riwayat penyakit jantung koroner
+    kondisi: "history.heart_disease == True"
+    debit: 100
+    kode_alasan: CAD_HISTORY
+    pesan: "Riwayat penyakit jantung koroner pada kuesioner."
+    referensi: "Tabel rating klien (contoh): PJK stabil > 1 tahun = +100"
+
+  # --- Riwayat lain ----------------------------------------------------------
+  - id: UW-ONC-01
+    nama: Kanker dalam 5 tahun terakhir
+    kondisi: "history.cancer_5y == True"
+    keputusan: tunda
+    kode_alasan: CANCER_RECENT
+    pesan: "Riwayat kanker/tumor ganas dalam 5 tahun terakhir. Tunda sampai 5 tahun bebas penyakit."
+    referensi: "Pedoman klien (contoh): kanker < 5 tahun ditunda"
+  - id: UW-RESP-01
+    nama: Asma
+    kondisi: "history.asthma == True"
+    pengecualian: "Asma dan penyakit saluran napas kronis beserta komplikasinya"
+    kode_alasan: ASTHMA_EXCLUSION
+    pesan: "Riwayat asma pada kuesioner. Asma dan penyakit saluran napas kronis dikecualikan."
+    referensi: "Pedoman klien (contoh): asma terkontrol = pengecualian tanpa debit"
+  - id: UW-PEND-01
+    nama: Menunggu pemeriksaan atau operasi
+    kondisi: "history.pending_treatment == True"
+    keputusan: tunda
+    kode_alasan: PENDING_TREATMENT
+    pesan: "Calon peserta sedang menunggu pemeriksaan lanjutan atau operasi. Tunda sampai selesai."
+    referensi: "Pedoman klien (contoh): investigasi/operasi terjadwal ditunda"
+  - id: UW-PREG-01
+    nama: Sedang hamil
+    kondisi: "history.pregnant == True"
+    keputusan: tunda
+    kode_alasan: PREGNANCY
+    pesan: "Calon peserta sedang hamil. Tunda sampai 3 bulan setelah persalinan."
+    referensi: "Pedoman klien (contoh): kehamilan ditunda"
+  - id: UW-SMK-01
+    nama: Perokok
+    kondisi: "applicant.smoker == True"
+    debit: 25
+    kode_alasan: SMOKER
+    pesan: "Merokok dalam 12 bulan terakhir."
+    referensi: "Tabel rating klien (contoh): perokok = +25"
+  - id: UW-DOC-01
+    nama: Riwayat penyakit tanpa surat dokter
+    kondisi: "(history.hypertension == True or history.diabetes == True or history.heart_disease == True) and doctor.letter == False"
+    catatan: true
+    kode_alasan: DOCTOR_LETTER_MISSING
+    pesan: "Ada riwayat penyakit kronis di kuesioner tetapi surat keterangan dokter tidak dilampirkan."
+    referensi: "Pedoman klien (contoh): penyakit kronis dilampiri surat dokter"

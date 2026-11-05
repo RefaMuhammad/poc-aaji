@@ -1,0 +1,126 @@
+{
+  "case_id": "UW-29",
+  "label": "Data rekaan untuk demonstrasi",
+  "scenario": "hamil",
+  "scenario_desc": "Sedang hamil 20 minggu",
+  "spaj_number": "SPAJ-2026-0029",
+  "spaj_date": "2026-10-29",
+  "agent": "Agen Rekaan 0215",
+  "applicant": {
+    "name": "Sari Rahayu",
+    "sex": "P",
+    "birth_date": "1999-10-09",
+    "age": 27,
+    "occupation": "Pedagang",
+    "city": "Kota Rekaan Barat"
+  },
+  "product": {
+    "name": "Sehat Prima Rawat Inap (rekaan)",
+    "sum_assured": 750000000,
+    "base_premium": 6750000
+  },
+  "questionnaire": [
+    {
+      "code": "Q1",
+      "field": "hypertension",
+      "text": "Hipertensi (tekanan darah tinggi)",
+      "answer": false,
+      "detail": null
+    },
+    {
+      "code": "Q2",
+      "field": "diabetes",
+      "text": "Diabetes melitus (kencing manis)",
+      "answer": false,
+      "detail": null
+    },
+    {
+      "code": "Q3",
+      "field": "heart_disease",
+      "text": "Penyakit jantung koroner / serangan jantung",
+      "answer": false,
+      "detail": null
+    },
+    {
+      "code": "Q4",
+      "field": "cancer_5y",
+      "text": "Kanker/tumor ganas dalam 5 tahun terakhir",
+      "answer": false,
+      "detail": null
+    },
+    {
+      "code": "Q5",
+      "field": "asthma",
+      "text": "Asma atau penyakit paru kronis",
+      "answer": false,
+      "detail": null
+    },
+    {
+      "code": "Q6",
+      "field": "liver_disease",
+      "text": "Hepatitis atau penyakit hati lain",
+      "answer": false,
+      "detail": null
+    },
+    {
+      "code": "Q7",
+      "field": "pending_treatment",
+      "text": "Menunggu pemeriksaan lanjutan / operasi",
+      "answer": false,
+      "detail": null
+    },
+    {
+      "code": "Q8",
+      "field": "pregnant",
+      "text": "Sedang hamil (khusus perempuan)",
+      "answer": true,
+      "detail": "Hamil 20 minggu"
+    },
+    {
+      "code": "Q9",
+      "field": "smoker",
+      "text": "Merokok dalam 12 bulan terakhir",
+      "answer": false,
+      "detail": null
+    }
+  ],
+  "mcu": {
+    "date": "2026-11-04",
+    "height_cm": 156,
+    "weight_kg": 57,
+    "systolic": 128,
+    "diastolic": 81,
+    "pulse": 77,
+    "ecg": "normal",
+    "doctor": "dr. Citra Lestiani",
+    "lab_doctor": "dr. Nur Fadhilah, Sp.PK",
+    "clinic_city": "Kota Rekaan Barat"
+  },
+  "lab": {
+    "fasting_glucose": 80,
+    "hba1c": 5.0,
+    "total_cholesterol": 222,
+    "ldl": 127,
+    "hdl": 51,
+    "triglycerides": 85,
+    "sgot": 15,
+    "sgpt": 20,
+    "creatinine": 1.0,
+    "hbsag": "neg",
+    "urine_protein": "neg"
+  },
+  "documents": [
+    "spaj",
+    "kuesioner_kesehatan",
+    "hasil_mcu",
+    "hasil_lab_uw"
+  ],
+  "scanned_documents": [],
+  "expected": {
+    "risk_class": "POSTPONE",
+    "decision": "POSTPONE",
+    "loading_pct": 0,
+    "exclusions": [],
+    "notes": []
+  }
+}

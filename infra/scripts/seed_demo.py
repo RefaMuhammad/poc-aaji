@@ -24,6 +24,9 @@ Langkah:
    dokter.spesialis2@mab.test (bukan penelaah awal) menelaah ulang dan asuransi memutus ulang.
 11. (U6) Penjadwal laporan dijalankan sekali (laporan bulan lalu untuk tiap tenant + seluruh platform), lalu
    manajer DEMO membuat laporan bulan berjalan supaya halaman Laporan & Audit langsung berisi.
+12. (U7) underwriter@demo.test mengajukan 10 calon peserta sintetis (data/synthetic_output/underwriting).
+   Dokter umum menandatangani 3 draf, underwriter memutus 3 pengajuan, sisanya di antrean dokter/underwriter.
+   UW-24 sengaja belum diunggah untuk demo langsung.
 
 Butuh: `make up` dan `make synthetic` sudah dijalankan. Jalankan di container api:
     docker compose exec api python infra/scripts/seed_demo.py
@@ -441,6 +444,46 @@ def reports_demo() -> None:
     print(f"  laporan {rep['period']} {rep['insurer_name']} dibuat (periode berjalan, revisi {rep['revision']})")
 
 
+UW_DATA = DATA / "underwriting"
+UW_UPLOAD = ["UW-01", "UW-02", "UW-09", "UW-14", "UW-21", "UW-22", "UW-25", "UW-26", "UW-28", "UW-33"]
+UW_LIVE = "UW-24"   # IMT >= 40 + HbA1c tinggi: diunggah langsung saat demo
+UW_SIGN = ["UW-09", "UW-22", "UW-28"]           # dokter umum menyetujui draf
+UW_DECIDE = {"UW-01": "ACCEPT_STANDARD", "UW-09": "ACCEPT_CONDITIONAL", "UW-22": "DECLINE"}
+
+
+def underwriting_demo() -> None:
+    """U7: underwriter mengajukan 10 calon peserta sintetis; sebagian ditandatangani dokter dan diputuskan."""
+    if not UW_DATA.exists():
+        print(f"  {UW_DATA} tidak ada; jalankan ulang `docker compose run --rm --build synthetic`. Langkah U7 dilewati")
+        return
+    uw = Api("underwriter@demo.test")
+    ids: dict[str, str] = {}
+    for case in UW_UPLOAD:
+        folder = UW_DATA / case
+        files = [("files", (p.name, p.read_bytes(), "application/pdf")) for p in sorted(folder.glob("*.pdf"))]
+        ids[case] = uw.post("/underwriting/applications", files=files)["id"]
+    print(f"  {len(ids)} pengajuan diunggah ({UW_LIVE} sengaja belum, untuk demo langsung)")
+    deadline = time.time() + TIMEOUT
+    while True:
+        items = {a["id"]: a for a in uw.get("/underwriting/applications")["items"]}
+        pending = [i for i in ids.values() if items[i]["status"] in ("QUEUED", "PROCESSING")]
+        if not pending:
+            break
+        if time.time() > deadline:
+            sys.exit(f"Pengajuan underwriting belum selesai diproses: {len(pending)}")
+        time.sleep(2)
+    for case, app_id in ids.items():
+        a = items[app_id]
+        print(f"  {case}: {a['recommendation']} ({a['risk_class']}, loading {a['loading_pct']}%) -> {a['status']}")
+    doctor = Api("dokter.umum@mab.test")
+    for case in UW_SIGN:
+        doctor.post(f"/underwriting/applications/{ids[case]}/sign", json={"action": "AGREE", "pin": PIN})
+    print(f"  dokter umum menandatangani {', '.join(UW_SIGN)}")
+    for case, decision in UW_DECIDE.items():
+        uw.post(f"/underwriting/applications/{ids[case]}/decision", json={"decision": decision})
+    print(f"  underwriter memutuskan {', '.join(f'{c} ({d})' for c, d in UW_DECIDE.items())}")
+
+
 def main() -> None:
     print("1. Akun demo")
     # Spesialis kedua baru dibuat di langkah U5, supaya penugasan otomatis kasus merah di langkah awal
@@ -478,6 +521,8 @@ def main() -> None:
     dispute_demo(staf)
     print("10. Laporan bulanan dan audit (U6)")
     reports_demo()
+    print("11. Underwriting medis (U7)")
+    underwriting_demo()
     print(f"\nSelesai. Buka http://localhost:3000 (staf@demo.test / {PASSWORD}).")
     print(f"Klaim {LIVE_DEMO_CLAIM} sengaja belum diunggah ke tenant DEMO untuk diunggah langsung saat demo.")
     print(f"Tenant kedua: {SECOND_TENANT_STAFF} melihat {len(pelita_ids)} klaim Asuransi Pelita (ambang merah 20).")

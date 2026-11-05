@@ -1,0 +1,13 @@
+{% extends "uw/_base.html" %}
+{% block content %}
+<table class="id">
+  <tr><td style="width:32%">Tanggal pengambilan</td><td>: {{ fmt(case.mcu.date) }} (puasa 10 jam)</td></tr>
+</table>
+<table>
+  <tr><th style="width:38%">Pemeriksaan</th><th style="width:18%">Hasil</th><th style="width:14%">Satuan</th><th>Nilai rujukan</th></tr>
+  {% for r in lab_rows %}
+  <tr><td>{{ r.label }}</td><td>{{ r.text }}</td><td>{{ r.unit }}</td><td>{{ r.ref }}</td></tr>
+  {% endfor %}
+</table>
+<div class="sign">Penanggung jawab laboratorium<br><br><br>{{ case.mcu.lab_doctor }}</div>
+{% endblock %}

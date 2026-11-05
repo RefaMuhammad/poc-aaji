@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>{{ title }} - {{ case.spaj_number }}</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 20mm 16mm;
+    @bottom-left { content: "DATA REKAAN - bukan dokumen sungguhan"; font-size: 7pt; color: #999; }
+    @bottom-right { content: "Hal. " counter(page) " / " counter(pages); font-size: 8pt; color: #666; } }
+  body { font-family: "DejaVu Sans", sans-serif; font-size: 9.5pt; color: #111; }
+  .watermark { position: fixed; top: 42%; left: 8%; transform: rotate(-30deg); font-size: 64pt; color: rgba(200, 0, 0, 0.07); font-weight: bold; z-index: -1; }
+  .stamp-rekaan { position: fixed; top: -12mm; right: 0; font-size: 7pt; color: #b00; border: 1px solid #b00; padding: 1px 4px; }
+  header { border-bottom: 2px solid {{ color }}; margin-bottom: 8px; padding-bottom: 4px; }
+  header .org { font-size: 13pt; font-weight: bold; color: {{ color }}; }
+  header .addr { font-size: 8pt; color: #555; }
+  h1 { font-size: 12pt; text-align: center; margin: 6px 0 10px; }
+  h2 { font-size: 10pt; margin: 10px 0 4px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+  th, td { border: 1px solid #999; padding: 3px 5px; text-align: left; vertical-align: top; }
+  th { background: #eef2f6; }
+  table.id td { border: none; padding: 1px 4px; }
+  .sign { margin-top: 24px; text-align: right; }
+  p { margin: 3px 0; }
+</style>
+</head>
+<body>
+<div class="watermark">DATA REKAAN</div>
+<div class="stamp-rekaan">DATA REKAAN</div>
+<header>
+  <div class="org">{{ org }}</div>
+  <div class="addr">{{ org_addr }} &middot; fiktif, untuk demonstrasi</div>
+</header>
+<h1>{{ title }}</h1>
+<table class="id">
+  <tr><td style="width:32%">No. SPAJ</td><td>: {{ case.spaj_number }}</td></tr>
+  <tr><td>Nama calon tertanggung</td><td>: {{ case.applicant.name }}</td></tr>
+</table>
+{% block content %}{% endblock %}
+</body>
+</html>

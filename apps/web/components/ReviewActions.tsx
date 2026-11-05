@@ -16,7 +16,7 @@ interface SignBody {
   explanation_text: string | null;
 }
 
-function PinDialog({ summary, onCancel, onConfirm }: { summary: string; onCancel: () => void; onConfirm: (pin: string) => Promise<void> }) {
+export function PinDialog({ summary, onCancel, onConfirm }: { summary: string; onCancel: () => void; onConfirm: (pin: string) => Promise<void> }) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

@@ -1,0 +1,21 @@
+{% extends "uw/_base.html" %}
+{% block content %}
+<h2>A. Data calon tertanggung</h2>
+<table>
+  <tr><th style="width:35%">Jenis kelamin</th><td>{{ 'Perempuan' if case.applicant.sex == 'P' else 'Laki-laki' }}</td></tr>
+  <tr><th>Tanggal lahir</th><td>{{ fmt(case.applicant.birth_date) }}</td></tr>
+  <tr><th>Pekerjaan</th><td>{{ case.applicant.occupation }}</td></tr>
+  <tr><th>Kota domisili</th><td>{{ case.applicant.city }}</td></tr>
+</table>
+<h2>B. Produk yang diajukan</h2>
+<table>
+  <tr><th style="width:35%">Produk</th><td>{{ case.product.name }}</td></tr>
+  <tr><th>Uang pertanggungan</th><td>Rp {{ num(case.product.sum_assured) }}</td></tr>
+  <tr><th>Premi dasar tahunan</th><td>Rp {{ num(case.product.base_premium) }}</td></tr>
+  <tr><th>Tanggal SPAJ</th><td>{{ fmt(case.spaj_date) }}</td></tr>
+</table>
+<h2>C. Pernyataan</h2>
+<p>Saya menyatakan bahwa keterangan dalam SPAJ dan kuesioner kesehatan ini benar dan lengkap.</p>
+<div class="sign">{{ case.applicant.city }}, {{ fmt(case.spaj_date) }}<br>Calon tertanggung<br><br><br>{{ case.applicant.name }}</div>
+<p style="font-size:8pt;color:#555">Agen: {{ case.agent }}</p>
+{% endblock %}
