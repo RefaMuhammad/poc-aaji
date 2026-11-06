@@ -2,7 +2,7 @@
 
 > **Data rekaan untuk demonstrasi.** Semua pasien, dokter, rumah sakit, dan klaim di sini fiktif.
 
-Dokumen ini menjelaskan apa yang terjadi di dalam web setelah sebuah file diunggah, dan apa output yang terlihat di setiap tahap. Naskah presentasi 10 menit ada di [demo-script.md](demo-script.md); arsitektur teknis di [ARSITEKTUR.md](ARSITEKTUR.md).
+Dokumen ini menjelaskan apa yang terjadi di dalam web setelah sebuah file diunggah, dan apa output yang terlihat di setiap tahap. Naskah demo lengkap semua modul ada di [demo-script.md](demo-script.md); arsitektur teknis di [ARSITEKTUR.md](ARSITEKTUR.md).
 
 ## 0. Menjalankan demo dalam satu jendela browser
 
@@ -204,6 +204,8 @@ Pesan: sistem mempercepat klaim yang wajar. Pemeriksaan dokter dipusatkan pada k
 Pesan: AI tidak boleh menebak. Kalau datanya meragukan, klaim naik ke dokter.
 
 ### Skenario 5 · Dokumen tidak lengkap (SYN-TIF-10)
+
+> Sejak U4, seed sudah menjalankan langkah 1–5 ini (dokter menunda, asuransi meminta rincian tagihan). Lanjutan alurnya, yaitu faskes mengunggah dokumen susulan, ada di [demo-script.md](demo-script.md) Skenario 13.
 
 1. **Dokter umum** → **Antrean telaah** → SYN-TIF-10 (tifoid, hanya 3 dokumen).
 2. **Output:** temuan **Dokumen wajib tidak ada** (GEN-03, kode `DOC_MISSING`): rincian tagihan belum dilampirkan. Triase **Kuning**, draf **Tunda: minta dokumen / klarifikasi** dengan tindak lanjut meminta dokumen.
