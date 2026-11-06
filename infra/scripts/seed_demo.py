@@ -410,7 +410,13 @@ def dispute_demo(staf: Api) -> None:
         return
     sp = Api("dokter.spesialis@mab.test")
     if claim["status"] == "AWAITING_DOCTOR":
-        ws = sp.get(f"/review/{claim['id']}")
+        try:
+            ws = sp.get(f"/review/{claim['id']}")
+        except httpx.HTTPStatusError as e:
+            # Kasus kuning (mis. tanpa OCR halaman pindaian) ditugaskan ke dokter umum dan belum terlihat spesialis.
+            if e.response.status_code != 404:
+                raise
+            ws = {"can_start": False, "level": "GP"}
         if not ws.get("can_start") and ws.get("level") == "GP":
             gp = Api("dokter.umum@mab.test")
             gp.post(f"/review/{claim['id']}/start")

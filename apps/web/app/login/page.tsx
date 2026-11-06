@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiJson, saveSession } from "@/lib/api";
 import type { User } from "@/lib/types";
 import { homeFor } from "@/lib/format";
+import { DemoResetProgress } from "@/components/DemoReset";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,6 +13,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,7 +34,8 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="flex min-h-[80vh] items-center justify-center px-4">
+    <main className="flex min-h-[80vh] flex-col items-center justify-center gap-4 px-4">
+      <DemoResetProgress onRunningChange={setResetting} />
       <form onSubmit={submit} className="card w-full max-w-sm space-y-4">
         <div>
           <h1 className="text-lg font-semibold">MAB Indonesia</h1>
@@ -47,7 +50,7 @@ export default function LoginPage() {
           <input id="password" type="password" className="input mt-1" value={password} onChange={(e) => setPassword(e.target.value)} required />
         </div>
         {error && <p className="text-sm text-rose-700">{error}</p>}
-        <button type="submit" className="btn-primary w-full" disabled={busy}>
+        <button type="submit" className="btn-primary w-full" disabled={busy || resetting}>
           {busy ? "Masuk…" : "Masuk"}
         </button>
       </form>

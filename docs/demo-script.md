@@ -99,7 +99,7 @@ Sebagian skenario mengubah data dan hanya bisa dijalankan sekali per seed:
 | 16 | UW-24 hanya bisa diunggah sekali |
 | 18 | Akun yang dipakai uji kunci login terkunci 15 menit |
 
-Untuk mengulang semuanya dari awal, jalankan lagi perintah di langkah 1.
+Untuk mengulang semuanya dari awal, pakai tombol **Reset data demo**: login `admin@mab.test` (atau **Ganti peran → 5. Admin MAB**), buka **Aturan & pengguna**, klik **Reset data demo** → **Ya, hapus dan isi ulang**. Semua data dihapus lalu diisi ulang seperti setelah seed. Halaman login menampilkan progresnya (beberapa menit); setelah selesai, login lagi. Cara terminal (perintah di langkah 1) tetap bisa dipakai, terutama setelah `git pull` yang mengubah kode atau data sintetis.
 
 ---
 
@@ -431,13 +431,14 @@ Poin yang bisa disampaikan di akhir demo:
 
 | Masalah saat demo | Tindakan cepat |
 |---|---|
-| SYN-DEN-09 sudah ada di daftar DEMO | Sudah diunggah sebelumnya. Pakai SYN-DEN-08 (antrean spesialis) untuk alur dokter, atau reset (Persiapan langkah 1). |
+| SYN-DEN-09 sudah ada di daftar DEMO | Sudah diunggah sebelumnya. Pakai SYN-DEN-08 (antrean spesialis) untuk alur dokter, atau klik **Reset data demo** di halaman admin. |
 | Klaim lama di "Diproses" | Worker sedang OCR; tunggu beberapa detik. Cek `docker compose logs -f worker`. |
 | Klaim "Gagal diproses" | Pastikan nomor klaim persis `SYN-DEN-09` (mode mock mencari jawaban berdasarkan nomor klaim). |
 | Antrean dokter kosong | Pastikan akunnya tepat: kuning ke dokter umum, merah ke spesialis, banding ke spesialis kedua. |
 | Klaim tidak ada di antrean yang disebut | Hasil OCR bisa sedikit berbeda di mesin lain. Cari di **Daftar klaim** sebagai Admin MAB. |
 | SYN-TIF-10 tidak muncul lagi setelah dokumen susulan | Tunggu worker sampai satu menit, lalu muat ulang. Cek `docker compose logs -f worker`. |
-| Tombol "Ajukan banding" tidak ada | SYN-GEA-06 sudah pernah dibanding. Reset untuk mengulang. |
-| UW-24 ditolak saat diunggah | Sudah diunggah sebelumnya. Reset untuk mengulang. |
+| Tombol "Ajukan banding" tidak ada | SYN-GEA-06 sudah pernah dibanding. Klik **Reset data demo** di halaman admin. |
+| UW-24 ditolak saat diunggah | Sudah diunggah sebelumnya. Klik **Reset data demo** di halaman admin. |
 | File `api_key_PELITA.txt` atau ZIP demo tidak ada | Jalankan ulang seed, atau `make_demo_zip.py` untuk ZIP. |
+| Reset data demo gagal | Halaman login menampilkan pesan dan potongan log. Biasanya worker belum jalan atau data sintetis belum dibuat. Cek `docker compose logs -f worker`, lalu pakai cara terminal di Persiapan langkah 1. |
 | "Terlalu banyak percobaan login gagal" | Akun dikunci 15 menit setelah 5 password salah (PIN dokter juga). Buka kuncinya: `docker compose exec redis sh -c "redis-cli --scan --pattern 'mab:fail:*' \| xargs -r redis-cli del"`. |
