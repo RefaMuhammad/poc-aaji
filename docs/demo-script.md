@@ -115,7 +115,7 @@ Untuk mengulang semuanya dari awal, pakai tombol **Reset data demo**: login `adm
 | 6 | Eskalasi dokter umum ke spesialis | Inti | Dokter umum, spesialis | SYN-DEN-08 |
 | 7 | Komplikasi ditagih tanpa bukti | Inti | Dokter spesialis, staf | SYN-TIF-08 |
 | 8 | Asuransi berbeda dari rekomendasi | Inti | Staf, manajer | SYN-DEN-07 |
-| 9 | Aturan klinis berversi | Inti | Admin | Halaman Aturan |
+| 9 | Halaman admin: aturan, pengguna, kotak masuk, reset | Inti | Admin | Aturan & pengguna |
 | 10 | Dua asuransi, peran, dan API key | U1 | Admin, staf Pelita, TPA, auditor | Tenant DEMO & PELITA |
 | 11 | Polis, benefit, dan integrasi | U2 | Staf Pelita, spesialis | SYN-GEA-02, SYN-DEN-02 Pelita |
 | 12 | Fraud Monitor | U3 | Manajer | Riwayat klaim |
@@ -125,6 +125,27 @@ Untuk mengulang semuanya dari awal, pakai tombol **Reset data demo**: login `adm
 | 16 | Underwriting medis calon peserta | U7 | Underwriter, dokter umum | UW-24, UW-21 |
 | 17 | Dashboard dan metrik | Inti, U5 | Manajer | Semua |
 | 18 | Kesiapan produksi | U8 | Terminal + browser | Health, backup, kunci login |
+
+## Peta halaman
+
+Setiap menu di portal muncul di skenario berikut. Menu yang terlihat bergantung pada peran; admin melihat paling banyak.
+
+| Menu | Peran yang melihat | Skenario |
+|---|---|---|
+| **Aturan & pengguna** | Admin | 9 (aturan klinis, aturan benefit, daftar pengguna, tombol **Reset data demo**) |
+| **Tenant & API key** | Admin | 10 |
+| **Daftar klaim** dan detail klaim | Staf, manajer, TPA, dokter, auditor, admin | 1, 3, 5, 7, 8, 10, 13, 14 |
+| **Unggah klaim** | Staf, manajer, TPA | 1, 2, 10 |
+| **Antrean telaah** | Dokter umum, dokter spesialis | 1, 4, 5, 6, 7, 10, 13, 14 |
+| **Polis** | Staf, manajer, TPA, auditor, admin | 11 |
+| **Dashboard** | Staf, manajer, TPA, auditor, admin | 8, 14, 17 |
+| **Fraud Monitor** | Staf, manajer, TPA, auditor, admin | 12 |
+| **Laporan & Audit** | Manajer, auditor, admin | 15 |
+| **Underwriting** | Underwriter, dokter, auditor, admin | 16 |
+| **Kotak masuk** | Semua peran | 13 (peserta dan staf), juga dijelaskan di Skenario 9 |
+| **Klaim rumah sakit** (portal faskes) | Petugas faskes | 13, 14 |
+| **Klaim saya** (portal peserta) | Peserta | 13 |
+| **Ringkasan TPA** | Operator TPA | 13 |
 
 ## Urutan yang disarankan
 
@@ -270,12 +291,16 @@ Untuk menunjukkan eskalasi secara langsung: **Dokter umum** → buka klaim kunin
 
 > *"MAB memberi rekomendasi; keputusan akhir milik asuransi dan tercatat lengkap."*
 
-## Skenario 9 · Aturan klinis berversi
+## Skenario 9 · Halaman admin: aturan, pengguna, kotak masuk, reset
 
 1. **Ganti peran → 5. Admin MAB** → **Aturan & pengguna**.
-2. Tunjukkan aturan klinis per penyakit (dengue, tifoid, gastroenteritis), aturan benefit, dan versinya (mis. `rules-2026.11-demo`).
+2. Tunjukkan versi aturan aktif (mis. `rules-2026.11-demo`) dan statusnya (draf demo, belum divalidasi dokter), lalu urutan **aturan triase**, **aturan umum**, aturan per penyakit (dengue, tifoid, gastroenteritis) dengan kode alasan, keparahan, dan rujukan pedomannya, serta **aturan benefit polis**.
 
-> *"Aturan klinis adalah file konfigurasi berversi. Dokter MAB bisa mengubah ambang tanpa mengubah kode, dan setiap rekomendasi mencatat versi aturan yang dipakai."*
+> *"Aturan klinis adalah file konfigurasi berversi. Dokter MAB bisa mengubah ambang tanpa mengubah kode, dan setiap rekomendasi mencatat versi aturan yang dipakai. Penyesuaian per asuransi diatur di Tenant & API key (Skenario 10)."*
+
+3. Gulir ke bagian **Pengguna**: semua akun demo dengan peran dan asuransinya. Ini menunjukkan pemisahan peran (staf, dokter, manajer, auditor, faskes, peserta, underwriter, TPA).
+4. Buka **Kotak masuk**. Isinya email notifikasi yang disimulasikan selama demo (tidak benar-benar dikirim), mis. permintaan dokumen, dokumen susulan diterima, keputusan banding. Setiap akun hanya melihat emailnya sendiri, jadi kotak masuk admin bisa kosong. Contoh yang berisi ada di Skenario 13 (peserta dan staf klaim).
+5. Kartu **Reset data demo** di halaman yang sama dipakai untuk mengulang demo dari awal (lihat Persiapan bagian 4). Jangan diklik di tengah demo, karena semua data dan sesi login ikut terhapus.
 
 ---
 
