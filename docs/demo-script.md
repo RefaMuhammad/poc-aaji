@@ -123,6 +123,11 @@ Langkah rinci dan output setiap variasi ada di [skenario-unggah.md](skenario-ung
 - **Dokumen tidak lengkap:** SYN-TIF-10 (antrean dokter umum) berstatus kuning dengan rekomendasi tunda dan tindak lanjut "minta dokumen" karena rincian tagihan tidak dilampirkan.
 - **Kehati-hatian kualitas data:** SYN-DEN-06 sebenarnya wajar, tetapi dinaikkan ke kuning karena ada catatan kualitas data pada dokumen pindaian. Kalau ragu, klaim tidak boleh hijau.
 - **Rekomendasi bertanda tangan:** buka SYN-DEN-07 sebagai staf; dokter spesialis mengubah draf menjadi bayar sebagian.
+- **Kesiapan produksi (U8), untuk audiens teknis/TI:**
+  1. Buka http://localhost:8000/health/ready: database, Redis, dan penyimpanan dokumen semuanya `ok`.
+  2. Di terminal: `docker compose run --rm ops backup`, lalu `docker compose run --rm ops list`. Jelaskan bahwa backup berisi database dan semua dokumen dengan checksum, dan sudah diuji dipulihkan (lihat [runbook-operasi.md](runbook-operasi.md)).
+  3. Tunjukkan penguncian login: salah password 5 kali dengan akun `peserta@demo.test`, dan percobaan berikutnya ditolak meski password benar. Jangan pakai akun yang masih dibutuhkan untuk demo, karena kuncinya berlaku 15 menit.
+  4. Sebutkan bahwa staging di cloud tinggal menunggu pilihan penyedia, dan data sungguhan baru masuk setelah [checklist UU PDP](u8-checklist-uu-pdp.md) disetujui.
 
 ## Bila ada yang tidak berjalan
 
@@ -132,3 +137,4 @@ Langkah rinci dan output setiap variasi ada di [skenario-unggah.md](skenario-ung
 | Klaim lama di "Diproses" | Worker sedang OCR; tunggu beberapa detik. Cek `docker compose logs -f worker`. |
 | Klaim "Gagal diproses" | Pastikan nomor klaim persis `SYN-DEN-09` (mode mock mencari jawaban berdasarkan nomor klaim). |
 | Antrean dokter kosong | Pastikan login sebagai dokter yang tepat: kuning → dokter umum, merah → spesialis. |
+| "Terlalu banyak percobaan login gagal" | Akun dikunci 15 menit setelah 5 password salah (PIN dokter juga). Buka kuncinya: `docker compose exec redis sh -c "redis-cli --scan --pattern 'mab:fail:*' \| xargs -r redis-cli del"`. |
