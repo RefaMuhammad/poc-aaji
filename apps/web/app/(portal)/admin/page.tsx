@@ -5,6 +5,7 @@ import { apiJson } from "@/lib/api";
 import type { RulesetInfo, RulesetRule, User } from "@/lib/types";
 import { REASON_LABEL, RECOMMENDATION_LABEL, ROLE_LABEL, SEVERITY_LABEL } from "@/lib/format";
 import { TriageBadge } from "@/components/Badges";
+import { DemoResetCard } from "@/components/DemoReset";
 
 function RuleTable({ rules }: { rules: RulesetRule[] }) {
   return (
@@ -55,6 +56,8 @@ export default function AdminPage() {
         </p>
       </div>
       {error && <div className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</div>}
+
+      <DemoResetCard />
 
       {rs && (
         <section className="space-y-4">

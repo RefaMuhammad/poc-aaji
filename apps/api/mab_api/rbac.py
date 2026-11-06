@@ -40,6 +40,7 @@ class Perm(str, Enum):
     UW_SUBMIT = "underwriting.submit"      # U7: ajukan calon peserta (unggah SPAJ dan dokumen kesehatan)
     UW_DECIDE = "underwriting.decide"      # U7: keputusan underwriting akhir
     UW_SIGN = "underwriting.sign"          # U7: dokter menelaah dan menandatangani rekomendasi underwriting
+    DEMO_RESET = "demo.reset"              # kosongkan semua data dan isi ulang data demo (hanya mode demo)
 
 
 _OPERATOR = {Perm.CLAIM_LIST, Perm.CLAIM_DETAIL, Perm.CLAIM_SUBMIT, Perm.CLAIM_DECIDE, Perm.CLAIM_EXPORT,
@@ -68,7 +69,7 @@ ROLE_PERMS: dict[Role, frozenset[Perm]] = {
                            Perm.TENANT_VIEW, Perm.TENANT_ADMIN, Perm.USER_ADMIN, Perm.ASSIGN_ADMIN,
                            Perm.POLICY_VIEW, Perm.POLICY_MANAGE, Perm.FRAUD_VIEW, Perm.FRAUD_MANAGE,
                            Perm.TPA_OVERVIEW, Perm.DISPUTE_VIEW, Perm.AUDIT_VIEW, Perm.REPORT_VIEW,
-                           Perm.REPORT_GENERATE, Perm.UW_VIEW}),
+                           Perm.REPORT_GENERATE, Perm.UW_VIEW, Perm.DEMO_RESET}),
 }
 
 # Peran yang boleh melihat draf AI sebelum ditandatangani dokter. Selain ini hanya melihat

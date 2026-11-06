@@ -136,7 +136,9 @@ Naskah demo lengkap tanpa batas durasi, berisi 18 skenario langkah demi langkah 
 | Backup database + dokumen (U8) | `make backup` | `docker compose run --rm ops backup` |
 | Daftar backup | `make backups` | `docker compose run --rm ops list` |
 
-**Reset demo** menghapus database dan file dokumen lokal lalu mengisi ulang data demo. Dengan Git Bash: `bash infra/scripts/reset_demo.sh` (minta konfirmasi). Di PowerShell:
+**Reset demo** menghapus database dan file dokumen lokal lalu mengisi ulang data demo. Cara termudah: login `admin@mab.test`, buka **Aturan & pengguna**, klik **Reset data demo** lalu **Ya, hapus dan isi ulang**. Semua klaim, dokumen, telaah, keputusan, banding, underwriting, laporan, dan log audit dihapus, lalu seed dijalankan ulang (beberapa menit). Progresnya tampil di halaman login, dan semua pengguna login ulang setelahnya. Tombol ini hanya ada bila `DEMO_MODE=true` dan `REAL_DATA_ENABLED=false`, dan butuh data sintetis yang sudah dibuat (`docker compose run --rm synthetic`).
+
+Lewat terminal (juga dipakai bila container perlu dibangun ulang). Dengan Git Bash: `bash infra/scripts/reset_demo.sh` (minta konfirmasi). Di PowerShell:
 
 ```powershell
 docker compose down -v

@@ -75,6 +75,17 @@ class S3Storage:
     def get(self, key: str) -> bytes:
         return self.client.get_object(Bucket=self.bucket, Key=key)["Body"].read()
 
+    def clear(self) -> int:
+        """Hapus semua objek di bucket (reset demo). Mengembalikan jumlah objek."""
+        self._ensure_bucket()
+        removed = 0
+        for page in self.client.get_paginator("list_objects_v2").paginate(Bucket=self.bucket):
+            keys = [{"Key": o["Key"]} for o in page.get("Contents", [])]
+            if keys:
+                self.client.delete_objects(Bucket=self.bucket, Delete={"Objects": keys, "Quiet": True})
+                removed += len(keys)
+        return removed
+
 
 class MemoryStorage:
     def __init__(self) -> None:
@@ -85,3 +96,8 @@ class MemoryStorage:
 
     def get(self, key: str) -> bytes:
         return self.objects[key][0]
+
+    def clear(self) -> int:
+        n = len(self.objects)
+        self.objects.clear()
+        return n

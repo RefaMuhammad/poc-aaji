@@ -9,7 +9,7 @@ from mab_api.audit import AuditMiddleware
 from mab_api.config import get_settings
 from mab_api.observability import RequestContextMiddleware, refresh_queue_metrics, render_metrics, setup_logging
 from mab_api.ratelimit import FailureLimiter
-from mab_api.routers import admin, auth, claims, dashboard, disputes, documents, fraud, integrations, policies, portal, reports, review, tenants, underwriting, users
+from mab_api.routers import admin, auth, claims, dashboard, demo_reset, disputes, documents, fraud, integrations, policies, portal, reports, review, tenants, underwriting, users
 
 
 log = logging.getLogger(__name__)
@@ -119,6 +119,7 @@ def create_app(*, session_factory=None, storage=None, job_queue=None, limiter=No
     app.include_router(disputes.router)
     app.include_router(reports.router)
     app.include_router(underwriting.router)
+    app.include_router(demo_reset.router)
     return app
 
 
